@@ -1,5 +1,7 @@
 """Example demonstrating the new Attribute-based API."""
 
+from __future__ import annotations
+
 from typing import ClassVar
 
 from type_bridge import (
@@ -62,24 +64,23 @@ class IsActive(Boolean):
 
 # Step 2: Define entities that OWN these attributes with Flag annotations
 class Person(Entity):
-    """Person entity that owns name (as key), age, and email attributes."""
+    """Person entity with Flag annotations."""
 
     flags = EntityFlags(type_name="person")
 
-    # Type annotations with Flag for ownership metadata
-    name: Name = Flag(Key, Card(1))  # Person owns 'name' as @key @card(1,1) - exactly one
-    age: Age = Flag(Card(0, 1))  # Person owns 'age' @card(0,1) - zero or one (optional)
-    email: Email  # Person owns 'email' with no special annotations
-    score: Score = Flag(Card(1))  # Person owns 'score' @card(1,1) - exactly one
+    name: Name = Flag(Key, Card(1))  # @key @card(1,1) - exactly one
+    age: Age = Flag(Card(0, 1))  # @card(0,1) - zero or one (optional)
+    email: Email = Flag(Card(1))  # @card(1,1) - exactly one
+    score: Score  # No special flags
 
 
 class Company(Entity):
-    """Company entity that owns name (as key) and industry attributes."""
+    """Company entity with Flag annotations."""
 
     flags = EntityFlags(type_name="company")
 
-    name: Name = Flag(Key, Card(1))  # Company owns 'name' as @key @card(1,1) - exactly one
-    industry: Industry = Flag(Card(max=5))  # Company can have 1-5 industries
+    name: Name = Flag(Key, Card(1))  # @key @card(1,1) - exactly one
+    industry: Industry = Flag(Card(max=5))  # @card(1,5) - one to five
 
 
 # Step 3: Define relations that OWN attributes
@@ -92,9 +93,9 @@ class Employment(Relation):
     employee: ClassVar[Role] = Role("employee", Person)
     employer: ClassVar[Role] = Role("employer", Company)
 
-    # Owned attributes
-    position: Position = Flag(Card(1))  # Employment owns 'position' @card(1,1) - exactly one
-    salary: Salary = Flag(Card(0, 1))  # Employment owns 'salary' @card(0,1) - optional
+    # Owned attributes using default value syntax
+    position: Position = Flag(Card(1))  # @card(1,1)
+    salary: Salary = Flag(Card(0, 1))  # @card(0,1)
 
 
 def demonstrate_schema_generation():

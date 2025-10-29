@@ -29,15 +29,10 @@ class Age(Long):
 class Person(Entity):
     flags = EntityFlags(type_name="person")  # Optional, defaults to class name
 
-    # Two equivalent syntaxes supported:
-
-    # Style 1: Annotated (Pydantic-style, better for type checkers)
-    name: Annotated[Name, Flag(Key, Card(1))]  # @key @card(1,1)
-    age: Annotated[Age, Flag(Card(0, 1))]       # @card(0,1)
-
-    # Style 2: Default value (cleaner syntax)
-    # name: Name = Flag(Key, Card(1))
-    # age: Age = Flag(Card(0, 1))
+    # Use Flag() as default value to specify attribute annotations
+    name: Name = Flag(Key, Card(1))  # @key @card(1,1)
+    age: Age = Flag(Card(0, 1))      # @card(0,1)
+    email: Email                      # No special flags
 ```
 
 ## Key Components
@@ -76,6 +71,60 @@ class Boolean(Attribute):
 class DateTime(Attribute):
     value_type = "datetime"
 ```
+
+**Tip**: Combine with `Literal` for type-safe enum-like values:
+```python
+from typing import Literal
+
+class Status(String):
+    pass
+
+# Type checker provides autocomplete for "active", "inactive", "pending"
+status: Literal["active", "inactive", "pending"] | Status
+```
+
+**Type Checker Support**: TypeBridge automatically rewrites field annotations at runtime to support Pydantic validation:
+
+When you write:
+```python
+class Name(String):
+    pass
+
+class Person(Entity):
+    name: Name  # You write this
+```
+
+TypeBridge automatically converts it to (at runtime):
+```python
+name: str | Name  # Runtime annotation after __init_subclass__
+```
+
+This happens during class creation in `__init_subclass__`, so:
+- `String` subclass fields become `str | FieldType`
+- `Long` subclass fields become `int | FieldType`
+- `Double` subclass fields become `float | FieldType`
+- `Boolean` subclass fields become `bool | FieldType`
+- `DateTime` subclass fields become `datetime | FieldType`
+
+### Pyright Support
+
+TypeBridge includes `.pyi` type stub files that tell Pyright the correct signatures for `Entity` and `Relation` `__init__` methods. This means:
+
+✅ **No Pyright warnings** when passing base types:
+```python
+class Name(String):
+    pass
+
+class Person(Entity):
+    name: Name
+
+# No warnings - Pyright understands this works!
+alice = Person(name="Alice", age=30)
+```
+
+The type stubs declare `__init__(**kwargs: Any)`, which tells Pyright that any keyword arguments are accepted. This matches the runtime behavior where TypeBridge automatically rewrites annotations to union types.
+
+**Note**: If you already use a union type (e.g., `Literal["x"] | Status`), TypeBridge won't modify it.
 
 ### 3. Entity Ownership Model (`models.py`)
 
@@ -137,15 +186,13 @@ class Position(String):
 class Person(Entity):
     flags = EntityFlags(type_name="person")
 
-    # Using Annotated syntax (recommended for better type checking)
-    name: Annotated[Name, Flag(Key, Card(1))]   # @key @card(1,1)
-    age: Annotated[Age, Flag(Card(0, 1))]        # @card(0,1)
-    email: Email                                  # No special flags
+    name: Name = Flag(Key, Card(1))   # @key @card(1,1)
+    age: Age = Flag(Card(0, 1))       # @card(0,1)
+    email: Email = Flag(Card(1))      # @card(1,1)
 
 class Company(Entity):
     flags = EntityFlags(type_name="company")
 
-    # Or use default value syntax (cleaner but less explicit)
     name: Name = Flag(Key, Card(1))  # @key @card(1,1)
 
 # Define relations with attribute ownership
@@ -325,6 +372,105 @@ This will demonstrate:
 - Attribute introspection
 - Full TypeDB schema generation
 
+## Literal Types for Type Safety
+
+TypeBridge supports Python's `Literal` types to provide type-checker hints for enum-like values while maintaining runtime flexibility:
+
+```python
+from typing import Literal
+from type_bridge import Entity, EntityFlags, String, Long
+
+class Status(String):
+    pass
+
+class Priority(Long):
+    pass
+
+class Task(Entity):
+    flags = EntityFlags(type_name="task")
+    # Type checkers see Literal and provide autocomplete/warnings
+    status: Literal["pending", "active", "completed"] | Status
+    priority: Literal[1, 2, 3, 4, 5] | Priority
+
+# Valid literal values work
+task1 = Task(status="pending", priority=1)  # IDE autocompletes status values
+
+# Runtime accepts any valid type (type checker would flag these)
+task2 = Task(status="custom_status", priority=999)  # Works at runtime
+```
+
+**Key Points:**
+- **Type-checker safety**: IDEs and type checkers provide autocomplete and warnings for literal values
+- **Runtime flexibility**: Pydantic accepts any value matching the Attribute type (any string for String, any int for Long)
+- **Best of both worlds**: Get IDE benefits without restricting runtime behavior
+
+This pattern is particularly useful for:
+- Enum-like values that may evolve over time
+- Status fields with common values but flexibility for custom states
+- Priority levels with recommended ranges
+- Type-safe API parameters with graceful handling of unexpected values
+
+## Pydantic Integration
+
+TypeBridge v0.1.2+ is built on **Pydantic v2**, providing powerful validation and serialization features:
+
+### Features
+
+1. **Automatic Type Validation**
+   - Values are automatically validated and coerced to the correct type
+   - Invalid data raises clear validation errors
+
+2. **JSON Serialization/Deserialization**
+   - Convert entities to/from JSON with `.model_dump_json()` and `.model_validate_json()`
+   - Convert to/from dicts with `.model_dump()` and `Model(**dict)`
+
+3. **Model Copying**
+   - Create modified copies with `.model_copy(update={...})`
+   - Deep copying supported
+
+4. **Validation on Assignment**
+   - Field assignments are automatically validated
+   - Type coercion happens on both initialization and assignment
+
+### Example
+
+```python
+from type_bridge import Entity, EntityFlags, String, Long
+
+class Name(String):
+    pass
+
+class Age(Long):
+    pass
+
+class Person(Entity):
+    flags = EntityFlags(type_name="person")
+    name: Name
+    age: Age = 0  # Default value
+
+# Automatic validation and coercion
+alice = Person(name="Alice", age="30")  # "30" coerced to int 30
+assert isinstance(alice.age, int)
+
+# JSON serialization
+json_data = alice.model_dump_json()
+# {"name":"Alice","age":30}
+
+# JSON deserialization
+bob = Person.model_validate_json('{"name":"Bob","age":25}')
+
+# Model copying
+alice_older = alice.model_copy(update={"age": 31})
+```
+
+### Configuration
+
+Entity and Relation classes are configured with:
+- `arbitrary_types_allowed=True`: Allow Attribute subclass types
+- `validate_assignment=True`: Validate field assignments
+- `extra='allow'`: Allow extra fields for flexibility
+- `ignored_types`: Ignore TypeBridge-specific types (EntityFlags, RelationFlags, Role)
+
 ## Implementation Status
 
 1. ✅ Implement core Attribute system
@@ -332,10 +478,12 @@ This will demonstrate:
 3. ✅ Implement Card cardinality constraints
 4. ✅ Implement Flag annotation system (Key, Unique, Card)
 5. ✅ Support Python inheritance for supertypes
-6. ✅ Create comprehensive examples
-7. ✅ Write comprehensive tests
-8. ✅ Update documentation and README
+6. ✅ Integrate Pydantic v2 for validation and serialization
+7. ✅ Add Literal type support for type-safe enum-like values
+8. ✅ Create comprehensive examples
+9. ✅ Write comprehensive tests
+10. ✅ Update documentation and README
 
 ## Conclusion
 
-The new Attribute-based API provides a more accurate representation of TypeDB's type system, making it clearer how attributes, entities, and relations work together. This design is more maintainable and aligns better with TypeDB's philosophy of treating attributes as first-class types.
+The new Attribute-based API with Pydantic integration provides a more accurate representation of TypeDB's type system, making it clearer how attributes, entities, and relations work together. The Pydantic integration adds powerful validation, serialization, and type safety features while maintaining full compatibility with TypeDB operations. This design is more maintainable and aligns better with TypeDB's philosophy of treating attributes as first-class types.

@@ -2,9 +2,20 @@
 
 from abc import ABC
 from dataclasses import dataclass
-from typing import Any, ClassVar, get_args, get_origin
+from datetime import datetime as datetime_type
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, Literal, Protocol, TypeVar, Union, get_args, get_origin
 from typing_extensions import Annotated
 
+from pydantic import GetCoreSchemaHandler
+from pydantic_core import core_schema
+
+# TypeVars for proper type checking
+# bound= tells type checkers these types accept their base types
+StrValue = TypeVar('StrValue', bound=str)
+IntValue = TypeVar('IntValue', bound=int)
+FloatValue = TypeVar('FloatValue', bound=float)
+BoolValue = TypeVar('BoolValue', bound=bool)
+DateTimeValue = TypeVar('DateTimeValue', bound=datetime_type)
 
 @dataclass
 class EntityFlags:
@@ -127,8 +138,8 @@ class Attribute(ABC):
         return definition + ";"
 
 
-class String(Attribute):
-    """String attribute type.
+class String(Attribute, Generic[StrValue]):
+    """String attribute type that accepts str values.
 
     Example:
         class Name(String):
@@ -136,13 +147,42 @@ class String(Attribute):
 
         class Email(String):
             pass
+
+        # With Literal for type safety
+        class Status(String):
+            pass
+
+        status: Literal["active", "inactive"] | Status
     """
 
     value_type: ClassVar[str] = "string"
 
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        """Pydantic validation: accept str values, Literal types, or attribute instances."""
+        # Check if source_type is a Literal type
+        if get_origin(source_type) is Literal:
+            # Extract literal values
+            literal_values = get_args(source_type)
+            # Convert tuple to list for literal_schema
+            return core_schema.union_schema([
+                core_schema.literal_schema(list(literal_values)),
+                core_schema.is_instance_schema(cls),
+            ])
 
-class Long(Attribute):
-    """Long integer attribute type.
+        # Default: accept str or attribute instance
+        return core_schema.union_schema([
+            core_schema.str_schema(),
+            core_schema.is_instance_schema(cls),
+        ])
+
+
+
+
+class Long(Attribute, Generic[IntValue]):
+    """Long integer attribute type that accepts int values.
 
     Example:
         class Age(Long):
@@ -150,13 +190,45 @@ class Long(Attribute):
 
         class Count(Long):
             pass
+
+        # With Literal for type safety
+        class Priority(Long):
+            pass
+
+        priority: Literal[1, 2, 3] | Priority
     """
 
     value_type: ClassVar[str] = "long"
 
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        """Pydantic validation: accept int values, Literal types, or attribute instances."""
+        # Check if source_type is a Literal type
+        if get_origin(source_type) is Literal:
+            # Extract literal values
+            literal_values = get_args(source_type)
+            # Convert tuple to list for literal_schema
+            return core_schema.union_schema([
+                core_schema.literal_schema(list(literal_values)),
+                core_schema.is_instance_schema(cls),
+            ])
 
-class Double(Attribute):
-    """Double precision float attribute type.
+        # Default: accept int or attribute instance
+        return core_schema.union_schema([
+            core_schema.int_schema(),
+            core_schema.is_instance_schema(cls),
+        ])
+
+    @classmethod
+    def __class_getitem__(cls, item: Any) -> type["Long"]:
+        """Allow generic subscription for type checking (e.g., Long[int])."""
+        return cls
+
+
+class Double(Attribute, Generic[FloatValue]):
+    """Double precision float attribute type that accepts float values.
 
     Example:
         class Price(Double):
@@ -168,9 +240,25 @@ class Double(Attribute):
 
     value_type: ClassVar[str] = "double"
 
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        """Pydantic validation: accept float values directly."""
+        # Use union schema to accept both float and the attribute type
+        return core_schema.union_schema([
+            core_schema.float_schema(),
+            core_schema.is_instance_schema(cls),
+        ])
 
-class Boolean(Attribute):
-    """Boolean attribute type.
+    @classmethod
+    def __class_getitem__(cls, item: Any) -> type["Double"]:
+        """Allow generic subscription for type checking (e.g., Double[float])."""
+        return cls
+
+
+class Boolean(Attribute, Generic[BoolValue]):
+    """Boolean attribute type that accepts bool values.
 
     Example:
         class IsActive(Boolean):
@@ -182,9 +270,25 @@ class Boolean(Attribute):
 
     value_type: ClassVar[str] = "boolean"
 
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        """Pydantic validation: accept bool values directly."""
+        # Use union schema to accept both bool and the attribute type
+        return core_schema.union_schema([
+            core_schema.bool_schema(),
+            core_schema.is_instance_schema(cls),
+        ])
 
-class DateTime(Attribute):
-    """DateTime attribute type.
+    @classmethod
+    def __class_getitem__(cls, item: Any) -> type["Boolean"]:
+        """Allow generic subscription for type checking (e.g., Boolean[bool])."""
+        return cls
+
+
+class DateTime(Attribute, Generic[DateTimeValue]):
+    """DateTime attribute type that accepts datetime values.
 
     Example:
         class CreatedAt(DateTime):
@@ -195,6 +299,23 @@ class DateTime(Attribute):
     """
 
     value_type: ClassVar[str] = "datetime"
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        """Pydantic validation: accept datetime values directly."""
+        from datetime import datetime as dt
+        # Use union schema to accept both datetime and the attribute type
+        return core_schema.union_schema([
+            core_schema.datetime_schema(),
+            core_schema.is_instance_schema(cls),
+        ])
+
+    @classmethod
+    def __class_getitem__(cls, item: Any) -> type["DateTime"]:
+        """Allow generic subscription for type checking (e.g., DateTime[datetime])."""
+        return cls
 
 
 @dataclass
@@ -313,23 +434,23 @@ def Card(*args, min: int | None = None, max: int | None = None) -> _CardImpl:
         return _CardImpl(0, None)
 
 
-def Flag(*annotations: type[Key] | type[Unique] | _CardImpl):
-    """Create an Annotated type with attribute flags metadata.
+def Flag(*annotations: type[Key] | type[Unique] | _CardImpl) -> Annotated[Any, AttributeFlags]:
+    """Create attribute flags for use as default values.
 
-    This follows Pydantic's pattern of using typing.Annotated to attach metadata
-    to type hints, making the API more type-safe and IDE-friendly.
+    Usage: field: Type = Flag(Key, Card(1))
 
     Args:
         *annotations: Variable number of Key, Unique, or Card objects
 
     Returns:
-        A function that takes an attribute type and returns Annotated[AttrType, AttributeFlags]
+        AttributeFlags instance with the specified flags
 
     Example:
-        name: Annotated[Name, Flag(Key, Card(1))]
-        # Or using the helper syntax:
-        name: Name = Flag(Key, Card(1))  # Returns lambda that creates Annotated
-        age: Age = Flag(Card(0, 1))
+        class Person(Entity):
+            flags = EntityFlags(type_name="person")
+            name: Name = Flag(Key, Card(1))  # @key @card(1,1)
+            age: Age = Flag(Card(0, 1))       # @card(0,1)
+            email: Email                       # No special flags
     """
     flags = AttributeFlags()
     for ann in annotations:
@@ -341,7 +462,4 @@ def Flag(*annotations: type[Key] | type[Unique] | _CardImpl):
             flags.card_min = ann.min
             flags.card_max = ann.max
 
-    # Return a helper that can be used as a default value
-    # This allows: name: Name = Flag(Key, Card(1))
-    # The type checker sees Name, but we attach flags as metadata
     return flags

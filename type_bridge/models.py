@@ -1,16 +1,62 @@
 """Simplified model classes for TypeDB entities using Attribute ownership model."""
 
-from typing import Any, ClassVar, get_args, get_origin, get_type_hints
+from __future__ import annotations
 
-from type_bridge.attribute import Attribute, AttributeFlags, EntityFlags, RelationFlags
+from datetime import datetime as datetime_type
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Union, get_args, get_origin, get_type_hints
+
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.fields import FieldInfo
+
+from type_bridge.attribute import (
+    Attribute,
+    AttributeFlags,
+    Boolean,
+    DateTime,
+    Double,
+    EntityFlags,
+    Long,
+    RelationFlags,
+    String,
+)
 
 
-class Entity:
-    """Base class for TypeDB entities.
+def _get_base_type_for_attribute(attr_cls: type[Attribute]) -> type | None:
+    """Get the base Python type for an Attribute class.
+
+    Args:
+        attr_cls: The Attribute subclass (e.g., Name which inherits from String)
+
+    Returns:
+        The corresponding base Python type (str, int, float, bool, datetime)
+    """
+    # Check the MRO (method resolution order) to find the base Attribute type
+    for base in attr_cls.__mro__:
+        if base is String:
+            return str
+        elif base is Long:
+            return int
+        elif base is Double:
+            return float
+        elif base is Boolean:
+            return bool
+        elif base is DateTime:
+            return datetime_type
+    return None
+
+
+class Entity(BaseModel):
+    """Base class for TypeDB entities with Pydantic validation.
 
     Entities own attributes defined as Attribute subclasses.
     Use EntityFlags to configure type name and abstract status.
     Supertype is determined automatically from Python inheritance.
+
+    This class inherits from Pydantic's BaseModel, providing:
+    - Automatic validation of attribute values
+    - JSON serialization/deserialization
+    - Type checking and coercion
+    - Field metadata via Pydantic's Field()
 
     Example:
         class Name(String):
@@ -34,9 +80,18 @@ class Entity:
             age: Age
     """
 
+    # Pydantic configuration
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,  # Allow Attribute subclass types
+        validate_assignment=True,       # Validate on attribute assignment
+        extra='allow',                  # Allow extra fields for flexibility
+        ignored_types=(EntityFlags,),   # Ignore EntityFlags type for flags field
+    )
+
     # Internal metadata (class-level)
     _flags: ClassVar[EntityFlags] = EntityFlags()
     _owned_attrs: ClassVar[dict[str, dict[str, Any]]] = {}
+    _iid: str | None = None  # TypeDB internal ID
 
     def __init_subclass__(cls) -> None:
         """Called when Entity subclass is created."""
@@ -66,84 +121,73 @@ class Entity:
         except Exception:
             hints = getattr(cls, '__annotations__', {})
 
+        # Rewrite annotations to add base types for type checker support
+        new_annotations = {}
+
         for field_name, field_type in hints.items():
             if field_name.startswith('_'):
+                new_annotations[field_name] = field_type
                 continue
             if field_name == 'flags':  # Skip the flags field itself
+                new_annotations[field_name] = field_type
                 continue
 
-            # Extract actual type and metadata from Annotated types
-            actual_type = field_type
-            metadata_flags = None
-
-            # Check if this is an Annotated type
-            if get_origin(field_type) is not None:
-                # This handles Annotated[Name, AttributeFlags(...)]
-                args = get_args(field_type)
-                if args:
-                    actual_type = args[0]
-                    # Look for AttributeFlags in metadata
-                    for metadata in args[1:]:
-                        if isinstance(metadata, AttributeFlags):
-                            metadata_flags = metadata
-                            break
-
-            # Get the default value (might be AttributeFlags from Flag())
+            # Get the default value (should be AttributeFlags from Flag())
             default_value = getattr(cls, field_name, None)
 
-            # Check if it's an Attribute subclass
-            try:
-                if isinstance(actual_type, type) and issubclass(actual_type, Attribute):
-                    # Determine flags: prefer Annotated metadata, fallback to default value
-                    if metadata_flags is not None:
-                        flags = metadata_flags
-                    elif isinstance(default_value, AttributeFlags):
-                        flags = default_value
-                    else:
-                        flags = AttributeFlags()
+            # Extract Attribute type from field_type (handles Union types)
+            attr_type = None
+            base_type = None
 
-                    owned_attrs[field_name] = {
-                        'type': actual_type,
-                        'flags': flags
-                    }
-            except TypeError:
-                continue
-
-        cls._owned_attrs = owned_attrs
-
-    def __init__(self, **values: Any):
-        """Initialize entity with attribute values.
-
-        Args:
-            **values: Attribute values as keyword arguments
-        """
-        self._iid: str | None = None
-        self._values: dict[str, Any] = {}
-
-        # Set attribute values
-        for key, value in values.items():
-            if key in self._owned_attrs:
-                self._values[key] = value
+            # Check if it's a union type (e.g., Literal[...] | Status)
+            origin = get_origin(field_type)
+            if origin is not None:
+                # It's a generic type (union, literal, etc.)
+                args = get_args(field_type)
+                # Look for Attribute subclass in the args
+                for arg in args:
+                    try:
+                        if isinstance(arg, type) and issubclass(arg, Attribute):
+                            attr_type = arg
+                            base_type = _get_base_type_for_attribute(attr_type)
+                            break
+                    except TypeError:
+                        continue
             else:
-                # Allow setting other attributes too (for flexibility)
-                self._values[key] = value
+                # Direct attribute type
+                try:
+                    if isinstance(field_type, type) and issubclass(field_type, Attribute):
+                        attr_type = field_type
+                        base_type = _get_base_type_for_attribute(attr_type)
+                except TypeError:
+                    pass
 
-    def __getattr__(self, name: str) -> Any:
-        """Get attribute value."""
-        if name.startswith('_'):
-            return object.__getattribute__(self, name)
-        if name in self._values:
-            return self._values[name]
-        raise AttributeError(f"'{self.__class__.__name__}' has no attribute '{name}'")
+            # If we found an Attribute type, add it to owned attributes
+            if attr_type is not None:
+                # Get flags from default value or use empty flags
+                if isinstance(default_value, AttributeFlags):
+                    flags = default_value
+                else:
+                    flags = AttributeFlags()
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        """Set attribute value."""
-        if name.startswith('_'):
-            object.__setattr__(self, name, value)
-        else:
-            if not hasattr(self, '_values'):
-                object.__setattr__(self, '_values', {})
-            self._values[name] = value
+                owned_attrs[field_name] = {
+                    'type': attr_type,
+                    'flags': flags
+                }
+
+                # Rewrite annotation to include base type for type checkers
+                # Change `name: Name` to `name: str | Name`
+                if base_type and origin is None:  # Only if not already a union
+                    from typing import Union
+                    new_annotations[field_name] = Union[base_type, field_type]
+                else:
+                    new_annotations[field_name] = field_type
+            else:
+                new_annotations[field_name] = field_type
+
+        # Update class annotations for Pydantic's benefit
+        cls.__annotations__ = new_annotations
+        cls._owned_attrs = owned_attrs
 
     @classmethod
     def get_type_name(cls) -> str:
@@ -226,7 +270,8 @@ class Entity:
         parts = [f"{var} isa {type_name}"]
 
         for field_name, attr_info in self._owned_attrs.items():
-            value = self._values.get(field_name)
+            # Use Pydantic's getattr to get field value
+            value = getattr(self, field_name, None)
             if value is not None:
                 attr_class = attr_info['type']
                 attr_name = attr_class.get_attribute_name()
@@ -250,7 +295,7 @@ class Entity:
         """String representation of entity."""
         field_strs = []
         for field_name in self._owned_attrs:
-            value = self._values.get(field_name)
+            value = getattr(self, field_name, None)
             if value is not None:
                 field_strs.append(f"{field_name}={value!r}")
         return f"{self.__class__.__name__}({', '.join(field_strs)})"
@@ -289,12 +334,18 @@ class Role:
         obj.__dict__[self.attr_name] = value
 
 
-class Relation:
-    """Base class for TypeDB relations.
+class Relation(BaseModel):
+    """Base class for TypeDB relations with Pydantic validation.
 
     Relations can own attributes and have role players.
     Use RelationFlags to configure type name and abstract status.
     Supertype is determined automatically from Python inheritance.
+
+    This class inherits from Pydantic's BaseModel, providing:
+    - Automatic validation of attribute values
+    - JSON serialization/deserialization
+    - Type checking and coercion
+    - Field metadata via Pydantic's Field()
 
     Example:
         class Position(String):
@@ -313,10 +364,19 @@ class Relation:
             salary: Salary = Flag(Card(0, 1))
     """
 
+    # Pydantic configuration
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,  # Allow Attribute subclass types and Role
+        validate_assignment=True,       # Validate on attribute assignment
+        extra='allow',                  # Allow extra fields for flexibility
+        ignored_types=(RelationFlags, Role),  # Ignore RelationFlags and Role types
+    )
+
     # Internal metadata
     _flags: ClassVar[RelationFlags] = RelationFlags()
     _owned_attrs: ClassVar[dict[str, dict[str, Any]]] = {}
     _roles: ClassVar[dict[str, Role]] = {}
+    _iid: str | None = None  # TypeDB internal ID
 
     def __init_subclass__(cls) -> None:
         """Initialize relation subclass."""
@@ -355,87 +415,76 @@ class Relation:
         except Exception:
             hints = getattr(cls, '__annotations__', {})
 
+        # Rewrite annotations to add base types for type checker support
+        new_annotations = {}
+
         for field_name, field_type in hints.items():
             if field_name.startswith('_'):
+                new_annotations[field_name] = field_type
                 continue
             if field_name == 'flags':  # Skip the flags field itself
+                new_annotations[field_name] = field_type
                 continue
             if field_name in roles:  # Skip role fields
+                new_annotations[field_name] = field_type
                 continue
 
-            # Extract actual type and metadata from Annotated types
-            actual_type = field_type
-            metadata_flags = None
-
-            # Check if this is an Annotated type
-            if get_origin(field_type) is not None:
-                # This handles Annotated[Name, AttributeFlags(...)]
-                args = get_args(field_type)
-                if args:
-                    actual_type = args[0]
-                    # Look for AttributeFlags in metadata
-                    for metadata in args[1:]:
-                        if isinstance(metadata, AttributeFlags):
-                            metadata_flags = metadata
-                            break
-
-            # Get the default value (might be AttributeFlags from Flag())
+            # Get the default value (should be AttributeFlags from Flag())
             default_value = getattr(cls, field_name, None)
 
-            # Check if it's an Attribute subclass
-            try:
-                if isinstance(actual_type, type) and issubclass(actual_type, Attribute):
-                    # Determine flags: prefer Annotated metadata, fallback to default value
-                    if metadata_flags is not None:
-                        flags = metadata_flags
-                    elif isinstance(default_value, AttributeFlags):
-                        flags = default_value
-                    else:
-                        flags = AttributeFlags()
+            # Extract Attribute type from field_type (handles Union types)
+            attr_type = None
+            base_type = None
 
-                    owned_attrs[field_name] = {
-                        'type': actual_type,
-                        'flags': flags
-                    }
-            except TypeError:
-                continue
-
-        cls._owned_attrs = owned_attrs
-
-    def __init__(self, **values: Any):
-        """Initialize relation with values.
-
-        Args:
-            **values: Role players and attribute values
-        """
-        self._iid: str | None = None
-        self._values: dict[str, Any] = {}
-
-        # Set values
-        for key, value in values.items():
-            if key in self._roles:
-                # This is a role player
-                setattr(self, key, value)
+            # Check if it's a union type (e.g., Literal[...] | Status)
+            origin = get_origin(field_type)
+            if origin is not None:
+                # It's a generic type (union, literal, etc.)
+                args = get_args(field_type)
+                # Look for Attribute subclass in the args
+                for arg in args:
+                    try:
+                        if isinstance(arg, type) and issubclass(arg, Attribute):
+                            attr_type = arg
+                            base_type = _get_base_type_for_attribute(attr_type)
+                            break
+                    except TypeError:
+                        continue
             else:
-                # This is an attribute value
-                self._values[key] = value
+                # Direct attribute type
+                try:
+                    if isinstance(field_type, type) and issubclass(field_type, Attribute):
+                        attr_type = field_type
+                        base_type = _get_base_type_for_attribute(attr_type)
+                except TypeError:
+                    pass
 
-    def __getattr__(self, name: str) -> Any:
-        """Get attribute value."""
-        if name.startswith('_'):
-            return object.__getattribute__(self, name)
-        if name in self._values:
-            return self._values[name]
-        raise AttributeError(f"'{self.__class__.__name__}' has no attribute '{name}'")
+            # If we found an Attribute type, add it to owned attributes
+            if attr_type is not None:
+                # Get flags from default value or use empty flags
+                if isinstance(default_value, AttributeFlags):
+                    flags = default_value
+                else:
+                    flags = AttributeFlags()
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        """Set attribute value."""
-        if name.startswith('_'):
-            object.__setattr__(self, name, value)
-        else:
-            if not hasattr(self, '_values'):
-                object.__setattr__(self, '_values', {})
-            self._values[name] = value
+                owned_attrs[field_name] = {
+                    'type': attr_type,
+                    'flags': flags
+                }
+
+                # Rewrite annotation to include base type for type checkers
+                # Change `position: Position` to `position: str | Position`
+                if base_type and origin is None:  # Only if not already a union
+                    from typing import Union
+                    new_annotations[field_name] = Union[base_type, field_type]
+                else:
+                    new_annotations[field_name] = field_type
+            else:
+                new_annotations[field_name] = field_type
+
+        # Update class annotations for Pydantic's benefit
+        cls.__annotations__ = new_annotations
+        cls._owned_attrs = owned_attrs
 
     @classmethod
     def get_type_name(cls) -> str:
@@ -519,7 +568,7 @@ class Relation:
                 parts.append(f"{role_name}={player!r}")
         # Show attributes
         for field_name in self._owned_attrs:
-            value = self._values.get(field_name)
+            value = getattr(self, field_name, None)
             if value is not None:
                 parts.append(f"{field_name}={value!r}")
         return f"{self.__class__.__name__}({', '.join(parts)})"
