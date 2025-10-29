@@ -2,7 +2,7 @@
 
 from typing import ClassVar
 
-from type_bridge import Card, Entity, Flag, Key, Long, Relation, Role, String
+from type_bridge import Card, Entity, EntityFlags, Flag, Key, Long, Relation, RelationFlags, Role, String
 
 
 def test_attribute_creation():
@@ -73,7 +73,7 @@ def test_entity_creation():
         pass
 
     class Person(Entity):
-        __type_name__ = "person"
+        flags = EntityFlags(type_name="person")
         name: Name = Flag(Key, Card(1))
         age: Age
 
@@ -98,7 +98,7 @@ def test_entity_instance():
         pass
 
     class Person(Entity):
-        __type_name__ = "person"
+        flags = EntityFlags(type_name="person")
         name: Name
         age: Age
 
@@ -117,7 +117,7 @@ def test_entity_schema_generation():
         pass
 
     class Person(Entity):
-        __type_name__ = "person"
+        flags = EntityFlags(type_name="person")
         name: Name = Flag(Key, Card(1))
         age: Age = Flag(Card(0, 1))
 
@@ -137,7 +137,7 @@ def test_entity_insert_query():
         pass
 
     class Person(Entity):
-        __type_name__ = "person"
+        flags = EntityFlags(type_name="person")
         name: Name
         age: Age
 
@@ -156,11 +156,11 @@ def test_relation_creation():
         pass
 
     class Person(Entity):
-        __type_name__ = "person"
+        flags = EntityFlags(type_name="person")
         name: Name
 
     class Friendship(Relation):
-        __type_name__ = "friendship"
+        flags = RelationFlags(type_name="friendship")
 
         friend1: ClassVar[Role] = Role("friend", Person)
         friend2: ClassVar[Role] = Role("friend", Person)
@@ -181,11 +181,11 @@ def test_relation_with_attributes():
         pass
 
     class Person(Entity):
-        __type_name__ = "person"
+        flags = EntityFlags(type_name="person")
         name: Name
 
     class Friendship(Relation):
-        __type_name__ = "friendship"
+        flags = RelationFlags(type_name="friendship")
 
         friend1: ClassVar[Role] = Role("friend", Person)
         friend2: ClassVar[Role] = Role("friend", Person)
@@ -207,11 +207,11 @@ def test_relation_schema_generation():
         pass
 
     class Person(Entity):
-        __type_name__ = "person"
+        flags = EntityFlags(type_name="person")
         name: Name
 
     class Friendship(Relation):
-        __type_name__ = "friendship"
+        flags = RelationFlags(type_name="friendship")
 
         friend1: ClassVar[Role] = Role("friend", Person)
         friend2: ClassVar[Role] = Role("friend", Person)

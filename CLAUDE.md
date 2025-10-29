@@ -56,21 +56,21 @@ uv run python examples/advanced_usage.py
 ```
 type_bridge/
 ├── __init__.py           # Main package exports
-├── fields.py             # Attribute field types (String, Long, DateTime, etc.)
-├── models.py             # Base Entity and Relation classes with metaclass
+├── attribute.py          # Attribute base class, concrete types (String, Long, etc.),
+│                         # and flags (Card, Key, Unique, EntityFlags, RelationFlags)
+├── models.py             # Base Entity and Relation classes using attribute ownership model
 ├── query.py              # TypeQL query builder
 ├── session.py            # Database connection and transaction management
 ├── crud.py               # EntityManager and RelationManager for CRUD ops
 └── schema.py             # Schema generation and migration utilities
 
 examples/
-├── basic_usage.py        # Basic CRUD operations example
-└── advanced_usage.py     # Relations and custom queries example
+└── basic_usage.py        # Complete example showing attributes, entities, relations,
+                          # cardinality, and schema generation
 
 tests/
-├── test_fields.py        # Field type tests
-├── test_models.py        # Model definition tests
-└── test_query.py         # Query builder tests
+└── test_basic.py         # Comprehensive tests for attribute API, entities, relations,
+                          # Flag system, and Card cardinality
 ```
 
 ## TypeDB ORM Design Considerations
@@ -82,6 +82,51 @@ When implementing ORM features:
 3. **Transaction Semantics**: TypeDB has strict transaction types (read, write) that must be respected
 4. **Schema Evolution**: Consider how Python model changes map to TypeDB schema updates
 5. **Role Handling**: Relations require explicit role mapping which is unique to TypeDB
+
+## API Design Principles
+
+TypeBridge follows TypeDB's type system closely:
+
+1. **Attributes are independent types**: Define attributes once, reuse across entities/relations
+   ```python
+   class Name(String):
+       pass
+
+   class Person(Entity):
+       name: Name  # Person owns 'name'
+
+   class Company(Entity):
+       name: Name  # Company also owns 'name'
+   ```
+
+2. **Use EntityFlags/RelationFlags, not dunder attributes**:
+   ```python
+   class Person(Entity):
+       flags = EntityFlags(type_name="person")  # Clean API
+       # NOT: __type_name__ = "person"  # Deprecated
+   ```
+
+3. **Use Flag system for attribute annotations**:
+   ```python
+   name: Name = Flag(Key, Card(1))  # @key @card(1,1)
+   age: Age = Flag(Card(0, 1))      # @card(0,1)
+   # NOT: NameKey = Key(Name)  # Deprecated
+   ```
+
+4. **Python inheritance maps to TypeDB supertypes**:
+   ```python
+   class Animal(Entity):
+       flags = EntityFlags(abstract=True)
+
+   class Dog(Animal):  # Automatically: dog sub animal
+       pass
+   ```
+
+5. **Card cardinality semantics**:
+   - `Card(1)` → exactly one (1..1)
+   - `Card(min=0)` → zero or more (0..∞)
+   - `Card(max=5)` → one to five (1..5)
+   - `Card(1, 3)` → one to three (1..3)
 
 ## Dependencies
 

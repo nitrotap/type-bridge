@@ -31,27 +31,25 @@ pip install -e .
 ### 1. Define Attribute Types
 
 ```python
-from type_bridge import String, Long, Key
+from type_bridge import String, Long
 
 class Name(String):
     pass
 
 class Age(Long):
     pass
-
-NameKey = Key(Name)  # Mark as key attribute
 ```
 
 ### 2. Define Entities
 
 ```python
-from type_bridge import Entity
+from type_bridge import Entity, EntityFlags, Flag, Key, Card
 
 class Person(Entity):
-    __type_name__ = "person"
-    
-    name: NameKey  # Person owns 'name' as @key
-    age: Age       # Person owns 'age'
+    flags = EntityFlags(type_name="person")  # Optional, defaults to lowercase class name
+
+    name: Name = Flag(Key, Card(1))  # Person owns 'name' as @key @card(1,1)
+    age: Age = Flag(Card(0, 1))      # Person owns 'age' as @card(0,1) - optional
 ```
 
 ### 3. Work with Data
@@ -69,6 +67,30 @@ schema_manager.sync_schema(force=True)
 person_manager = EntityManager(db, Person)
 alice = person_manager.create(name="Alice", age=30)
 all_people = person_manager.all()
+```
+
+### 4. Cardinality Constraints
+
+```python
+from type_bridge import Card
+
+# Card semantics:
+Card(1)          # @card(1,1) - exactly one
+Card(min=0)      # @card(0) - zero or more (unbounded)
+Card(max=5)      # @card(1,5) - one to five
+Card(1, 3)       # @card(1,3) - one to three
+Card(0, 5)       # @card(0,5) - zero to five
+```
+
+### 5. Using Python Inheritance
+
+```python
+class Animal(Entity):
+    flags = EntityFlags(abstract=True)  # Abstract entity
+    name: Name
+
+class Dog(Animal):  # Automatically: dog sub animal in TypeDB
+    breed: Breed
 ```
 
 ## Documentation

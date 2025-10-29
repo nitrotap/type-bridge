@@ -7,9 +7,11 @@ from type_bridge.attribute import (
     Card,
     DateTime,
     Double,
+    EntityFlags,
     Flag,
     Key,
     Long,
+    RelationFlags,
     String,
     Unique,
 )
@@ -41,6 +43,9 @@ __all__ = [
     "Key",
     "Unique",
     "Card",
+    # Entity/Relation flags
+    "EntityFlags",
+    "RelationFlags",
     # Query
     "Query",
     "QueryBuilder",

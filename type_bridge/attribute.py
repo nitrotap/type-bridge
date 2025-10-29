@@ -5,6 +5,46 @@ from dataclasses import dataclass
 from typing import Any, ClassVar
 
 
+@dataclass
+class EntityFlags:
+    """Metadata flags for Entity classes.
+
+    Args:
+        type_name: TypeDB type name (defaults to lowercase class name)
+        abstract: Whether this is an abstract entity type
+
+    Example:
+        class Person(Entity):
+            flags = EntityFlags(type_name="person")
+            name: Name
+
+        class AbstractPerson(Entity):
+            flags = EntityFlags(abstract=True)
+            name: Name
+    """
+
+    type_name: str | None = None
+    abstract: bool = False
+
+
+@dataclass
+class RelationFlags:
+    """Metadata flags for Relation classes.
+
+    Args:
+        type_name: TypeDB type name (defaults to lowercase class name)
+        abstract: Whether this is an abstract relation type
+
+    Example:
+        class Employment(Relation):
+            flags = RelationFlags(type_name="employment")
+            employee: Role = Role("employee", Person)
+    """
+
+    type_name: str | None = None
+    abstract: bool = False
+
+
 class Attribute(ABC):
     """Base class for TypeDB attributes.
 

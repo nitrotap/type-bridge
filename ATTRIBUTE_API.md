@@ -15,7 +15,7 @@ In TypeDB:
 ### New TypeBridge API
 ```python
 # Step 1: Define attribute types (base types)
-from type_bridge.attribute import String, Long, Key
+from type_bridge import String, Long, Entity, EntityFlags, Flag, Key, Card
 
 class Name(String):
     """Name attribute - can be owned by multiple entity types."""
@@ -25,15 +25,12 @@ class Age(Long):
     """Age attribute."""
     pass
 
-# Step 2: Mark attributes as keys if needed
-NameKey = Key(Name)
-
-# Step 3: Entities OWN attributes via type annotations
+# Step 2: Entities OWN attributes via type annotations with Flag
 class Person(Entity):
-    __type_name__ = "person"
+    flags = EntityFlags(type_name="person")  # Optional, defaults to class name
 
-    name: NameKey  # Person owns 'name' as a @key
-    age: Age       # Person owns 'age'
+    name: Name = Flag(Key, Card(1))  # Person owns 'name' as @key @card(1,1)
+    age: Age = Flag(Card(0, 1))      # Person owns 'age' @card(0,1) - optional
 ```
 
 ## Key Components
@@ -73,32 +70,44 @@ class DateTime(Attribute):
     value_type = "datetime"
 ```
 
-### 3. Entity Ownership Model (`models_v2.py`)
+### 3. Entity Ownership Model (`models.py`)
 
 ```python
 class Entity:
     """Base class for entities."""
-    __type_name__: ClassVar[str | None] = None
-    __owned_attrs__: ClassVar[dict[str, type[Attribute]]] = {}
+    _flags: ClassVar[EntityFlags] = EntityFlags()
+    _owned_attrs: ClassVar[dict[str, dict[str, Any]]] = {}
 
     def __init_subclass__(cls):
-        """Automatically collects owned attributes from type annotations."""
+        """Automatically collects EntityFlags and owned attributes from type annotations."""
 
     @classmethod
-    def get_owned_attributes(cls) -> dict[str, type[Attribute]]:
-        """Returns mapping of field names to Attribute classes."""
+    def get_type_name(cls) -> str:
+        """Returns type name from flags or lowercase class name."""
+
+    @classmethod
+    def get_supertype(cls) -> str | None:
+        """Returns supertype from Python inheritance."""
+
+    @classmethod
+    def get_owned_attributes(cls) -> dict[str, dict[str, Any]]:
+        """Returns mapping of field names to attribute info (type + flags)."""
 
     @classmethod
     def to_schema_definition(cls) -> str:
-        """Generates entity schema with ownership declarations."""
+        """Generates entity schema with ownership declarations and annotations."""
 ```
 
 ## Complete Example
 
 ```python
 from typing import ClassVar
-from type_bridge.attribute import String, Long, Key
-from type_bridge.models_v2 import Entity, Relation, Role
+from type_bridge import (
+    String, Long,
+    Entity, EntityFlags,
+    Relation, RelationFlags, Role,
+    Flag, Key, Card
+)
 
 # Define attribute types
 class Name(String):
@@ -116,32 +125,28 @@ class Salary(Long):
 class Position(String):
     pass
 
-# Create key attributes
-NameKey = Key(Name)
-EmailKey = Key(Email)
-
-# Define entities with attribute ownership
+# Define entities with attribute ownership and flags
 class Person(Entity):
-    __type_name__ = "person"
+    flags = EntityFlags(type_name="person")
 
-    name: NameKey   # Person owns 'name' as @key
-    age: Age        # Person owns 'age'
-    email: Email    # Person owns 'email'
+    name: Name = Flag(Key, Card(1))   # Person owns 'name' as @key @card(1,1)
+    age: Age = Flag(Card(0, 1))       # Person owns 'age' @card(0,1)
+    email: Email                       # Person owns 'email' (no special flags)
 
 class Company(Entity):
-    __type_name__ = "company"
+    flags = EntityFlags(type_name="company")
 
-    name: NameKey   # Company also owns 'name' as @key
+    name: Name = Flag(Key, Card(1))   # Company also owns 'name' as @key @card(1,1)
 
 # Define relations with attribute ownership
 class Employment(Relation):
-    __type_name__ = "employment"
+    flags = RelationFlags(type_name="employment")
 
     employee: ClassVar[Role] = Role("employee", Person)
     employer: ClassVar[Role] = Role("employer", Company)
 
-    position: Position  # Employment owns 'position'
-    salary: Salary      # Employment owns 'salary'
+    position: Position = Flag(Card(1))      # Employment owns 'position' @card(1,1)
+    salary: Salary = Flag(Card(0, 1))       # Employment owns 'salary' @card(0,1)
 ```
 
 ## Generated Schema
@@ -158,21 +163,21 @@ age sub attribute, value long;
 salary sub attribute, value long;
 position sub attribute, value string;
 
-# Entities declare ownership
+# Entities declare ownership with cardinality annotations
 person sub entity,
-    owns name @key,
-    owns age,
+    owns name @key @card(1,1),
+    owns age @card(0,1),
     owns email;
 
 company sub entity,
-    owns name @key;
+    owns name @key @card(1,1);
 
-# Relations declare ownership
+# Relations declare ownership with cardinality annotations
 employment sub relation,
     relates employee,
     relates employer,
-    owns position,
-    owns salary;
+    owns position @card(1,1),
+    owns salary @card(0,1);
 
 # Role players
 person plays employment:employee;
@@ -219,12 +224,11 @@ class Company(Entity):
     name: Name
 ```
 
-### 4. **Explicit Key Attributes**
+### 4. **Explicit Key Attributes with Cardinality**
 ```python
-NameKey = Key(Name)
-
 class Person(Entity):
-    name: NameKey  # Clearly marked as @key
+    flags = EntityFlags(type_name="person")
+    name: Name = Flag(Key, Card(1))  # Clearly marked as @key @card(1,1)
 ```
 
 ### 5. **No Pydantic Conflicts**
@@ -232,68 +236,95 @@ class Person(Entity):
 - No complex Pydantic validation issues
 - Cleaner, more predictable behavior
 
-## Migration from Old API
+## Card Cardinality Semantics
 
-### Old API (Pydantic fields)
+TypeBridge provides flexible cardinality constraints that map to TypeDB's `@card` annotation:
+
 ```python
-from type_bridge import Entity, String, Long
+from type_bridge import Card
 
-class Person(Entity):
-    flags = Flags(type_name="person")
-    name: str = String(typedb_key=True)  # Field descriptor
-    age: int = Long()
+# Exact cardinality
+Card(1)          # @card(1,1) - exactly one
+Card(3)          # @card(3,3) - exactly three
+
+# Range with both min and max
+Card(1, 3)       # @card(1,3) - one to three
+Card(0, 5)       # @card(0,5) - zero to five
+
+# Unbounded (keyword argument)
+Card(min=0)      # @card(0) - zero or more (unbounded)
+Card(min=1)      # @card(1) - one or more (unbounded)
+
+# Max only (min defaults to 1)
+Card(max=5)      # @card(1,5) - one to five
+Card(max=3)      # @card(1,3) - one to three
 ```
 
-### New API (Attribute ownership)
+## Using Python Inheritance for Supertypes
+
+TypeBridge automatically uses Python inheritance to determine TypeDB supertypes:
+
 ```python
-from type_bridge.attribute import String, Long, Key
-from type_bridge.models_v2 import Entity
+from type_bridge import Entity, EntityFlags
 
-class Name(String):
-    pass
+class Animal(Entity):
+    flags = EntityFlags(abstract=True)  # Abstract entity
+    name: Name
 
-class Age(Long):
-    pass
+class Dog(Animal):  # Automatically: dog sub animal
+    breed: Breed
 
-NameKey = Key(Name)
+class Cat(Animal):  # Automatically: cat sub animal
+    color: Color
+```
 
-class Person(Entity):
-    __type_name__ = "person"
-    name: NameKey  # Type annotation declares ownership
-    age: Age
+Generated schema:
+```typeql
+animal sub entity, abstract,
+    owns name;
+
+dog sub animal,
+    owns breed;
+
+cat sub animal,
+    owns color;
 ```
 
 ## File Organization
 
 ```
 type_bridge/
-├── attribute.py       # NEW: Attribute base class and concrete types
-├── models_v2.py       # NEW: Simplified Entity/Relation using attribute ownership
-├── models.py          # OLD: Pydantic-based models (deprecated)
-└── fields.py          # OLD: Field descriptors (deprecated)
+├── attribute.py       # Attribute base class, concrete types, and flags (Card, Key, Unique, EntityFlags, RelationFlags)
+├── models.py          # Entity/Relation classes using attribute ownership model
+├── crud.py            # EntityManager and RelationManager for CRUD operations
+├── schema.py          # SchemaManager and MigrationManager
+├── session.py         # Database connection and transaction management
+└── query.py           # TypeQL query builder
 ```
 
 ## Running the Example
 
 ```bash
-uv run python examples/new_attribute_api_example.py
+uv run python examples/basic_usage.py
 ```
 
 This will demonstrate:
 - Attribute schema generation
-- Entity schema with ownership declarations
+- Entity/Relation schema with ownership declarations and cardinality
 - Instance creation and insert query generation
 - Attribute introspection
+- Full TypeDB schema generation
 
-## Next Steps
+## Implementation Status
 
 1. ✅ Implement core Attribute system
-2. ✅ Implement Entity/Relation ownership model
-3. ✅ Create comprehensive example
-4. ⏳ Update SchemaManager to work with new API
-5. ⏳ Update CRUD managers for new API
-6. ⏳ Write tests for new API
-7. ⏳ Update documentation and README
+2. ✅ Implement Entity/Relation ownership model with EntityFlags/RelationFlags
+3. ✅ Implement Card cardinality constraints
+4. ✅ Implement Flag annotation system (Key, Unique, Card)
+5. ✅ Support Python inheritance for supertypes
+6. ✅ Create comprehensive examples
+7. ✅ Write comprehensive tests
+8. ✅ Update documentation and README
 
 ## Conclusion
 

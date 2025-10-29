@@ -2,13 +2,15 @@
 
 from typing import Any, ClassVar, get_type_hints
 
-from type_bridge.attribute import Attribute, AttributeFlags
+from type_bridge.attribute import Attribute, AttributeFlags, EntityFlags, RelationFlags
 
 
 class Entity:
     """Base class for TypeDB entities.
 
     Entities own attributes defined as Attribute subclasses.
+    Use EntityFlags to configure type name and abstract status.
+    Supertype is determined automatically from Python inheritance.
 
     Example:
         class Name(String):
@@ -18,21 +20,43 @@ class Entity:
             pass
 
         class Person(Entity):
-            __type_name__ = "person"
+            flags = EntityFlags(type_name="person")
+            name: Name = Flag(Key, Card(1))
+            age: Age
 
-            name: Name  # Type annotation declares ownership
+        # Abstract entity
+        class AbstractPerson(Entity):
+            flags = EntityFlags(abstract=True)
+            name: Name
+
+        # Inheritance (Person sub abstract-person)
+        class ConcretePerson(AbstractPerson):
             age: Age
     """
 
-    # TypeDB metadata (class-level)
-    __type_name__: ClassVar[str | None] = None
-    __abstract__: ClassVar[bool] = False
-    __supertype__: ClassVar[str | None] = None
-    __owned_attrs__: ClassVar[dict[str, dict[str, Any]]] = {}
+    # Internal metadata (class-level)
+    _flags: ClassVar[EntityFlags] = EntityFlags()
+    _owned_attrs: ClassVar[dict[str, dict[str, Any]]] = {}
 
     def __init_subclass__(cls) -> None:
         """Called when Entity subclass is created."""
         super().__init_subclass__()
+
+        # Get EntityFlags if defined, otherwise use default
+        flags = getattr(cls, 'flags', None)
+        if isinstance(flags, EntityFlags):
+            cls._flags = flags
+        else:
+            # Inherit flags from parent if not explicitly set
+            for base in cls.__bases__:
+                if hasattr(base, '_flags') and base is not Entity:
+                    cls._flags = EntityFlags(
+                        type_name=None,  # Will default to class name
+                        abstract=False
+                    )
+                    break
+            else:
+                cls._flags = EntityFlags()
 
         # Extract owned attributes from type hints
         owned_attrs = {}
@@ -42,7 +66,9 @@ class Entity:
             hints = getattr(cls, '__annotations__', {})
 
         for field_name, field_type in hints.items():
-            if field_name.startswith('_') or field_name.startswith('__'):
+            if field_name.startswith('_'):
+                continue
+            if field_name == 'flags':  # Skip the flags field itself
                 continue
 
             # Get the default value (might be a Flag)
@@ -66,7 +92,7 @@ class Entity:
             except TypeError:
                 continue
 
-        cls.__owned_attrs__ = owned_attrs
+        cls._owned_attrs = owned_attrs
 
     def __init__(self, **values: Any):
         """Initialize entity with attribute values.
@@ -79,7 +105,7 @@ class Entity:
 
         # Set attribute values
         for key, value in values.items():
-            if key in self.__owned_attrs__:
+            if key in self._owned_attrs:
                 self._values[key] = value
             else:
                 # Allow setting other attributes too (for flexibility)
@@ -105,7 +131,24 @@ class Entity:
     @classmethod
     def get_type_name(cls) -> str:
         """Get the TypeDB type name for this entity."""
-        return cls.__type_name__ or cls.__name__.lower()
+        return cls._flags.type_name or cls.__name__.lower()
+
+    @classmethod
+    def get_supertype(cls) -> str | None:
+        """Get the supertype from Python inheritance.
+
+        Returns:
+            Type name of the parent Entity class, or None if direct Entity subclass
+        """
+        for base in cls.__bases__:
+            if base is not Entity and issubclass(base, Entity):
+                return base.get_type_name()
+        return None
+
+    @classmethod
+    def is_abstract(cls) -> bool:
+        """Check if this is an abstract entity."""
+        return cls._flags.abstract
 
     @classmethod
     def get_owned_attributes(cls) -> dict[str, dict[str, Any]]:
@@ -114,7 +157,7 @@ class Entity:
         Returns:
             Dictionary mapping field names to attribute info (type + flags)
         """
-        return cls.__owned_attrs__.copy()
+        return cls._owned_attrs.copy()
 
     @classmethod
     def to_schema_definition(cls) -> str:
@@ -126,19 +169,20 @@ class Entity:
         type_name = cls.get_type_name()
         lines = []
 
-        # Define entity type
-        if cls.__supertype__:
-            entity_def = f"{type_name} sub {cls.__supertype__}"
+        # Define entity type with supertype from Python inheritance
+        supertype = cls.get_supertype()
+        if supertype:
+            entity_def = f"{type_name} sub {supertype}"
         else:
             entity_def = f"{type_name} sub entity"
 
-        if cls.__abstract__:
+        if cls.is_abstract():
             entity_def += ", abstract"
 
         lines.append(entity_def)
 
         # Add attribute ownerships
-        for field_name, attr_info in cls.__owned_attrs__.items():
+        for field_name, attr_info in cls._owned_attrs.items():
             attr_class = attr_info['type']
             flags = attr_info['flags']
             attr_name = attr_class.get_attribute_name()
@@ -164,7 +208,7 @@ class Entity:
         type_name = self.get_type_name()
         parts = [f"{var} isa {type_name}"]
 
-        for field_name, attr_info in self.__owned_attrs__.items():
+        for field_name, attr_info in self._owned_attrs.items():
             value = self._values.get(field_name)
             if value is not None:
                 attr_class = attr_info['type']
@@ -188,7 +232,7 @@ class Entity:
     def __repr__(self) -> str:
         """String representation of entity."""
         field_strs = []
-        for field_name in self.__owned_attrs__:
+        for field_name in self._owned_attrs:
             value = self._values.get(field_name)
             if value is not None:
                 field_strs.append(f"{field_name}={value!r}")
@@ -232,6 +276,8 @@ class Relation:
     """Base class for TypeDB relations.
 
     Relations can own attributes and have role players.
+    Use RelationFlags to configure type name and abstract status.
+    Supertype is determined automatically from Python inheritance.
 
     Example:
         class Position(String):
@@ -241,30 +287,44 @@ class Relation:
             pass
 
         class Employment(Relation):
-            __type_name__ = "employment"
+            flags = RelationFlags(type_name="employment")
 
             employee: ClassVar[Role] = Role("employee", Person)
             employer: ClassVar[Role] = Role("employer", Company)
 
-            position: Position  # Type annotation declares ownership
-            salary: Salary
+            position: Position = Flag(Card(1))
+            salary: Salary = Flag(Card(0, 1))
     """
 
-    # TypeDB metadata
-    __type_name__: ClassVar[str | None] = None
-    __abstract__: ClassVar[bool] = False
-    __supertype__: ClassVar[str | None] = None
-    __owned_attrs__: ClassVar[dict[str, dict[str, Any]]] = {}
+    # Internal metadata
+    _flags: ClassVar[RelationFlags] = RelationFlags()
+    _owned_attrs: ClassVar[dict[str, dict[str, Any]]] = {}
     _roles: ClassVar[dict[str, Role]] = {}
 
     def __init_subclass__(cls) -> None:
         """Initialize relation subclass."""
         super().__init_subclass__()
 
+        # Get RelationFlags if defined, otherwise use default
+        flags = getattr(cls, 'flags', None)
+        if isinstance(flags, RelationFlags):
+            cls._flags = flags
+        else:
+            # Inherit flags from parent if not explicitly set
+            for base in cls.__bases__:
+                if hasattr(base, '_flags') and base is not Relation:
+                    cls._flags = RelationFlags(
+                        type_name=None,  # Will default to class name
+                        abstract=False
+                    )
+                    break
+            else:
+                cls._flags = RelationFlags()
+
         # Collect roles
         roles = {}
         for key in dir(cls):
-            if not key.startswith("_"):
+            if not key.startswith("_") and key != "flags":
                 value = getattr(cls, key, None)
                 if isinstance(value, Role):
                     roles[key] = value
@@ -278,7 +338,9 @@ class Relation:
             hints = getattr(cls, '__annotations__', {})
 
         for field_name, field_type in hints.items():
-            if field_name.startswith('_') or field_name.startswith('__'):
+            if field_name.startswith('_'):
+                continue
+            if field_name == 'flags':  # Skip the flags field itself
                 continue
             if field_name in roles:  # Skip role fields
                 continue
@@ -304,7 +366,7 @@ class Relation:
             except TypeError:
                 continue
 
-        cls.__owned_attrs__ = owned_attrs
+        cls._owned_attrs = owned_attrs
 
     def __init__(self, **values: Any):
         """Initialize relation with values.
@@ -344,7 +406,24 @@ class Relation:
     @classmethod
     def get_type_name(cls) -> str:
         """Get the TypeDB type name for this relation."""
-        return cls.__type_name__ or cls.__name__.lower()
+        return cls._flags.type_name or cls.__name__.lower()
+
+    @classmethod
+    def get_supertype(cls) -> str | None:
+        """Get the supertype from Python inheritance.
+
+        Returns:
+            Type name of the parent Relation class, or None if direct Relation subclass
+        """
+        for base in cls.__bases__:
+            if base is not Relation and issubclass(base, Relation):
+                return base.get_type_name()
+        return None
+
+    @classmethod
+    def is_abstract(cls) -> bool:
+        """Check if this is an abstract relation."""
+        return cls._flags.abstract
 
     @classmethod
     def get_owned_attributes(cls) -> dict[str, dict[str, Any]]:
@@ -353,7 +432,7 @@ class Relation:
         Returns:
             Dictionary mapping field names to attribute info (type + flags)
         """
-        return cls.__owned_attrs__.copy()
+        return cls._owned_attrs.copy()
 
     @classmethod
     def to_schema_definition(cls) -> str:
@@ -365,13 +444,14 @@ class Relation:
         type_name = cls.get_type_name()
         lines = []
 
-        # Define relation type
-        if cls.__supertype__:
-            relation_def = f"{type_name} sub {cls.__supertype__}"
+        # Define relation type with supertype from Python inheritance
+        supertype = cls.get_supertype()
+        if supertype:
+            relation_def = f"{type_name} sub {supertype}"
         else:
             relation_def = f"{type_name} sub relation"
 
-        if cls.__abstract__:
+        if cls.is_abstract():
             relation_def += ", abstract"
 
         lines.append(relation_def)
@@ -381,7 +461,7 @@ class Relation:
             lines.append(f"    relates {role.role_name}")
 
         # Add attribute ownerships
-        for field_name, attr_info in cls.__owned_attrs__.items():
+        for field_name, attr_info in cls._owned_attrs.items():
             attr_class = attr_info['type']
             flags = attr_info['flags']
             attr_name = attr_class.get_attribute_name()
@@ -404,7 +484,7 @@ class Relation:
             if player is not None:
                 parts.append(f"{role_name}={player!r}")
         # Show attributes
-        for field_name in self.__owned_attrs__:
+        for field_name in self._owned_attrs:
             value = self._values.get(field_name)
             if value is not None:
                 parts.append(f"{field_name}={value!r}")

@@ -2,7 +2,21 @@
 
 from typing import ClassVar
 
-from type_bridge import Boolean, Card, DateTime, Double, Entity, Flag, Key, Long, Relation, Role, String
+from type_bridge import (
+    Boolean,
+    Card,
+    DateTime,
+    Double,
+    Entity,
+    EntityFlags,
+    Flag,
+    Key,
+    Long,
+    Relation,
+    RelationFlags,
+    Role,
+    String,
+)
 
 
 # Step 1: Define attribute types (these are base attributes that can be owned)
@@ -50,7 +64,7 @@ class IsActive(Boolean):
 class Person(Entity):
     """Person entity that owns name (as key), age, and email attributes."""
 
-    __type_name__ = "person"
+    flags = EntityFlags(type_name="person")
 
     # Type annotations with Flag for ownership metadata
     name: Name = Flag(Key, Card(1))  # Person owns 'name' as @key @card(1,1) - exactly one
@@ -62,7 +76,7 @@ class Person(Entity):
 class Company(Entity):
     """Company entity that owns name (as key) and industry attributes."""
 
-    __type_name__ = "company"
+    flags = EntityFlags(type_name="company")
 
     name: Name = Flag(Key, Card(1))  # Company owns 'name' as @key @card(1,1) - exactly one
     industry: Industry = Flag(Card(max=5))  # Company can have 1-5 industries
@@ -72,7 +86,7 @@ class Company(Entity):
 class Employment(Relation):
     """Employment relation between person and company."""
 
-    __type_name__ = "employment"
+    flags = RelationFlags(type_name="employment")
 
     # Roles
     employee: ClassVar[Role] = Role("employee", Person)
