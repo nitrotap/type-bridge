@@ -1,13 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "type-bridge"
 version = "0.1.0"
-description = "Orm for typedb"
+description = "A modern, Pythonic ORM for TypeDB with an Attribute-based API"
 readme = "README.md"
 requires-python = ">=3.13"
+license = {text = "MIT"}
+authors = [
+    {name = "ds1sqe", email = "ds1sqe@mensakorea.org"}
+]
+keywords = ["typedb", "orm", "database", "typeql", "graph-database"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "typedb-driver==3.5.5",
     "pydantic>=2.0.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ds1sqe/type_bridge"
+Repository = "https://github.com/ds1sqe/type_bridge"
+Documentation = "https://github.com/ds1sqe/type_bridge/blob/master/README.md"
+Issues = "https://github.com/ds1sqe/type_bridge/issues"
 
 [project.optional-dependencies]
 dev = [
