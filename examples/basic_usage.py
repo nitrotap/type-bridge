@@ -2,7 +2,7 @@
 
 from typing import ClassVar
 
-from type_bridge import Boolean, DateTime, Double, Entity, Key, Long, Relation, Role, String
+from type_bridge import Boolean, Card, DateTime, Double, Entity, Flag, Key, Long, Relation, Role, String
 
 
 # Step 1: Define attribute types (these are base attributes that can be owned)
@@ -46,22 +46,17 @@ class IsActive(Boolean):
     pass
 
 
-# Step 2: Create key attributes (unique identifiers)
-NameKey = Key(Name)  # Name as a key attribute
-EmailKey = Key(Email)  # Email as a key attribute
-
-
-# Step 3: Define entities that OWN these attributes
+# Step 2: Define entities that OWN these attributes with Flag annotations
 class Person(Entity):
     """Person entity that owns name (as key), age, and email attributes."""
 
     __type_name__ = "person"
 
-    # Type annotations declare attribute ownership
-    name: NameKey  # Person owns 'name' as a @key
-    age: Age  # Person owns 'age'
-    email: Email  # Person owns 'email'
-    score: Score  # Person owns 'score'
+    # Type annotations with Flag for ownership metadata
+    name: Name = Flag(Key, Card(1))  # Person owns 'name' as @key @card(1,1) - exactly one
+    age: Age = Flag(Card(0, 1))  # Person owns 'age' @card(0,1) - zero or one (optional)
+    email: Email  # Person owns 'email' with no special annotations
+    score: Score = Flag(Card(1))  # Person owns 'score' @card(1,1) - exactly one
 
 
 class Company(Entity):
@@ -69,11 +64,11 @@ class Company(Entity):
 
     __type_name__ = "company"
 
-    name: NameKey  # Company owns 'name' as a @key
-    industry: Industry  # Company owns 'industry'
+    name: Name = Flag(Key, Card(1))  # Company owns 'name' as @key @card(1,1) - exactly one
+    industry: Industry = Flag(Card(max=5))  # Company can have 1-5 industries
 
 
-# Step 4: Define relations that OWN attributes
+# Step 3: Define relations that OWN attributes
 class Employment(Relation):
     """Employment relation between person and company."""
 
@@ -84,8 +79,8 @@ class Employment(Relation):
     employer: ClassVar[Role] = Role("employer", Company)
 
     # Owned attributes
-    position: Position  # Employment owns 'position'
-    salary: Salary  # Employment owns 'salary'
+    position: Position = Flag(Card(1))  # Employment owns 'position' @card(1,1) - exactly one
+    salary: Salary = Flag(Card(0, 1))  # Employment owns 'salary' @card(0,1) - optional
 
 
 def demonstrate_schema_generation():
@@ -176,28 +171,38 @@ def demonstrate_attribute_introspection():
     print("=" * 80)
 
     print("Person owns:")
-    for field_name, attr_class in Person.get_owned_attributes().items():
+    for field_name, attr_info in Person.get_owned_attributes().items():
+        attr_class = attr_info['type']
+        flags = attr_info['flags']
         attr_name = attr_class.get_attribute_name()
         value_type = attr_class.get_value_type()
-        is_key = " @key" if attr_class.is_key() else ""
-        print(f"  - {field_name} ({attr_name}): {value_type}{is_key}")
+        annotations = " ".join(flags.to_typeql_annotations())
+        annotations_str = f" {annotations}" if annotations else ""
+        print(f"  - {field_name} ({attr_name}): {value_type}{annotations_str}")
 
     print()
 
     print("Company owns:")
-    for field_name, attr_class in Company.get_owned_attributes().items():
+    for field_name, attr_info in Company.get_owned_attributes().items():
+        attr_class = attr_info['type']
+        flags = attr_info['flags']
         attr_name = attr_class.get_attribute_name()
         value_type = attr_class.get_value_type()
-        is_key = " @key" if attr_class.is_key() else ""
-        print(f"  - {field_name} ({attr_name}): {value_type}{is_key}")
+        annotations = " ".join(flags.to_typeql_annotations())
+        annotations_str = f" {annotations}" if annotations else ""
+        print(f"  - {field_name} ({attr_name}): {value_type}{annotations_str}")
 
     print()
 
     print("Employment owns:")
-    for field_name, attr_class in Employment.get_owned_attributes().items():
+    for field_name, attr_info in Employment.get_owned_attributes().items():
+        attr_class = attr_info['type']
+        flags = attr_info['flags']
         attr_name = attr_class.get_attribute_name()
         value_type = attr_class.get_value_type()
-        print(f"  - {field_name} ({attr_name}): {value_type}")
+        annotations = " ".join(flags.to_typeql_annotations())
+        annotations_str = f" {annotations}" if annotations else ""
+        print(f"  - {field_name} ({attr_name}): {value_type}{annotations_str}")
 
     print()
 

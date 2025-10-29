@@ -2,7 +2,7 @@
 
 from typing import Any, ClassVar, get_type_hints
 
-from type_bridge.attribute import Attribute
+from type_bridge.attribute import Attribute, AttributeFlags
 
 
 class Entity:
@@ -28,7 +28,7 @@ class Entity:
     __type_name__: ClassVar[str | None] = None
     __abstract__: ClassVar[bool] = False
     __supertype__: ClassVar[str | None] = None
-    __owned_attrs__: ClassVar[dict[str, type[Attribute]]] = {}
+    __owned_attrs__: ClassVar[dict[str, dict[str, Any]]] = {}
 
     def __init_subclass__(cls) -> None:
         """Called when Entity subclass is created."""
@@ -45,10 +45,24 @@ class Entity:
             if field_name.startswith('_') or field_name.startswith('__'):
                 continue
 
+            # Get the default value (might be a Flag)
+            default_value = getattr(cls, field_name, None)
+
             # Check if it's an Attribute subclass
             try:
                 if isinstance(field_type, type) and issubclass(field_type, Attribute):
-                    owned_attrs[field_name] = field_type
+                    # Check if there's a Flag value
+                    if isinstance(default_value, AttributeFlags):
+                        owned_attrs[field_name] = {
+                            'type': field_type,
+                            'flags': default_value
+                        }
+                    else:
+                        # No flags, use default (no annotations)
+                        owned_attrs[field_name] = {
+                            'type': field_type,
+                            'flags': AttributeFlags()
+                        }
             except TypeError:
                 continue
 
@@ -94,11 +108,11 @@ class Entity:
         return cls.__type_name__ or cls.__name__.lower()
 
     @classmethod
-    def get_owned_attributes(cls) -> dict[str, type[Attribute]]:
+    def get_owned_attributes(cls) -> dict[str, dict[str, Any]]:
         """Get attributes owned by this entity.
 
         Returns:
-            Dictionary mapping field names to Attribute classes
+            Dictionary mapping field names to attribute info (type + flags)
         """
         return cls.__owned_attrs__.copy()
 
@@ -124,11 +138,15 @@ class Entity:
         lines.append(entity_def)
 
         # Add attribute ownerships
-        for field_name, attr_class in cls.__owned_attrs__.items():
+        for field_name, attr_info in cls.__owned_attrs__.items():
+            attr_class = attr_info['type']
+            flags = attr_info['flags']
             attr_name = attr_class.get_attribute_name()
+
             ownership = f"    owns {attr_name}"
-            if attr_class.is_key():
-                ownership += " @key"
+            annotations = flags.to_typeql_annotations()
+            if annotations:
+                ownership += " " + " ".join(annotations)
             lines.append(ownership)
 
         lines.append(";")
@@ -146,9 +164,10 @@ class Entity:
         type_name = self.get_type_name()
         parts = [f"{var} isa {type_name}"]
 
-        for field_name, attr_class in self.__owned_attrs__.items():
+        for field_name, attr_info in self.__owned_attrs__.items():
             value = self._values.get(field_name)
             if value is not None:
+                attr_class = attr_info['type']
                 attr_name = attr_class.get_attribute_name()
                 parts.append(f"has {attr_name} {self._format_value(value)}")
 
@@ -235,7 +254,7 @@ class Relation:
     __type_name__: ClassVar[str | None] = None
     __abstract__: ClassVar[bool] = False
     __supertype__: ClassVar[str | None] = None
-    __owned_attrs__: ClassVar[dict[str, type[Attribute]]] = {}
+    __owned_attrs__: ClassVar[dict[str, dict[str, Any]]] = {}
     _roles: ClassVar[dict[str, Role]] = {}
 
     def __init_subclass__(cls) -> None:
@@ -264,10 +283,24 @@ class Relation:
             if field_name in roles:  # Skip role fields
                 continue
 
+            # Get the default value (might be a Flag)
+            default_value = getattr(cls, field_name, None)
+
             # Check if it's an Attribute subclass
             try:
                 if isinstance(field_type, type) and issubclass(field_type, Attribute):
-                    owned_attrs[field_name] = field_type
+                    # Check if there's a Flag value
+                    if isinstance(default_value, AttributeFlags):
+                        owned_attrs[field_name] = {
+                            'type': field_type,
+                            'flags': default_value
+                        }
+                    else:
+                        # No flags, use default (no annotations)
+                        owned_attrs[field_name] = {
+                            'type': field_type,
+                            'flags': AttributeFlags()
+                        }
             except TypeError:
                 continue
 
@@ -314,11 +347,11 @@ class Relation:
         return cls.__type_name__ or cls.__name__.lower()
 
     @classmethod
-    def get_owned_attributes(cls) -> dict[str, type[Attribute]]:
+    def get_owned_attributes(cls) -> dict[str, dict[str, Any]]:
         """Get attributes owned by this relation.
 
         Returns:
-            Dictionary mapping field names to Attribute classes
+            Dictionary mapping field names to attribute info (type + flags)
         """
         return cls.__owned_attrs__.copy()
 
@@ -348,9 +381,16 @@ class Relation:
             lines.append(f"    relates {role.role_name}")
 
         # Add attribute ownerships
-        for field_name, attr_class in cls.__owned_attrs__.items():
+        for field_name, attr_info in cls.__owned_attrs__.items():
+            attr_class = attr_info['type']
+            flags = attr_info['flags']
             attr_name = attr_class.get_attribute_name()
-            lines.append(f"    owns {attr_name}")
+
+            ownership = f"    owns {attr_name}"
+            annotations = flags.to_typeql_annotations()
+            if annotations:
+                ownership += " " + " ".join(annotations)
+            lines.append(ownership)
 
         lines.append(";")
         return ",\n".join(lines)

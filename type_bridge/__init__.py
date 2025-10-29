@@ -1,6 +1,18 @@
 """TypeBridge - A Python ORM for TypeDB with Attribute-based API."""
 
-from type_bridge.attribute import Attribute, Boolean, DateTime, Double, Key, Long, String
+from type_bridge.attribute import (
+    Attribute,
+    AttributeFlags,
+    Boolean,
+    Card,
+    DateTime,
+    Double,
+    Flag,
+    Key,
+    Long,
+    String,
+    Unique,
+)
 from type_bridge.crud import EntityManager, RelationManager
 from type_bridge.models import Entity, Relation, Role
 from type_bridge.query import Query, QueryBuilder
@@ -23,7 +35,12 @@ __all__ = [
     "Double",
     "Boolean",
     "DateTime",
+    # Attribute annotations
+    "AttributeFlags",
+    "Flag",
     "Key",
+    "Unique",
+    "Card",
     # Query
     "Query",
     "QueryBuilder",

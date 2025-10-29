@@ -2,7 +2,7 @@
 
 from typing import ClassVar
 
-from type_bridge import Entity, Key, Long, Relation, Role, String
+from type_bridge import Card, Entity, Flag, Key, Long, Relation, Role, String
 
 
 def test_attribute_creation():
@@ -20,16 +20,47 @@ def test_attribute_creation():
     assert Age.get_value_type() == "long"
 
 
-def test_key_attribute():
-    """Test creating key attributes."""
+def test_flag_annotation():
+    """Test Flag annotation system."""
 
     class Email(String):
         pass
 
-    EmailKey = Key(Email)
+    # Test Key flag
+    key_flag = Flag(Key)
+    assert key_flag.is_key is True
+    assert key_flag.to_typeql_annotations() == ["@key"]
 
-    assert EmailKey.is_key() is True
-    assert EmailKey.get_attribute_name() == "email"
+    # Test Card flag - exact cardinality
+    card_exact = Flag(Card(1))
+    assert card_exact.card_min == 1
+    assert card_exact.card_max == 1
+    assert card_exact.to_typeql_annotations() == ["@card(1,1)"]
+
+    # Test Card flag - range
+    card_range = Flag(Card(1, 5))
+    assert card_range.card_min == 1
+    assert card_range.card_max == 5
+    assert card_range.to_typeql_annotations() == ["@card(1,5)"]
+
+    # Test Card flag - min only (unbounded)
+    card_min = Flag(Card(min=0))
+    assert card_min.card_min == 0
+    assert card_min.card_max is None
+    assert card_min.to_typeql_annotations() == ["@card(0)"]
+
+    # Test Card flag - max only (min defaults to 1)
+    card_max = Flag(Card(max=5))
+    assert card_max.card_min == 1
+    assert card_max.card_max == 5
+    assert card_max.to_typeql_annotations() == ["@card(1,5)"]
+
+    # Test combined flags
+    combined_flag = Flag(Key, Card(1))
+    assert combined_flag.is_key is True
+    assert combined_flag.card_min == 1
+    assert combined_flag.card_max == 1
+    assert combined_flag.to_typeql_annotations() == ["@key", "@card(1,1)"]
 
 
 def test_entity_creation():
@@ -41,19 +72,17 @@ def test_entity_creation():
     class Age(Long):
         pass
 
-    NameKey = Key(Name)
-
     class Person(Entity):
         __type_name__ = "person"
-        name: NameKey
+        name: Name = Flag(Key, Card(1))
         age: Age
 
     # Check owned attributes
     owned = Person.get_owned_attributes()
     assert "name" in owned
     assert "age" in owned
-    assert owned["name"].is_key() is True
-    assert owned["age"].is_key() is False
+    assert owned["name"]["flags"].is_key is True
+    assert owned["age"]["flags"].is_key is False
 
     # Check type name
     assert Person.get_type_name() == "person"
@@ -87,17 +116,15 @@ def test_entity_schema_generation():
     class Age(Long):
         pass
 
-    NameKey = Key(Name)
-
     class Person(Entity):
         __type_name__ = "person"
-        name: NameKey
-        age: Age
+        name: Name = Flag(Key, Card(1))
+        age: Age = Flag(Card(0, 1))
 
     schema = Person.to_schema_definition()
     assert "person sub entity" in schema
-    assert "owns name @key" in schema
-    assert "owns age" in schema
+    assert "owns name @key @card(1,1)" in schema
+    assert "owns age @card(0,1)" in schema
 
 
 def test_entity_insert_query():
@@ -163,12 +190,14 @@ def test_relation_with_attributes():
         friend1: ClassVar[Role] = Role("friend", Person)
         friend2: ClassVar[Role] = Role("friend", Person)
 
-        since_year: SinceYear
+        since_year: SinceYear = Flag(Card(1))
 
     # Check owned attributes
     owned = Friendship.get_owned_attributes()
     assert "since_year" in owned
-    assert owned["since_year"].get_attribute_name() == "sinceyear"
+    assert owned["since_year"]["type"].get_attribute_name() == "sinceyear"
+    assert owned["since_year"]["flags"].card_min == 1
+    assert owned["since_year"]["flags"].card_max == 1
 
 
 def test_relation_schema_generation():
