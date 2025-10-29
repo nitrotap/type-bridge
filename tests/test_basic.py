@@ -2,7 +2,7 @@
 
 from typing import ClassVar
 
-from type_bridge import Card, Entity, EntityFlags, Flag, Key, Long, Relation, RelationFlags, Role, String
+from type_bridge import Annotated, Card, Entity, EntityFlags, Flag, Key, Long, Relation, RelationFlags, Role, String
 
 
 def test_attribute_creation():
@@ -235,3 +235,35 @@ def test_attribute_schema_generation():
 
     assert "name sub attribute, value string;" in name_schema
     assert "age sub attribute, value long;" in age_schema
+
+
+def test_annotated_syntax():
+    """Test using Annotated syntax for attribute flags."""
+
+    class Name(String):
+        pass
+
+    class Age(Long):
+        pass
+
+    class Person(Entity):
+        flags = EntityFlags(type_name="person")
+        # Using Annotated syntax directly
+        name: Annotated[Name, Flag(Key, Card(1))]
+        age: Annotated[Age, Flag(Card(0, 1))]
+
+    # Check owned attributes
+    owned = Person.get_owned_attributes()
+    assert "name" in owned
+    assert "age" in owned
+    assert owned["name"]["flags"].is_key is True
+    assert owned["name"]["flags"].card_min == 1
+    assert owned["name"]["flags"].card_max == 1
+    assert owned["age"]["flags"].card_min == 0
+    assert owned["age"]["flags"].card_max == 1
+
+    # Check schema generation
+    schema = Person.to_schema_definition()
+    assert "person sub entity" in schema
+    assert "owns name @key @card(1,1)" in schema
+    assert "owns age @card(0,1)" in schema

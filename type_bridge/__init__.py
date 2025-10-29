@@ -1,5 +1,7 @@
 """TypeBridge - A Python ORM for TypeDB with Attribute-based API."""
 
+from typing_extensions import Annotated
+
 from type_bridge.attribute import (
     Attribute,
     AttributeFlags,
@@ -38,6 +40,7 @@ __all__ = [
     "Boolean",
     "DateTime",
     # Attribute annotations
+    "Annotated",  # Re-export for convenience
     "AttributeFlags",
     "Flag",
     "Key",

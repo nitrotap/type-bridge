@@ -15,7 +15,7 @@ In TypeDB:
 ### New TypeBridge API
 ```python
 # Step 1: Define attribute types (base types)
-from type_bridge import String, Long, Entity, EntityFlags, Flag, Key, Card
+from type_bridge import Annotated, String, Long, Entity, EntityFlags, Flag, Key, Card
 
 class Name(String):
     """Name attribute - can be owned by multiple entity types."""
@@ -29,8 +29,15 @@ class Age(Long):
 class Person(Entity):
     flags = EntityFlags(type_name="person")  # Optional, defaults to class name
 
-    name: Name = Flag(Key, Card(1))  # Person owns 'name' as @key @card(1,1)
-    age: Age = Flag(Card(0, 1))      # Person owns 'age' @card(0,1) - optional
+    # Two equivalent syntaxes supported:
+
+    # Style 1: Annotated (Pydantic-style, better for type checkers)
+    name: Annotated[Name, Flag(Key, Card(1))]  # @key @card(1,1)
+    age: Annotated[Age, Flag(Card(0, 1))]       # @card(0,1)
+
+    # Style 2: Default value (cleaner syntax)
+    # name: Name = Flag(Key, Card(1))
+    # age: Age = Flag(Card(0, 1))
 ```
 
 ## Key Components
@@ -103,6 +110,7 @@ class Entity:
 ```python
 from typing import ClassVar
 from type_bridge import (
+    Annotated,
     String, Long,
     Entity, EntityFlags,
     Relation, RelationFlags, Role,
@@ -129,14 +137,16 @@ class Position(String):
 class Person(Entity):
     flags = EntityFlags(type_name="person")
 
-    name: Name = Flag(Key, Card(1))   # Person owns 'name' as @key @card(1,1)
-    age: Age = Flag(Card(0, 1))       # Person owns 'age' @card(0,1)
-    email: Email                       # Person owns 'email' (no special flags)
+    # Using Annotated syntax (recommended for better type checking)
+    name: Annotated[Name, Flag(Key, Card(1))]   # @key @card(1,1)
+    age: Annotated[Age, Flag(Card(0, 1))]        # @card(0,1)
+    email: Email                                  # No special flags
 
 class Company(Entity):
     flags = EntityFlags(type_name="company")
 
-    name: Name = Flag(Key, Card(1))   # Company also owns 'name' as @key @card(1,1)
+    # Or use default value syntax (cleaner but less explicit)
+    name: Name = Flag(Key, Card(1))  # @key @card(1,1)
 
 # Define relations with attribute ownership
 class Employment(Relation):
@@ -145,8 +155,8 @@ class Employment(Relation):
     employee: ClassVar[Role] = Role("employee", Person)
     employer: ClassVar[Role] = Role("employer", Company)
 
-    position: Position = Flag(Card(1))      # Employment owns 'position' @card(1,1)
-    salary: Salary = Flag(Card(0, 1))       # Employment owns 'salary' @card(0,1)
+    position: Position = Flag(Card(1))      # @card(1,1)
+    salary: Salary = Flag(Card(0, 1))       # @card(0,1)
 ```
 
 ## Generated Schema

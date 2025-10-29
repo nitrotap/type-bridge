@@ -1,6 +1,6 @@
 """Simplified model classes for TypeDB entities using Attribute ownership model."""
 
-from typing import Any, ClassVar, get_type_hints
+from typing import Any, ClassVar, get_args, get_origin, get_type_hints
 
 from type_bridge.attribute import Attribute, AttributeFlags, EntityFlags, RelationFlags
 
@@ -61,7 +61,8 @@ class Entity:
         # Extract owned attributes from type hints
         owned_attrs = {}
         try:
-            hints = get_type_hints(cls)
+            # Use include_extras=True to preserve Annotated metadata
+            hints = get_type_hints(cls, include_extras=True)
         except Exception:
             hints = getattr(cls, '__annotations__', {})
 
@@ -71,24 +72,40 @@ class Entity:
             if field_name == 'flags':  # Skip the flags field itself
                 continue
 
-            # Get the default value (might be a Flag)
+            # Extract actual type and metadata from Annotated types
+            actual_type = field_type
+            metadata_flags = None
+
+            # Check if this is an Annotated type
+            if get_origin(field_type) is not None:
+                # This handles Annotated[Name, AttributeFlags(...)]
+                args = get_args(field_type)
+                if args:
+                    actual_type = args[0]
+                    # Look for AttributeFlags in metadata
+                    for metadata in args[1:]:
+                        if isinstance(metadata, AttributeFlags):
+                            metadata_flags = metadata
+                            break
+
+            # Get the default value (might be AttributeFlags from Flag())
             default_value = getattr(cls, field_name, None)
 
             # Check if it's an Attribute subclass
             try:
-                if isinstance(field_type, type) and issubclass(field_type, Attribute):
-                    # Check if there's a Flag value
-                    if isinstance(default_value, AttributeFlags):
-                        owned_attrs[field_name] = {
-                            'type': field_type,
-                            'flags': default_value
-                        }
+                if isinstance(actual_type, type) and issubclass(actual_type, Attribute):
+                    # Determine flags: prefer Annotated metadata, fallback to default value
+                    if metadata_flags is not None:
+                        flags = metadata_flags
+                    elif isinstance(default_value, AttributeFlags):
+                        flags = default_value
                     else:
-                        # No flags, use default (no annotations)
-                        owned_attrs[field_name] = {
-                            'type': field_type,
-                            'flags': AttributeFlags()
-                        }
+                        flags = AttributeFlags()
+
+                    owned_attrs[field_name] = {
+                        'type': actual_type,
+                        'flags': flags
+                    }
             except TypeError:
                 continue
 
@@ -333,7 +350,8 @@ class Relation:
         # Extract owned attributes from type hints
         owned_attrs = {}
         try:
-            hints = get_type_hints(cls)
+            # Use include_extras=True to preserve Annotated metadata
+            hints = get_type_hints(cls, include_extras=True)
         except Exception:
             hints = getattr(cls, '__annotations__', {})
 
@@ -345,24 +363,40 @@ class Relation:
             if field_name in roles:  # Skip role fields
                 continue
 
-            # Get the default value (might be a Flag)
+            # Extract actual type and metadata from Annotated types
+            actual_type = field_type
+            metadata_flags = None
+
+            # Check if this is an Annotated type
+            if get_origin(field_type) is not None:
+                # This handles Annotated[Name, AttributeFlags(...)]
+                args = get_args(field_type)
+                if args:
+                    actual_type = args[0]
+                    # Look for AttributeFlags in metadata
+                    for metadata in args[1:]:
+                        if isinstance(metadata, AttributeFlags):
+                            metadata_flags = metadata
+                            break
+
+            # Get the default value (might be AttributeFlags from Flag())
             default_value = getattr(cls, field_name, None)
 
             # Check if it's an Attribute subclass
             try:
-                if isinstance(field_type, type) and issubclass(field_type, Attribute):
-                    # Check if there's a Flag value
-                    if isinstance(default_value, AttributeFlags):
-                        owned_attrs[field_name] = {
-                            'type': field_type,
-                            'flags': default_value
-                        }
+                if isinstance(actual_type, type) and issubclass(actual_type, Attribute):
+                    # Determine flags: prefer Annotated metadata, fallback to default value
+                    if metadata_flags is not None:
+                        flags = metadata_flags
+                    elif isinstance(default_value, AttributeFlags):
+                        flags = default_value
                     else:
-                        # No flags, use default (no annotations)
-                        owned_attrs[field_name] = {
-                            'type': field_type,
-                            'flags': AttributeFlags()
-                        }
+                        flags = AttributeFlags()
+
+                    owned_attrs[field_name] = {
+                        'type': actual_type,
+                        'flags': flags
+                    }
             except TypeError:
                 continue
 

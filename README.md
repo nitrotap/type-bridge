@@ -43,13 +43,20 @@ class Age(Long):
 ### 2. Define Entities
 
 ```python
-from type_bridge import Entity, EntityFlags, Flag, Key, Card
+from type_bridge import Annotated, Entity, EntityFlags, Flag, Key, Card
 
 class Person(Entity):
     flags = EntityFlags(type_name="person")  # Optional, defaults to lowercase class name
 
-    name: Name = Flag(Key, Card(1))  # Person owns 'name' as @key @card(1,1)
-    age: Age = Flag(Card(0, 1))      # Person owns 'age' as @card(0,1) - optional
+    # Two equivalent syntaxes - choose your preference:
+
+    # Style 1: Using Annotated (Pydantic-style, more explicit)
+    name: Annotated[Name, Flag(Key, Card(1))]
+    age: Annotated[Age, Flag(Card(0, 1))]
+
+    # Style 2: Using default value (cleaner, but less explicit in type hints)
+    # name: Name = Flag(Key, Card(1))
+    # age: Age = Flag(Card(0, 1))
 ```
 
 ### 3. Work with Data

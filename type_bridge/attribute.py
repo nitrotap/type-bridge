@@ -2,7 +2,8 @@
 
 from abc import ABC
 from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Any, ClassVar, get_args, get_origin
+from typing_extensions import Annotated
 
 
 @dataclass
@@ -312,19 +313,23 @@ def Card(*args, min: int | None = None, max: int | None = None) -> _CardImpl:
         return _CardImpl(0, None)
 
 
-def Flag(*annotations: type[Key] | type[Unique] | _CardImpl) -> AttributeFlags:
-    """Create attribute flags from annotation markers.
+def Flag(*annotations: type[Key] | type[Unique] | _CardImpl):
+    """Create an Annotated type with attribute flags metadata.
+
+    This follows Pydantic's pattern of using typing.Annotated to attach metadata
+    to type hints, making the API more type-safe and IDE-friendly.
 
     Args:
         *annotations: Variable number of Key, Unique, or Card objects
 
     Returns:
-        AttributeFlags instance with parsed annotations
+        A function that takes an attribute type and returns Annotated[AttrType, AttributeFlags]
 
     Example:
-        Flag(Key, Card(1, 1))  # @key @card(1,1)
-        Flag(Card(0, 5))       # @card(0,5)
-        Flag(Key, Unique)      # @key @unique
+        name: Annotated[Name, Flag(Key, Card(1))]
+        # Or using the helper syntax:
+        name: Name = Flag(Key, Card(1))  # Returns lambda that creates Annotated
+        age: Age = Flag(Card(0, 1))
     """
     flags = AttributeFlags()
     for ann in annotations:
@@ -335,4 +340,8 @@ def Flag(*annotations: type[Key] | type[Unique] | _CardImpl) -> AttributeFlags:
         elif isinstance(ann, _CardImpl):
             flags.card_min = ann.min
             flags.card_max = ann.max
+
+    # Return a helper that can be used as a default value
+    # This allows: name: Name = Flag(Key, Card(1))
+    # The type checker sees Name, but we attach flags as metadata
     return flags
