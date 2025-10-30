@@ -128,10 +128,42 @@ TypeBridge follows TypeDB's type system closely:
    - `Card(max=5)` → one to five (1..5)
    - `Card(1, 3)` → one to three (1..3)
 
+## Type Checking and Static Analysis
+
+TypeBridge uses PEP-681 `@dataclass_transform` decorators on Entity and Relation classes to improve type checker support. This provides:
+
+- Type checker recognition of `Flag()` as a valid field default
+- Automatic `__init__` signature inference from class annotations
+- Better IDE autocomplete and type hints
+
+### Type Checking Limitations
+
+Due to the dynamic nature of Pydantic validation and TypeDB's flexible type system, there are some known type checking limitations:
+
+1. **Constructor arguments**: Type checkers may show warnings when passing literal values to constructors:
+   ```python
+   # Type checker may warn, but this works at runtime via Pydantic
+   person = Person(name="Alice", age=30)  # ⚠️ Type checker warning
+   ```
+
+   **Why**: Type checkers see `name: Name` and expect a `Name` instance, but Pydantic's `__get_pydantic_core_schema__` accepts both `str` and `Name` at runtime.
+
+   **Workaround**: Use `# type: ignore[arg-type]` comments if needed, or pass properly typed instances.
+
+2. **Runtime vs. Static Analysis**: The `__init_subclass__` hook rewrites annotations at runtime to support union types (`str | Name`), but type checkers perform static analysis before this happens.
+
+### Minimal `Any` Usage
+
+The project minimizes `Any` usage for type safety:
+- `Flag()` returns `Any` (required for `dataclass_transform` compatibility)
+- All `__get_pydantic_core_schema__` methods use proper TypeVars (`StrValue`, `IntValue`, etc.)
+- No other `Any` types in the core attribute system
+
 ## Dependencies
 
 The project requires:
 - `typedb-driver==3.5.5`: Official Python driver for TypeDB connectivity
+- `pydantic>=2.0`: For validation and type coercion
 - Uses Python's built-in type hints and dataclass-like patterns
 
 ## TypeDB Driver 3.5.5 API Notes

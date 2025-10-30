@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 from datetime import datetime as datetime_type
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, Union, get_args, get_origin, get_type_hints
+from typing import (
+    Any,
+    ClassVar,
+    dataclass_transform,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
-from pydantic import BaseModel, ConfigDict, Field
-from pydantic.fields import FieldInfo
+from pydantic import BaseModel, ConfigDict
 
 from type_bridge.attribute import (
     Attribute,
@@ -45,6 +51,10 @@ def _get_base_type_for_attribute(attr_cls: type[Attribute]) -> type | None:
     return None
 
 
+@dataclass_transform(
+    kw_only_default=False,
+    field_specifiers=(AttributeFlags,)
+)
 class Entity(BaseModel):
     """Base class for TypeDB entities with Pydantic validation.
 
@@ -179,7 +189,7 @@ class Entity(BaseModel):
                 # Change `name: Name` to `name: str | Name`
                 if base_type and origin is None:  # Only if not already a union
                     from typing import Union
-                    new_annotations[field_name] = Union[base_type, field_type]
+                    new_annotations[field_name] = Union[base_type, field_type]  # noqa: UP007
                 else:
                     new_annotations[field_name] = field_type
             else:
@@ -334,6 +344,10 @@ class Role:
         obj.__dict__[self.attr_name] = value
 
 
+@dataclass_transform(
+    kw_only_default=False,
+    field_specifiers=(AttributeFlags,)
+)
 class Relation(BaseModel):
     """Base class for TypeDB relations with Pydantic validation.
 
@@ -476,7 +490,7 @@ class Relation(BaseModel):
                 # Change `position: Position` to `position: str | Position`
                 if base_type and origin is None:  # Only if not already a union
                     from typing import Union
-                    new_annotations[field_name] = Union[base_type, field_type]
+                    new_annotations[field_name] = Union[base_type, field_type]  # noqa: UP007
                 else:
                     new_annotations[field_name] = field_type
             else:
