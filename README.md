@@ -5,6 +5,8 @@ A modern, Pythonic ORM for TypeDB with an Attribute-based API that aligns with T
 ## Features
 
 - **True TypeDB Semantics**: Attributes are independent types that entities and relations own
+- **Flag System**: Clean API for `@key`, `@unique`, and `@card` annotations
+- **Flexible Cardinality**: Express any cardinality constraint with `Card(min, max)`
 - **Pydantic Integration**: Built on Pydantic v2 for automatic validation, serialization, and type safety
 - **Type-Safe**: Full Python type hints and IDE autocomplete support
 - **Declarative Models**: Define entities and relations using Python classes
@@ -46,15 +48,16 @@ class Age(Long):
 
 ```python
 from typing import Optional
-from type_bridge import Entity, EntityFlags, Flag, Key
+from type_bridge import Entity, EntityFlags, Flag, Key, Card
 
 class Person(Entity):
     flags = EntityFlags(type_name="person")  # Optional, defaults to lowercase class name
 
-    # Use Flag() for key/unique markers, generic types for cardinality
-    name: Name = Flag(Key)    # @key (implies @card(1..1))
-    age: Optional[Age]        # @card(0..1) - optional field
-    email: Email              # @card(1..1) - default cardinality
+    # Use Flag() for key/unique markers and Card for cardinality
+    name: Name = Flag(Key)                   # @key (implies @card(1..1))
+    age: Optional[Age]                       # @card(0..1) - optional field
+    email: Email                             # @card(1..1) - default cardinality
+    tags: list[Tag] = Flag(Card(min=2))      # @card(2..) - two or more
 ```
 
 ### 3. Create Instances
@@ -96,17 +99,38 @@ all_people = person_manager.all()
 
 ```python
 from typing import Optional
-from type_bridge import Min, Max, Range
+from type_bridge import Card, Flag
 
-# Cardinality via generic types:
-field: Type              # @card(1..1) - exactly one (default)
-field: Optional[Type]    # @card(0..1) - zero or one
-field: Min[2, Type]      # @card(2..) - two or more (unbounded)
-field: Max[5, Type]      # @card(0..5) - zero to five
-field: Range[1, 3, Type] # @card(1..3) - one to three
+class Person(Entity):
+    flags = EntityFlags(type_name="person")
+
+    # Cardinality options:
+    name: Name                              # @card(1..1) - exactly one (default)
+    age: Optional[Age]                      # @card(0..1) - zero or one
+    tags: list[Tag] = Flag(Card(min=2))     # @card(2..) - two or more (unbounded)
+    skills: list[Skill] = Flag(Card(max=5)) # @card(0..5) - zero to five (min defaults to 0)
+    jobs: list[Job] = Flag(Card(1, 3))      # @card(1..3) - one to three
 ```
 
-### 5. Using Python Inheritance
+### 5. Define Relations
+
+```python
+from typing import ClassVar
+from type_bridge import Relation, RelationFlags, Role
+
+class Employment(Relation):
+    flags = RelationFlags(type_name="employment")
+
+    # Define roles with ClassVar
+    employee: ClassVar[Role] = Role("employee", Person)
+    employer: ClassVar[Role] = Role("employer", Company)
+
+    # Relations can own attributes too
+    position: Position                   # @card(1..1)
+    salary: Optional[Salary]             # @card(0..1)
+```
+
+### 6. Using Python Inheritance
 
 ```python
 class Animal(Entity):
@@ -131,7 +155,7 @@ from typing import Optional
 class Person(Entity):
     flags = EntityFlags(type_name="person")
     name: Name = Flag(Key)
-    age: Age = 0
+    age: Age = Age(0)
 
 # Automatic validation
 alice = Person(name="Alice", age="30")  # String coerced to int
