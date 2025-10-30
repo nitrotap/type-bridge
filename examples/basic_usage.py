@@ -1,19 +1,20 @@
 """Example demonstrating the new Attribute-based API."""
 
-from __future__ import annotations
+from typing import ClassVar, Optional
 
-from typing import ClassVar
+from pydantic import EmailStr
 
 from type_bridge import (
     Boolean,
-    Card,
-    DateTime,
     Double,
     Entity,
     EntityFlags,
     Flag,
     Key,
     Long,
+    Max,
+    Min,
+    Range,
     Relation,
     RelationFlags,
     Role,
@@ -62,25 +63,25 @@ class IsActive(Boolean):
     pass
 
 
-# Step 2: Define entities that OWN these attributes with Flag annotations
+# Step 2: Define entities that OWN these attributes with generic type annotations
 class Person(Entity):
-    """Person entity with Flag annotations."""
+    """Person entity with cardinality and key annotations."""
 
     flags = EntityFlags(type_name="person")
 
-    name: Name = Flag(Key, Card(1))  # @key @card(1,1) - exactly one
-    age: Age = Flag(Card(0, 1))  # @card(0,1) - zero or one (optional)
-    email: Email = Flag(Card(1))  # @card(1,1) - exactly one
-    score: Score  # No special flags
+    name: Name = Flag(Key)  # @key @card(1,1) - exactly one, marked as key
+    age: Optional[Age]  # @card(0,1) - zero or one (optional)
+    email: Email  # @card(1,1) - exactly one (default)
+    score: Score  # @card(1,1) - exactly one (default)
 
 
 class Company(Entity):
-    """Company entity with Flag annotations."""
+    """Company entity with cardinality annotations."""
 
     flags = EntityFlags(type_name="company")
 
-    name: Name = Flag(Key, Card(1))  # @key @card(1,1) - exactly one
-    industry: Industry = Flag(Card(max=5))  # @card(1,5) - one to five
+    name: Name = Flag(Key)  # @key @card(1,1) - exactly one, marked as key
+    industry: Range[1, 5, Industry]  # @card(1,5) - one to five industries
 
 
 # Step 3: Define relations that OWN attributes
@@ -93,9 +94,9 @@ class Employment(Relation):
     employee: ClassVar[Role] = Role("employee", Person)
     employer: ClassVar[Role] = Role("employer", Company)
 
-    # Owned attributes using default value syntax
-    position: Position = Flag(Card(1))  # @card(1,1)
-    salary: Salary = Flag(Card(0, 1))  # @card(0,1)
+    # Owned attributes with cardinality
+    position: Position  # @card(1,1) - exactly one (default)
+    salary: Optional[Salary]  # @card(0,1) - zero or one (optional)
 
 
 def demonstrate_schema_generation():
@@ -138,7 +139,7 @@ def demonstrate_instance_creation():
 
     # Create person instances
     alice = Person(
-        name="Alice Johnson",
+        name= "Alice Johnson",
         age=30,
         email="alice@example.com",
         score=95.5
@@ -156,7 +157,7 @@ def demonstrate_instance_creation():
     # Create company instance
     techcorp = Company(
         name="TechCorp",
-        industry="Technology"
+        industry=["Technology", "Software", "AI"]  # List for Range[1,5]
     )
     print(f"Created: {techcorp}")
 

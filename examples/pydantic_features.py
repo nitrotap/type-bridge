@@ -1,9 +1,8 @@
 """Example demonstrating Pydantic integration features."""
 
-from typing import ClassVar
+from typing import ClassVar, Optional
 
 from type_bridge import (
-    Card,
     Entity,
     EntityFlags,
     Flag,
@@ -38,16 +37,16 @@ class Person(Entity):
     """Person entity with Pydantic validation."""
 
     flags = EntityFlags(type_name="person")
-    name: Name = Flag(Key, Card(1))
-    email: Email = None  # Optional with default
-    age: Age = 0  # Default value
+    name: Name = Flag(Key)  # Required key field
+    email: Optional[Email] = None  # Optional with default
+    age: Age = 0  # Default value (still required unless explicitly Optional)
 
 
 class Company(Entity):
     """Company entity."""
 
     flags = EntityFlags(type_name="company")
-    name: Name = Flag(Key, Card(1))
+    name: Name = Flag(Key)  # Required key field
 
 
 class Employment(Relation):
@@ -58,7 +57,7 @@ class Employment(Relation):
     employee: ClassVar[Role] = Role("employee", Person)
     employer: ClassVar[Role] = Role("employer", Company)
 
-    salary: Salary = None  # Optional field
+    salary: Optional[Salary] = None  # Optional field with default
 
 
 def demonstrate_validation():

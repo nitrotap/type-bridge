@@ -57,7 +57,7 @@ uv run python examples/advanced_usage.py
 type_bridge/
 ├── __init__.py           # Main package exports
 ├── attribute.py          # Attribute base class, concrete types (String, Long, etc.),
-│                         # and flags (Card, Key, Unique, EntityFlags, RelationFlags)
+│                         # and generic types (Key, Unique, Min, Max, Range, EntityFlags, RelationFlags)
 ├── models.py             # Base Entity and Relation classes using attribute ownership model
 ├── query.py              # TypeQL query builder
 ├── session.py            # Database connection and transaction management
@@ -65,12 +65,14 @@ type_bridge/
 └── schema.py             # Schema generation and migration utilities
 
 examples/
-└── basic_usage.py        # Complete example showing attributes, entities, relations,
-                          # cardinality, and schema generation
+├── basic_usage.py        # Complete example showing attributes, entities, relations,
+│                         # cardinality, and schema generation
+├── pydantic_features.py  # Pydantic integration examples
+└── literal_types.py      # Literal type support examples
 
 tests/
 └── test_basic.py         # Comprehensive tests for attribute API, entities, relations,
-                          # Flag system, and Card cardinality
+                          # Flag system, and cardinality
 ```
 
 ## TypeDB ORM Design Considerations
@@ -106,11 +108,15 @@ TypeBridge follows TypeDB's type system closely:
        # NOT: __type_name__ = "person"  # Deprecated
    ```
 
-3. **Use Flag system for attribute annotations**:
+3. **Use Flag system for Key/Unique, generic types for cardinality**:
    ```python
-   name: Name = Flag(Key, Card(1))  # @key @card(1,1)
-   age: Age = Flag(Card(0, 1))      # @card(0,1)
-   # NOT: NameKey = Key(Name)  # Deprecated
+   from typing import Optional
+   from type_bridge import Flag, Key, Min, Max, Range
+
+   name: Name = Flag(Key)   # @key @card(1,1)
+   age: Optional[Age]       # @card(0,1)
+   tags: Min[2, Tag]        # @card(2,∞)
+   jobs: Range[1, 5, Job]   # @card(1,5)
    ```
 
 4. **Python inheritance maps to TypeDB supertypes**:
@@ -122,11 +128,12 @@ TypeBridge follows TypeDB's type system closely:
        pass
    ```
 
-5. **Card cardinality semantics**:
-   - `Card(1)` → exactly one (1..1)
-   - `Card(min=0)` → zero or more (0..∞)
-   - `Card(max=5)` → one to five (1..5)
-   - `Card(1, 3)` → one to three (1..3)
+5. **Cardinality semantics using generic types**:
+   - `Type` → exactly one (1..1) - default
+   - `Optional[Type]` → zero or one (0..1)
+   - `Min[N, Type]` → N or more (N..∞)
+   - `Max[N, Type]` → zero to N (0..N)
+   - `Range[Min, Max, Type]` → Min to Max
 
 ## Type Checking and Static Analysis
 
@@ -155,7 +162,8 @@ Due to the dynamic nature of Pydantic validation and TypeDB's flexible type syst
 ### Minimal `Any` Usage
 
 The project minimizes `Any` usage for type safety:
-- `Flag()` returns `Any` (required for `dataclass_transform` compatibility)
+- `Flag()` accepts `Any` for parameters (to handle type aliases like `Key` and `Unique`)
+- `Flag()` returns `AttributeFlags` (used as field default)
 - All `__get_pydantic_core_schema__` methods use proper TypeVars (`StrValue`, `IntValue`, etc.)
 - No other `Any` types in the core attribute system
 

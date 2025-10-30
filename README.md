@@ -45,15 +45,16 @@ class Age(Long):
 ### 2. Define Entities
 
 ```python
-from type_bridge import Entity, EntityFlags, Flag, Key, Card
+from typing import Optional
+from type_bridge import Entity, EntityFlags, Flag, Key
 
 class Person(Entity):
     flags = EntityFlags(type_name="person")  # Optional, defaults to lowercase class name
 
-    # Use Flag() as default value to specify attribute annotations
-    name: Name = Flag(Key, Card(1))  # @key @card(1,1)
-    age: Age = Flag(Card(0, 1))      # @card(0,1)
-    email: Email                      # No special flags
+    # Use Flag() for key/unique markers, generic types for cardinality
+    name: Name = Flag(Key)    # @key @card(1,1)
+    age: Optional[Age]        # @card(0,1) - optional field
+    email: Email              # @card(1,1) - default cardinality
 ```
 
 ### 3. Work with Data
@@ -76,14 +77,15 @@ all_people = person_manager.all()
 ### 4. Cardinality Constraints
 
 ```python
-from type_bridge import Card
+from typing import Optional
+from type_bridge import Min, Max, Range
 
-# Card semantics:
-Card(1)          # @card(1,1) - exactly one
-Card(min=0)      # @card(0) - zero or more (unbounded)
-Card(max=5)      # @card(1,5) - one to five
-Card(1, 3)       # @card(1,3) - one to three
-Card(0, 5)       # @card(0,5) - zero to five
+# Cardinality via generic types:
+field: Type              # @card(1,1) - exactly one (default)
+field: Optional[Type]    # @card(0,1) - zero or one
+field: Min[2, Type]      # @card(2) - two or more (unbounded)
+field: Max[5, Type]      # @card(0,5) - zero to five
+field: Range[1, 3, Type] # @card(1,3) - one to three
 ```
 
 ### 5. Using Python Inheritance
@@ -106,9 +108,11 @@ See [ATTRIBUTE_API.md](ATTRIBUTE_API.md) for complete documentation.
 TypeBridge is built on Pydantic v2, giving you powerful features out of the box:
 
 ```python
+from typing import Optional
+
 class Person(Entity):
     flags = EntityFlags(type_name="person")
-    name: Name = Flag(Key, Card(1))
+    name: Name = Flag(Key)
     age: Age = 0
 
 # Automatic validation

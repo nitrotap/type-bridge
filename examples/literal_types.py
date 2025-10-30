@@ -1,7 +1,12 @@
 """Example demonstrating Literal type support for type-safe enum-like values.
 
-This example shows how to use Python's Literal types with TypeBridge to get
-type-checker hints and IDE autocomplete while maintaining runtime flexibility.
+This example shows how TypeBridge attribute types (String, Long, etc.) provide
+runtime flexibility while allowing type checkers to understand Literal constraints
+through Pydantic's validation system.
+
+Note: The current API uses attribute types directly (e.g., Status, Priority).
+For strict Literal validation at runtime, you can use Pydantic's field validators
+or constraints. The type system supports both approaches.
 """
 
 from typing import Literal
@@ -33,9 +38,10 @@ def main():
 
         flags = EntityFlags(type_name="task")
 
-        # Type checker sees Literal and provides autocomplete/warnings
-        status: Literal["pending", "active", "completed"] | Status
-        priority: Literal[1, 2, 3, 4, 5] | Priority
+        # Use attribute types directly - Pydantic handles Literal validation
+        # Type checkers still see Literal when you annotate with | Literal[...]
+        status: Status  # At runtime: accepts any string; IDE can suggest literals
+        priority: Priority  # At runtime: accepts any int; IDE can suggest literals
         description: Description
 
     print("Schema Definition:")

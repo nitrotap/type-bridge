@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from type_bridge import Card, Entity, EntityFlags, Flag, Key, Long, String
+from type_bridge import Entity, EntityFlags, Long, String
 
 
 def test_pydantic_validation():

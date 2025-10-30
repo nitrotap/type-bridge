@@ -15,7 +15,8 @@ In TypeDB:
 ### New TypeBridge API
 ```python
 # Step 1: Define attribute types (base types)
-from type_bridge import Annotated, String, Long, Entity, EntityFlags, Flag, Key, Card
+from typing import Optional
+from type_bridge import String, Long, Entity, EntityFlags, Flag, Key, Min, Max, Range
 
 class Name(String):
     """Name attribute - can be owned by multiple entity types."""
@@ -25,14 +26,14 @@ class Age(Long):
     """Age attribute."""
     pass
 
-# Step 2: Entities OWN attributes via type annotations with Flag
+# Step 2: Entities OWN attributes via type annotations
 class Person(Entity):
     flags = EntityFlags(type_name="person")  # Optional, defaults to class name
 
-    # Use Flag() as default value to specify attribute annotations
-    name: Name = Flag(Key, Card(1))  # @key @card(1,1)
-    age: Age = Flag(Card(0, 1))      # @card(0,1)
-    email: Email                      # No special flags
+    # Use Flag() for key/unique markers, generic types for cardinality
+    name: Name = Flag(Key)   # @key @card(1,1)
+    age: Optional[Age]       # @card(0,1)
+    email: Email             # @card(1,1) - default
 ```
 
 ## Key Components
@@ -157,13 +158,12 @@ class Entity:
 ## Complete Example
 
 ```python
-from typing import ClassVar
+from typing import ClassVar, Optional
 from type_bridge import (
-    Annotated,
     String, Long,
     Entity, EntityFlags,
     Relation, RelationFlags, Role,
-    Flag, Key, Card
+    Flag, Key, Min, Max, Range
 )
 
 # Define attribute types
@@ -186,14 +186,14 @@ class Position(String):
 class Person(Entity):
     flags = EntityFlags(type_name="person")
 
-    name: Name = Flag(Key, Card(1))   # @key @card(1,1)
-    age: Age = Flag(Card(0, 1))       # @card(0,1)
-    email: Email = Flag(Card(1))      # @card(1,1)
+    name: Name = Flag(Key)   # @key @card(1,1)
+    age: Optional[Age]       # @card(0,1)
+    email: Email             # @card(1,1) - default
 
 class Company(Entity):
     flags = EntityFlags(type_name="company")
 
-    name: Name = Flag(Key, Card(1))  # @key @card(1,1)
+    name: Name = Flag(Key)   # @key @card(1,1)
 
 # Define relations with attribute ownership
 class Employment(Relation):
@@ -202,8 +202,8 @@ class Employment(Relation):
     employee: ClassVar[Role] = Role("employee", Person)
     employer: ClassVar[Role] = Role("employer", Company)
 
-    position: Position = Flag(Card(1))      # @card(1,1)
-    salary: Salary = Flag(Card(0, 1))       # @card(0,1)
+    position: Position        # @card(1,1) - default
+    salary: Optional[Salary]  # @card(0,1)
 ```
 
 ## Generated Schema
@@ -281,11 +281,11 @@ class Company(Entity):
     name: Name
 ```
 
-### 4. **Explicit Key Attributes with Cardinality**
+### 4. **Explicit Key Attributes**
 ```python
 class Person(Entity):
     flags = EntityFlags(type_name="person")
-    name: Name = Flag(Key, Card(1))  # Clearly marked as @key @card(1,1)
+    name: Name = Flag(Key)  # Clearly marked as @key
 ```
 
 ### 5. **No Pydantic Conflicts**
@@ -293,28 +293,42 @@ class Person(Entity):
 - No complex Pydantic validation issues
 - Cleaner, more predictable behavior
 
-## Card Cardinality Semantics
+## Cardinality Semantics
 
-TypeBridge provides flexible cardinality constraints that map to TypeDB's `@card` annotation:
+TypeBridge provides cardinality constraints using Python's typing system that map to TypeDB's `@card` annotation:
 
 ```python
-from type_bridge import Card
+from typing import Optional
+from type_bridge import Min, Max, Range
 
-# Exact cardinality
-Card(1)          # @card(1,1) - exactly one
-Card(3)          # @card(3,3) - exactly three
+# Default cardinality
+field: Type                  # @card(1,1) - exactly one (default)
 
-# Range with both min and max
-Card(1, 3)       # @card(1,3) - one to three
-Card(0, 5)       # @card(0,5) - zero to five
+# Optional (zero or one)
+field: Optional[Type]        # @card(0,1) - zero or one
+field: Type | None           # @card(0,1) - equivalent syntax
 
-# Unbounded (keyword argument)
-Card(min=0)      # @card(0) - zero or more (unbounded)
-Card(min=1)      # @card(1) - one or more (unbounded)
+# Minimum cardinality (unbounded)
+field: Min[2, Type]          # @card(2) - two or more
+field: Min[1, Type]          # @card(1) - one or more
 
-# Max only (min defaults to 1)
-Card(max=5)      # @card(1,5) - one to five
-Card(max=3)      # @card(1,3) - one to three
+# Maximum cardinality
+field: Max[5, Type]          # @card(0,5) - zero to five
+field: Max[3, Type]          # @card(0,3) - zero to three
+
+# Range (min and max)
+field: Range[1, 3, Type]     # @card(1,3) - one to three
+field: Range[2, 5, Type]     # @card(2,5) - two to five
+```
+
+**Note**: For multi-cardinality fields (Max, Min, Range), you must pass a list at runtime:
+```python
+class Company(Entity):
+    flags = EntityFlags(type_name="company")
+    industries: Range[1, 5, Industry]
+
+# Must pass a list
+company = Company(industries=["Tech", "Software", "AI"])
 ```
 
 ## Using Python Inheritance for Supertypes
@@ -351,7 +365,7 @@ cat sub animal,
 
 ```
 type_bridge/
-├── attribute.py       # Attribute base class, concrete types, and flags (Card, Key, Unique, EntityFlags, RelationFlags)
+├── attribute.py       # Attribute base class, concrete types, and flags (Key, Unique, Min, Max, Range, EntityFlags, RelationFlags)
 ├── models.py          # Entity/Relation classes using attribute ownership model
 ├── crud.py            # EntityManager and RelationManager for CRUD operations
 ├── schema.py          # SchemaManager and MigrationManager

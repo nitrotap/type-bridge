@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime as datetime_type
 from typing import (
     Any,
@@ -25,6 +26,112 @@ from type_bridge.attribute import (
     RelationFlags,
     String,
 )
+
+
+@dataclass
+class FieldInfo:
+    """Information extracted from a field type annotation.
+
+    Attributes:
+        attr_type: The Attribute subclass (e.g., Name, Age)
+        card_min: Minimum cardinality (None means use default)
+        card_max: Maximum cardinality (None means unbounded)
+        is_key: Whether this field is marked as @key
+        is_unique: Whether this field is marked as @unique
+    """
+    attr_type: type[Attribute] | None = None
+    card_min: int | None = 1
+    card_max: int | None = 1
+    is_key: bool = False
+    is_unique: bool = False
+
+
+def extract_metadata(field_type: type) -> FieldInfo:
+    """Extract attribute type, cardinality, and key/unique metadata from a type annotation.
+
+    Handles:
+    - Optional[Name] → FieldInfo(Name, 0, 1, False, False)
+    - Min[10, Tag] → FieldInfo(Tag, 10, None, False, False)
+    - Max[10, Lang] → FieldInfo(Lang, 0, 10, False, False)
+    - Range[1, 4, Job] → FieldInfo(Job, 1, 4, False, False)
+    - Key[Name] → FieldInfo(Name, 1, 1, True, False)
+    - Unique[Email] → FieldInfo(Email, 1, 1, False, True)
+    - Name → FieldInfo(Name, 1, 1, False, False)
+
+    Args:
+        field_type: The type annotation from __annotations__
+
+    Returns:
+        FieldInfo with extracted metadata
+    """
+    origin = get_origin(field_type)
+    args = get_args(field_type)
+
+    # Default cardinality: exactly one (1,1)
+    info = FieldInfo(card_min=1, card_max=1)
+
+    # Handle Optional[T] (Union[T, None])
+    from types import UnionType
+    if origin is UnionType or str(origin) == 'typing.Union':
+        # Optional[T] is Union[T, None]
+        # Check if it's truly Optional (has None in args)
+        has_none = type(None) in args or None in args
+        if has_none:
+            for arg in args:
+                if arg is not type(None) and arg is not None:
+                    # Recursively extract from the non-None type
+                    nested_info = extract_metadata(arg)
+                    if nested_info.attr_type:
+                        # Optional means 0 or 1
+                        nested_info.card_min = 0
+                        nested_info.card_max = 1
+                        return nested_info
+
+    # Handle generic type aliases (Min, Max, Range, Key, Unique from type statements)
+    elif origin is not None:
+        origin_name = str(origin)
+
+        # Check for Min/Max/Range/Key/Unique type aliases
+        if 'Min' in origin_name or 'Max' in origin_name or 'Range' in origin_name or 'Key' in origin_name or 'Unique' in origin_name:
+            # These are generic aliases: Min[N, T] gives args (N, T)
+            if 'Min' in origin_name and len(args) >= 2:
+                info.card_min = args[0] if isinstance(args[0], int) else 1
+                info.card_max = None
+                info.attr_type = args[1]
+            elif 'Max' in origin_name and len(args) >= 2:
+                info.card_min = 0
+                info.card_max = args[0] if isinstance(args[0], int) else None
+                info.attr_type = args[1]
+            elif 'Range' in origin_name and len(args) >= 3:
+                info.card_min = args[0] if isinstance(args[0], int) else 1
+                info.card_max = args[1] if isinstance(args[1], int) else None
+                info.attr_type = args[2]
+            elif 'Key' in origin_name and len(args) >= 1:
+                info.is_key = True
+                info.card_min, info.card_max = 1, 1
+                info.attr_type = args[0]
+            elif 'Unique' in origin_name and len(args) >= 1:
+                info.is_unique = True
+                info.card_min, info.card_max = 1, 1
+                info.attr_type = args[0]
+
+            # Check if attr_type is an Attribute subclass
+            try:
+                if isinstance(info.attr_type, type) and issubclass(info.attr_type, Attribute):
+                    return info
+            except TypeError:
+                pass
+
+    # Handle plain Attribute types
+    else:
+        try:
+            if isinstance(field_type, type) and issubclass(field_type, Attribute):
+                info.attr_type = field_type
+                return info
+        except TypeError:
+            pass
+
+    return info
 
 
 def _get_base_type_for_attribute(attr_cls: type[Attribute]) -> type | None:
@@ -53,7 +160,7 @@ def _get_base_type_for_attribute(attr_cls: type[Attribute]) -> type | None:
 
 @dataclass_transform(
     kw_only_default=False,
-    field_specifiers=(AttributeFlags,)
+    field_specifiers=(AttributeFlags, EntityFlags)
 )
 class Entity(BaseModel):
     """Base class for TypeDB entities with Pydantic validation.
@@ -145,51 +252,76 @@ class Entity(BaseModel):
             # Get the default value (should be AttributeFlags from Flag())
             default_value = getattr(cls, field_name, None)
 
-            # Extract Attribute type from field_type (handles Union types)
-            attr_type = None
-            base_type = None
-
-            # Check if it's a union type (e.g., Literal[...] | Status)
-            origin = get_origin(field_type)
-            if origin is not None:
-                # It's a generic type (union, literal, etc.)
-                args = get_args(field_type)
-                # Look for Attribute subclass in the args
-                for arg in args:
-                    try:
-                        if isinstance(arg, type) and issubclass(arg, Attribute):
-                            attr_type = arg
-                            base_type = _get_base_type_for_attribute(attr_type)
-                            break
-                    except TypeError:
-                        continue
-            else:
-                # Direct attribute type
-                try:
-                    if isinstance(field_type, type) and issubclass(field_type, Attribute):
-                        attr_type = field_type
-                        base_type = _get_base_type_for_attribute(attr_type)
-                except TypeError:
-                    pass
+            # Extract attribute type and cardinality/key/unique metadata
+            field_info = extract_metadata(field_type)
+            base_type = _get_base_type_for_attribute(field_info.attr_type) if field_info.attr_type else None
 
             # If we found an Attribute type, add it to owned attributes
-            if attr_type is not None:
-                # Get flags from default value or use empty flags
+            if field_info.attr_type is not None:
+                # Get flags from default value or create new flags
                 if isinstance(default_value, AttributeFlags):
                     flags = default_value
+                    # Merge with cardinality from type annotation if not already set
+                    if flags.card_min is None and flags.card_max is None:
+                        flags.card_min = field_info.card_min
+                        flags.card_max = field_info.card_max
+                    # Set is_key and is_unique from type annotation if found
+                    if field_info.is_key:
+                        flags.is_key = True
+                    if field_info.is_unique:
+                        flags.is_unique = True
                 else:
-                    flags = AttributeFlags()
+                    # Create flags from type annotation metadata
+                    flags = AttributeFlags(
+                        is_key=field_info.is_key,
+                        is_unique=field_info.is_unique,
+                        card_min=field_info.card_min,
+                        card_max=field_info.card_max
+                    )
 
                 owned_attrs[field_name] = {
-                    'type': attr_type,
+                    'type': field_info.attr_type,
                     'flags': flags
                 }
 
                 # Rewrite annotation to include base type for type checkers
-                # Change `name: Name` to `name: str | Name`
-                if base_type and origin is None:  # Only if not already a union
+                # This ensures pyright understands:
+                # - name: Name → name: str | Name
+                # - tags: Min[2, Tag] → tags: list[str]
+                # - age: Optional[Age] → age: int | Age | None
+                if base_type:
                     from typing import Union
-                    new_annotations[field_name] = Union[base_type, field_type]  # noqa: UP007
+                    # Check cardinality to determine if we need a list
+                    is_multi = (flags.card_max is None or (flags.card_max is not None and flags.card_max > 1))
+
+                    # Check if already Optional/Union with None
+                    origin = get_origin(field_type)
+                    from types import UnionType
+                    if origin is UnionType or str(origin) == 'typing.Union':
+                        args = get_args(field_type)
+                        has_none = type(None) in args or None in args
+                        if has_none:
+                            # Already Optional
+                            if is_multi:
+                                # Optional list: list[int] | None
+                                new_annotations[field_name] = Union[list[base_type], type(None)]  # noqa: UP007
+                            else:
+                                # Optional single: int | Age | None
+                                new_annotations[field_name] = Union[base_type, field_info.attr_type, type(None)]  # noqa: UP007
+                        else:
+                            # Union but not Optional
+                            if is_multi:
+                                new_annotations[field_name] = list[base_type]
+                            else:
+                                new_annotations[field_name] = Union[base_type, field_info.attr_type]  # noqa: UP007
+                    else:
+                        # Not a union
+                        if is_multi:
+                            # Multiple values: list[str]
+                            new_annotations[field_name] = list[base_type]
+                        else:
+                            # Single value: str | Name
+                            new_annotations[field_name] = Union[base_type, field_info.attr_type]  # noqa: UP007
                 else:
                     new_annotations[field_name] = field_type
             else:
@@ -346,7 +478,7 @@ class Role:
 
 @dataclass_transform(
     kw_only_default=False,
-    field_specifiers=(AttributeFlags,)
+    field_specifiers=(AttributeFlags, RelationFlags)
 )
 class Relation(BaseModel):
     """Base class for TypeDB relations with Pydantic validation.
@@ -446,51 +578,76 @@ class Relation(BaseModel):
             # Get the default value (should be AttributeFlags from Flag())
             default_value = getattr(cls, field_name, None)
 
-            # Extract Attribute type from field_type (handles Union types)
-            attr_type = None
-            base_type = None
-
-            # Check if it's a union type (e.g., Literal[...] | Status)
-            origin = get_origin(field_type)
-            if origin is not None:
-                # It's a generic type (union, literal, etc.)
-                args = get_args(field_type)
-                # Look for Attribute subclass in the args
-                for arg in args:
-                    try:
-                        if isinstance(arg, type) and issubclass(arg, Attribute):
-                            attr_type = arg
-                            base_type = _get_base_type_for_attribute(attr_type)
-                            break
-                    except TypeError:
-                        continue
-            else:
-                # Direct attribute type
-                try:
-                    if isinstance(field_type, type) and issubclass(field_type, Attribute):
-                        attr_type = field_type
-                        base_type = _get_base_type_for_attribute(attr_type)
-                except TypeError:
-                    pass
+            # Extract attribute type and cardinality/key/unique metadata
+            field_info = extract_metadata(field_type)
+            base_type = _get_base_type_for_attribute(field_info.attr_type) if field_info.attr_type else None
 
             # If we found an Attribute type, add it to owned attributes
-            if attr_type is not None:
-                # Get flags from default value or use empty flags
+            if field_info.attr_type is not None:
+                # Get flags from default value or create new flags
                 if isinstance(default_value, AttributeFlags):
                     flags = default_value
+                    # Merge with cardinality from type annotation if not already set
+                    if flags.card_min is None and flags.card_max is None:
+                        flags.card_min = field_info.card_min
+                        flags.card_max = field_info.card_max
+                    # Set is_key and is_unique from type annotation if found
+                    if field_info.is_key:
+                        flags.is_key = True
+                    if field_info.is_unique:
+                        flags.is_unique = True
                 else:
-                    flags = AttributeFlags()
+                    # Create flags from type annotation metadata
+                    flags = AttributeFlags(
+                        is_key=field_info.is_key,
+                        is_unique=field_info.is_unique,
+                        card_min=field_info.card_min,
+                        card_max=field_info.card_max
+                    )
 
                 owned_attrs[field_name] = {
-                    'type': attr_type,
+                    'type': field_info.attr_type,
                     'flags': flags
                 }
 
                 # Rewrite annotation to include base type for type checkers
-                # Change `position: Position` to `position: str | Position`
-                if base_type and origin is None:  # Only if not already a union
+                # This ensures pyright understands:
+                # - position: Position → position: str | Position
+                # - tags: Min[2, Tag] → tags: list[str]
+                # - year: Optional[Year] → year: int | Year | None
+                if base_type:
                     from typing import Union
-                    new_annotations[field_name] = Union[base_type, field_type]  # noqa: UP007
+                    # Check cardinality to determine if we need a list
+                    is_multi = (flags.card_max is None or (flags.card_max is not None and flags.card_max > 1))
+
+                    # Check if already Optional/Union with None
+                    origin = get_origin(field_type)
+                    from types import UnionType
+                    if origin is UnionType or str(origin) == 'typing.Union':
+                        args = get_args(field_type)
+                        has_none = type(None) in args or None in args
+                        if has_none:
+                            # Already Optional
+                            if is_multi:
+                                # Optional list: list[int] | None
+                                new_annotations[field_name] = Union[list[base_type], type(None)]  # noqa: UP007
+                            else:
+                                # Optional single: int | Year | None
+                                new_annotations[field_name] = Union[base_type, field_info.attr_type, type(None)]  # noqa: UP007
+                        else:
+                            # Union but not Optional
+                            if is_multi:
+                                new_annotations[field_name] = list[base_type]
+                            else:
+                                new_annotations[field_name] = Union[base_type, field_info.attr_type]  # noqa: UP007
+                    else:
+                        # Not a union
+                        if is_multi:
+                            # Multiple values: list[str]
+                            new_annotations[field_name] = list[base_type]
+                        else:
+                            # Single value: str | Position
+                            new_annotations[field_name] = Union[base_type, field_info.attr_type]  # noqa: UP007
                 else:
                     new_annotations[field_name] = field_type
             else:
