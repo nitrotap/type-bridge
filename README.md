@@ -35,12 +35,12 @@ pip install -e .
 ### 1. Define Attribute Types
 
 ```python
-from type_bridge import String, Long
+from type_bridge import String, Integer
 
 class Name(String):
     pass
 
-class Age(Long):
+class Age(Integer):
     pass
 ```
 

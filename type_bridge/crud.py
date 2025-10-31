@@ -6,14 +6,17 @@ from type_bridge.models import Entity, Relation
 from type_bridge.query import Query, QueryBuilder
 from type_bridge.session import Database
 
-T = TypeVar("T", bound=Entity)
+E = TypeVar("E", bound=Entity)
 R = TypeVar("R", bound=Relation)
 
 
-class EntityManager:
-    """Manager for entity CRUD operations."""
+class EntityManager[E: Entity]:
+    """Manager for entity CRUD operations.
 
-    def __init__(self, db: Database, model_class: type[T]):
+    Type-safe manager that preserves entity type information.
+    """
+
+    def __init__(self, db: Database, model_class: type[E]):
         """Initialize entity manager.
 
         Args:
@@ -23,14 +26,14 @@ class EntityManager:
         self.db = db
         self.model_class = model_class
 
-    def create(self, **attributes) -> T:
-        """Create and insert a new entity.
+    def insert(self, **attributes) -> E:
+        """Insert a new entity into the database.
 
         Args:
             attributes: Entity attributes
 
         Returns:
-            Created entity instance
+            Inserted entity instance
         """
         instance = self.model_class(**attributes)
         query = QueryBuilder.insert_entity(instance)
@@ -41,7 +44,7 @@ class EntityManager:
 
         return instance
 
-    def get(self, **filters) -> list[T]:
+    def get(self, **filters) -> list[E]:
         """Get entities matching filters.
 
         Args:
@@ -66,7 +69,7 @@ class EntityManager:
 
         return entities
 
-    def filter(self, **filters) -> "EntityQuery[T]":
+    def filter(self, **filters) -> "EntityQuery[E]":
         """Create a query for filtering entities.
 
         Args:
@@ -77,7 +80,7 @@ class EntityManager:
         """
         return EntityQuery(self.db, self.model_class, filters)
 
-    def all(self) -> list[T]:
+    def all(self) -> list[E]:
         """Get all entities of this type.
 
         Returns:
@@ -124,7 +127,8 @@ class EntityManager:
         attrs = {}
         # Extract attributes from owned attribute classes
         owned_attrs = self.model_class.get_owned_attributes()
-        for field_name, attr_class in owned_attrs.items():
+        for field_name, attr_info in owned_attrs.items():
+            attr_class = attr_info.typ
             attr_name = attr_class.get_attribute_name()
             if attr_name in result:
                 attrs[field_name] = result[attr_name]
@@ -143,10 +147,13 @@ class EntityManager:
             return f'"{str(value)}"'
 
 
-class EntityQuery:
-    """Chainable query for entities."""
+class EntityQuery[E: Entity]:
+    """Chainable query for entities.
 
-    def __init__(self, db: Database, model_class: type[T], filters: dict[str, Any]):
+    Type-safe query builder that preserves entity type information.
+    """
+
+    def __init__(self, db: Database, model_class: type[E], filters: dict[str, Any]):
         """Initialize entity query.
 
         Args:
@@ -160,7 +167,7 @@ class EntityQuery:
         self._limit_value: int | None = None
         self._offset_value: int | None = None
 
-    def limit(self, limit: int) -> "EntityQuery[T]":
+    def limit(self, limit: int) -> "EntityQuery[E]":
         """Limit number of results.
 
         Args:
@@ -172,7 +179,7 @@ class EntityQuery:
         self._limit_value = limit
         return self
 
-    def offset(self, offset: int) -> "EntityQuery[T]":
+    def offset(self, offset: int) -> "EntityQuery[E]":
         """Skip number of results.
 
         Args:
@@ -184,7 +191,7 @@ class EntityQuery:
         self._offset_value = offset
         return self
 
-    def execute(self) -> list[T]:
+    def execute(self) -> list[E]:
         """Execute the query.
 
         Returns:
@@ -207,7 +214,8 @@ class EntityQuery:
             # Extract attributes from result
             owned_attrs = self.model_class.get_owned_attributes()
             attrs = {}
-            for field_name, attr_class in owned_attrs.items():
+            for field_name, attr_info in owned_attrs.items():
+                attr_class = attr_info.typ
                 attr_name = attr_class.get_attribute_name()
                 if attr_name in result:
                     attrs[field_name] = result[attr_name]
@@ -216,7 +224,7 @@ class EntityQuery:
 
         return entities
 
-    def first(self) -> T | None:
+    def first(self) -> E | None:
         """Get first matching entity.
 
         Returns:
@@ -234,8 +242,11 @@ class EntityQuery:
         return len(self.execute())
 
 
-class RelationManager:
-    """Manager for relation CRUD operations."""
+class RelationManager[R: Relation]:
+    """Manager for relation CRUD operations.
+
+    Type-safe manager that preserves relation type information.
+    """
 
     def __init__(self, db: Database, model_class: type[R]):
         """Initialize relation manager.
@@ -247,19 +258,19 @@ class RelationManager:
         self.db = db
         self.model_class = model_class
 
-    def create(self, role_players: dict[str, Any], attributes: dict[str, Any] | None = None) -> R:
-        """Create and insert a new relation.
+    def insert(self, role_players: dict[str, Any], attributes: dict[str, Any] | None = None) -> R:
+        """Insert a new relation into the database.
 
         Args:
             role_players: Dictionary mapping role names to player entities (Entity instances)
             attributes: Optional dictionary of relation attributes
 
         Returns:
-            Created relation instance
+            Inserted relation instance
 
         Example:
             employment_manager = RelationManager(db, Employment)
-            employment = employment_manager.create(
+            employment = employment_manager.insert(
                 role_players={"employee": person, "employer": company},
                 attributes={"position": "Engineer", "salary": 100000}
             )
@@ -287,9 +298,11 @@ class RelationManager:
 
             # Find key attributes to match
             match_parts = [f"{player_var} isa {player_type}"]
-            for field_name, attr_class in owned_attrs.items():
-                if attr_class.is_key():
-                    value = player_entity._values.get(field_name)
+            for field_name, attr_info in owned_attrs.items():
+                attr_class = attr_info.typ
+                flags = attr_info.flags
+                if flags.is_key:
+                    value = getattr(player_entity, field_name, None)
                     if value is not None:
                         attr_name = attr_class.get_attribute_name()
                         formatted_value = self._format_value(value)
@@ -302,25 +315,30 @@ class RelationManager:
             query.match(match_clause)
 
         # Build insert clause for the relation
-        relation_parts = [f"$r ({', '.join([f'{role_name}: {var}' for var, role_name in role_var_map.values()])}) isa {self.model_class.get_type_name()}"]
+        # TypeQL 3.x syntax: (role: $player, ...) isa relation_type (NO VARIABLE!)
+        role_players_str = ', '.join([f'{role_name}: {var}' for var, role_name in role_var_map.values()])
+        insert_pattern = f"({role_players_str}) isa {self.model_class.get_type_name()}"
 
         # Add attributes if provided
         if attributes:
+            attr_parts = []
             for attr_name, attr_value in attributes.items():
                 formatted_value = self._format_value(attr_value)
-                relation_parts.append(f"has {attr_name} {formatted_value}")
+                attr_parts.append(f"has {attr_name} {formatted_value}")
+            insert_pattern += ", " + ", ".join(attr_parts)
 
-        query.insert(", ".join(relation_parts))
+        query.insert(insert_pattern)
 
         # Execute the query
+        query_str = query.build()
         with self.db.transaction("write") as tx:
-            tx.execute(query.build())
+            tx.execute(query_str)
             tx.commit()
 
         # Create and return instance
-        instance_kwargs = {**role_players}
-        if attributes:
-            instance_kwargs.update(attributes)
+        # Note: Don't pass role_players to __init__ as they are ClassVar fields
+        # Only pass attributes
+        instance_kwargs = attributes if attributes else {}
 
         return self.model_class(**instance_kwargs)
 

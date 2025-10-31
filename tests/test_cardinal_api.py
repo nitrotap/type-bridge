@@ -1,6 +1,6 @@
 """Tests for the Card API with Flag system."""
 
-from type_bridge import Card, Entity, EntityFlags, Flag, Long, String
+from type_bridge import Card, Entity, EntityFlags, Flag, Integer, String
 
 
 def test_cardinal_with_min_only():
@@ -15,8 +15,8 @@ def test_cardinal_with_min_only():
 
     owned = Person.get_owned_attributes()
     assert "tags" in owned
-    assert owned["tags"]["flags"].card_min == 2
-    assert owned["tags"]["flags"].card_max is None
+    assert owned["tags"].flags.card_min == 2
+    assert owned["tags"].flags.card_max is None
 
 
 def test_cardinal_with_max_only():
@@ -31,8 +31,8 @@ def test_cardinal_with_max_only():
 
     owned = Person.get_owned_attributes()
     assert "languages" in owned
-    assert owned["languages"]["flags"].card_min == 0
-    assert owned["languages"]["flags"].card_max == 5
+    assert owned["languages"].flags.card_min == 0
+    assert owned["languages"].flags.card_max == 5
 
 
 def test_cardinal_with_min_and_max():
@@ -47,8 +47,8 @@ def test_cardinal_with_min_and_max():
 
     owned = Person.get_owned_attributes()
     assert "jobs" in owned
-    assert owned["jobs"]["flags"].card_min == 1
-    assert owned["jobs"]["flags"].card_max == 3
+    assert owned["jobs"].flags.card_min == 1
+    assert owned["jobs"].flags.card_max == 3
 
 
 def test_cardinal_schema_generation():
@@ -79,7 +79,7 @@ def test_cardinal_schema_generation():
 def test_cardinal_with_long_attribute():
     """Test Card works with Long attributes."""
 
-    class Priority(Long):
+    class Priority(Integer):
         pass
 
     class Task(Entity):
@@ -88,9 +88,9 @@ def test_cardinal_with_long_attribute():
 
     owned = Task.get_owned_attributes()
     assert "priorities" in owned
-    assert owned["priorities"]["type"] is Priority
-    assert owned["priorities"]["flags"].card_min == 1
-    assert owned["priorities"]["flags"].card_max == 5
+    assert owned["priorities"].typ is Priority
+    assert owned["priorities"].flags.card_min == 1
+    assert owned["priorities"].flags.card_max == 5
 
 
 def test_cardinal_instance_creation():
@@ -139,5 +139,5 @@ def test_cardinal_pyright_compliance():
 
     # Verify it works at runtime
     owned = Person.get_owned_attributes()
-    assert owned["tags"]["flags"].card_min == 2
-    assert owned["tags"]["flags"].card_max == 5
+    assert owned["tags"].flags.card_min == 2
+    assert owned["tags"].flags.card_max == 5

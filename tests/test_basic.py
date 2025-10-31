@@ -1,14 +1,14 @@
 """Basic tests for the new Attribute-based API."""
 
-from typing import ClassVar, Literal, Optional
+from typing import ClassVar
 
 from type_bridge import (
     Card,
     Entity,
     EntityFlags,
     Flag,
+    Integer,
     Key,
-    Long,
     Relation,
     RelationFlags,
     Role,
@@ -23,13 +23,13 @@ def test_attribute_creation():
     class Name(String):
         pass
 
-    class Age(Long):
+    class Age(Integer):
         pass
 
     assert Name.get_attribute_name() == "name"
     assert Name.get_value_type() == "string"
     assert Age.get_attribute_name() == "age"
-    assert Age.get_value_type() == "long"
+    assert Age.get_value_type() == "integer"
 
 
 def test_flag_annotation():
@@ -96,13 +96,13 @@ def test_card_with_list_types():
     owned = Person.get_owned_attributes()
 
     # Check that list types with Card work correctly
-    assert owned["tags"]["flags"].card_min == 2
-    assert owned["tags"]["flags"].card_max is None
-    assert owned["tags"]["flags"].has_explicit_card is True
+    assert owned["tags"].flags.card_min == 2
+    assert owned["tags"].flags.card_max is None
+    assert owned["tags"].flags.has_explicit_card is True
 
-    assert owned["jobs"]["flags"].card_min == 1
-    assert owned["jobs"]["flags"].card_max == 5
-    assert owned["jobs"]["flags"].has_explicit_card is True
+    assert owned["jobs"].flags.card_min == 1
+    assert owned["jobs"].flags.card_max == 5
+    assert owned["jobs"].flags.has_explicit_card is True
 
     # Check schema generation
     schema = Person.to_schema_definition()
@@ -114,7 +114,7 @@ def test_card_validation_rejects_non_list():
     """Test that Card with non-list types raises TypeError."""
     import pytest
 
-    class Age(Long):
+    class Age(Integer):
         pass
 
     class Phone(String):
@@ -138,9 +138,9 @@ def test_card_validation_rejects_non_list():
         phone: Phone | None  # This is fine - treated as @card(0,1)
 
     owned = ValidPerson.get_owned_attributes()
-    assert owned["phone"]["flags"].card_min == 0
-    assert owned["phone"]["flags"].card_max == 1
-    assert owned["phone"]["flags"].has_explicit_card is False
+    assert owned["phone"].flags.card_min == 0
+    assert owned["phone"].flags.card_max == 1
+    assert owned["phone"].flags.has_explicit_card is False
 
 
 def test_list_requires_card():
@@ -168,8 +168,8 @@ def test_list_requires_card():
         tags: list[Tag] = Flag(Card(min=1))  # This is correct
 
     owned = ValidPerson.get_owned_attributes()
-    assert owned["tags"]["flags"].card_min == 1
-    assert owned["tags"]["flags"].has_explicit_card is True
+    assert owned["tags"].flags.card_min == 1
+    assert owned["tags"].flags.has_explicit_card is True
 
 
 def test_entity_creation():
@@ -178,7 +178,7 @@ def test_entity_creation():
     class Name(String):
         pass
 
-    class Age(Long):
+    class Age(Integer):
         pass
 
     class Tag(String):
@@ -190,7 +190,7 @@ def test_entity_creation():
     class Person(Entity):
         flags = EntityFlags(type_name="person")
         name: Name = Flag(Key)  # @key @card(1,1)
-        age: Optional[Age]  # @card(0,1) - using Optional
+        age: Age | None  # @card(0,1) - using Optional
         email: Email | None  # @card(0,1) - using union syntax
         tags: list[Tag] = Flag(Card(min=2))  # @card(2,∞)
 
@@ -202,19 +202,19 @@ def test_entity_creation():
     assert "tags" in owned
 
     # Check Key flag
-    assert owned["name"]["flags"].is_key is True
-    assert owned["age"]["flags"].is_key is False
-    assert owned["email"]["flags"].is_key is False
+    assert owned["name"].flags.is_key is True
+    assert owned["age"].flags.is_key is False
+    assert owned["email"].flags.is_key is False
 
     # Check cardinality - both Optional and Union syntax work
-    assert owned["name"]["flags"].card_min == 1
-    assert owned["name"]["flags"].card_max == 1
-    assert owned["age"]["flags"].card_min == 0
-    assert owned["age"]["flags"].card_max == 1
-    assert owned["email"]["flags"].card_min == 0
-    assert owned["email"]["flags"].card_max == 1
-    assert owned["tags"]["flags"].card_min == 2
-    assert owned["tags"]["flags"].card_max is None
+    assert owned["name"].flags.card_min == 1
+    assert owned["name"].flags.card_max == 1
+    assert owned["age"].flags.card_min == 0
+    assert owned["age"].flags.card_max == 1
+    assert owned["email"].flags.card_min == 0
+    assert owned["email"].flags.card_max == 1
+    assert owned["tags"].flags.card_min == 2
+    assert owned["tags"].flags.card_max is None
 
     # Check type name
     assert Person.get_type_name() == "person"
@@ -226,7 +226,7 @@ def test_entity_instance():
     class Name(String):
         pass
 
-    class Age(Long):
+    class Age(Integer):
         pass
 
     class Person(Entity):
@@ -245,7 +245,7 @@ def test_entity_schema_generation():
     class Name(String):
         pass
 
-    class Age(Long):
+    class Age(Integer):
         pass
 
     class Email(String):
@@ -270,7 +270,7 @@ def test_entity_insert_query():
     class Name(String):
         pass
 
-    class Age(Long):
+    class Age(Integer):
         pass
 
     class Person(Entity):
@@ -314,7 +314,7 @@ def test_relation_with_attributes():
     class Name(String):
         pass
 
-    class SinceYear(Long):
+    class SinceYear(Integer):
         pass
 
     class Person(Entity):
@@ -332,9 +332,9 @@ def test_relation_with_attributes():
     # Check owned attributes
     owned = Friendship.get_owned_attributes()
     assert "since_year" in owned
-    assert owned["since_year"]["type"].get_attribute_name() == "sinceyear"
-    assert owned["since_year"]["flags"].card_min == 1
-    assert owned["since_year"]["flags"].card_max == 1
+    assert owned["since_year"].typ.get_attribute_name() == "sinceyear"
+    assert owned["since_year"].flags.card_min == 1
+    assert owned["since_year"].flags.card_max == 1
 
 
 def test_relation_schema_generation():
@@ -364,13 +364,13 @@ def test_attribute_schema_generation():
     class Name(String):
         pass
 
-    class Age(Long):
+    class Age(Integer):
         pass
 
     name_schema = Name.to_schema_definition()
     age_schema = Age.to_schema_definition()
 
     assert "attribute name, value string;" in name_schema
-    assert "attribute age, value long;" in age_schema
+    assert "attribute age, value integer;" in age_schema
 
 

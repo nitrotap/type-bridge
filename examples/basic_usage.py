@@ -1,6 +1,6 @@
 """Example demonstrating the new Attribute-based API with Card cardinality."""
 
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 from type_bridge import (
     Boolean,
@@ -9,8 +9,8 @@ from type_bridge import (
     Entity,
     EntityFlags,
     Flag,
+    Integer,
     Key,
-    Long,
     Relation,
     RelationFlags,
     Role,
@@ -31,13 +31,13 @@ class Email(String):
     pass
 
 
-class Age(Long):
+class Age(Integer):
     """Age attribute - a long integer."""
 
     pass
 
 
-class Salary(Long):
+class Salary(Integer):
     """Salary attribute - a long integer."""
 
     pass
@@ -74,7 +74,7 @@ class Person(Entity):
     flags = EntityFlags(type_name="person")
 
     name: Name = Flag(Key)  # @key (implies @card(1..1)) - exactly one, marked as key
-    age: Optional[Age]  # @card(0..1) - zero or one (optional)
+    age: Age | None  # @card(0..1) - zero or one (optional)
     email: Email  # @card(1..1) - exactly one (default)
     score: Score  # @card(1..1) - exactly one (default)
 
@@ -100,7 +100,7 @@ class Employment(Relation):
 
     # Owned attributes with cardinality
     position: Position  # @card(1..1) - exactly one (default)
-    salary: Optional[Salary]  # @card(0..1) - zero or one (optional)
+    salary: Salary | None  # @card(0..1) - zero or one (optional)
 
 
 def demonstrate_schema_generation():
@@ -192,8 +192,8 @@ def demonstrate_attribute_introspection():
 
     print("Person owns:")
     for field_name, attr_info in Person.get_owned_attributes().items():
-        attr_class = attr_info["type"]
-        flags = attr_info["flags"]
+        attr_class = attr_info.typ
+        flags = attr_info.flags
         attr_name = attr_class.get_attribute_name()
         value_type = attr_class.get_value_type()
         annotations = " ".join(flags.to_typeql_annotations())
@@ -204,8 +204,8 @@ def demonstrate_attribute_introspection():
 
     print("Company owns:")
     for field_name, attr_info in Company.get_owned_attributes().items():
-        attr_class = attr_info["type"]
-        flags = attr_info["flags"]
+        attr_class = attr_info.typ
+        flags = attr_info.flags
         attr_name = attr_class.get_attribute_name()
         value_type = attr_class.get_value_type()
         annotations = " ".join(flags.to_typeql_annotations())
@@ -216,8 +216,8 @@ def demonstrate_attribute_introspection():
 
     print("Employment owns:")
     for field_name, attr_info in Employment.get_owned_attributes().items():
-        attr_class = attr_info["type"]
-        flags = attr_info["flags"]
+        attr_class = attr_info.typ
+        flags = attr_info.flags
         attr_name = attr_class.get_attribute_name()
         value_type = attr_class.get_value_type()
         annotations = " ".join(flags.to_typeql_annotations())

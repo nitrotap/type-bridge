@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from type_bridge import Entity, EntityFlags, Long, String
+from type_bridge import Entity, EntityFlags, Integer, String
 
 
 def test_literal_type_annotation_for_type_safety():
@@ -33,9 +33,9 @@ def test_literal_type_annotation_for_type_safety():
 
 
 def test_long_literal_for_type_safety():
-    """Test Long attribute with Literal types for type-checker safety."""
+    """Test Integer attribute with Literal types for type-checker safety."""
 
-    class Priority(Long):
+    class Priority(Integer):
         pass
 
     class Task(Entity):
@@ -63,7 +63,7 @@ def test_literal_with_multiple_attributes():
     class Status(String):
         pass
 
-    class Priority(Long):
+    class Priority(Integer):
         pass
 
     class Task(Entity):

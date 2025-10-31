@@ -56,7 +56,7 @@ uv run python examples/advanced_usage.py
 ```
 type_bridge/
 ├── __init__.py           # Main package exports
-├── attribute.py          # Attribute base class, concrete types (String, Long, etc.),
+├── attribute.py          # Attribute base class, concrete types (String, Integer, etc.),
 │                         # Flag system (Key, Unique, Card), and EntityFlags/RelationFlags
 ├── models.py             # Base Entity and Relation classes using attribute ownership model
 ├── query.py              # TypeQL query builder
@@ -113,16 +113,17 @@ TypeBridge follows TypeDB's type system closely:
 
 3. **Use Flag system for Key/Unique/Card annotations**:
    ```python
-   from typing import Optional
    from type_bridge import Flag, Key, Unique, Card
 
    name: Name = Flag(Key)                    # @key (implies @card(1..1))
    email: Email = Flag(Unique)               # @unique (default @card(1..1))
-   age: Optional[Age]                        # @card(0..1)
+   age: Age | None                           # @card(0..1) - PEP 604 syntax
    tags: list[Tag] = Flag(Card(min=2))       # @card(2..)
    jobs: list[Job] = Flag(Card(1, 5))        # @card(1..5)
    languages: list[Lang] = Flag(Card(max=3)) # @card(0..3) (min defaults to 0)
    ```
+
+   **Note**: Use modern PEP 604 syntax (`X | None`) instead of `Optional[X]`.
 
 4. **Python inheritance maps to TypeDB supertypes**:
    ```python
@@ -135,7 +136,7 @@ TypeBridge follows TypeDB's type system closely:
 
 5. **Cardinality semantics**:
    - `Type` → exactly one @card(1..1) - default
-   - `Optional[Type]` → zero or one @card(0..1)
+   - `Type | None` → zero or one @card(0..1) - use PEP 604 syntax
    - `list[Type] = Flag(Card(min=N))` → N or more @card(N..)
    - `list[Type] = Flag(Card(max=N))` → zero to N @card(0..N)
    - `list[Type] = Flag(Card(min, max))` → min to max @card(min..max)
@@ -177,16 +178,99 @@ When generating TypeQL schema definitions, always use the following correct synt
    - `@unique` with default `@card(1..1)`, omit `@card` annotation
    - Only output explicit `@card` when it differs from the implied cardinality
 
+## Attribute Types
+
+TypeBridge provides built-in attribute types that map to TypeDB's value types:
+
+- `String` → `value string` in TypeDB
+- `Integer` → `value integer` in TypeDB (renamed from `Long` to match TypeDB 3.x)
+- `Double` → `value double` in TypeDB
+- `Boolean` → `value boolean` in TypeDB
+- `DateTime` → `value datetime` in TypeDB
+
+Example:
+```python
+from type_bridge import String, Integer, Double
+
+class Name(String):
+    pass
+
+class Age(Integer):  # Note: Integer, not Long
+    pass
+
+class Score(Double):
+    pass
+```
+
 ## Deprecated APIs
 
 The following APIs are deprecated and should NOT be used:
 
+- ❌ `Long` - Renamed to `Integer` to match TypeDB 3.x (use `Integer` instead)
 - ❌ `Cardinal` - Use `Flag(Card(...))` instead
 - ❌ `Min[N, Type]` - Use `list[Type] = Flag(Card(min=N))` instead
 - ❌ `Max[N, Type]` - Use `list[Type] = Flag(Card(max=N))` instead
 - ❌ `Range[Min, Max, Type]` - Use `list[Type] = Flag(Card(min, max))` instead
+- ❌ `Optional[Type]` - Use `Type | None` (PEP 604 syntax) instead
+- ❌ `Union[X, Y]` - Use `X | Y` (PEP 604 syntax) instead
 
-These were removed to provide a cleaner, more consistent API using the Flag system.
+These were removed or updated to provide a cleaner, more consistent API following modern Python standards.
+
+## Internal Type System
+
+### ModelAttrInfo Dataclass
+
+The codebase uses `ModelAttrInfo` (defined in `models.py`) as a structured type for attribute metadata:
+
+```python
+@dataclass
+class ModelAttrInfo:
+    typ: type[Attribute]  # The attribute class (e.g., Name, Age)
+    flags: AttributeFlags  # Metadata (Key, Unique, Card)
+```
+
+**IMPORTANT**: Always use dataclass attribute access, never dictionary-style access:
+
+```python
+# ✅ CORRECT
+owned_attrs = Entity.get_owned_attributes()
+for field_name, attr_info in owned_attrs.items():
+    attr_class = attr_info.typ
+    flags = attr_info.flags
+
+# ❌ WRONG - Never use dict-style access
+attr_class = attr_info["type"]   # Will fail!
+flags = attr_info["flags"]       # Will fail!
+```
+
+### Modern Python Type Hints
+
+The project follows modern Python typing standards (Python 3.12+):
+
+1. **PEP 604**: Use `X | Y` instead of `Union[X, Y]`
+   ```python
+   # ✅ Modern
+   age: int | str | None
+
+   # ❌ Deprecated
+   from typing import Union, Optional
+   age: Optional[Union[int, str]]
+   ```
+
+2. **PEP 695**: Use type parameter syntax for generics
+   ```python
+   # ✅ Modern (Python 3.12+)
+   class EntityManager[E: Entity]:
+       ...
+
+   # ❌ Old style (still works but verbose)
+   from typing import Generic, TypeVar
+   E = TypeVar("E", bound=Entity)
+   class EntityManager(Generic[E]):
+       ...
+   ```
+
+3. **No linter suppressions**: Code should pass `ruff` and `pyright` without needing `# noqa` or `# type: ignore` comments
 
 ## Type Checking and Static Analysis
 
@@ -243,3 +327,51 @@ The driver API for version 3.5.5 differs from earlier versions:
 3. **TransactionType enum**: `READ`, `WRITE`, `SCHEMA`
 
 4. **Authentication**: Requires `Credentials(username, password)` even for local development
+
+## Code Quality Standards
+
+The project maintains high code quality standards with zero tolerance for technical debt:
+
+### Linting and Type Checking
+
+All code must pass these checks without errors or warnings:
+
+```bash
+# Ruff - Python linter and formatter (must pass with 0 errors)
+uv run ruff check .          # Check for style issues
+uv run ruff format .         # Auto-format code
+
+# Pyright - Static type checker (must pass with 0 errors, 0 warnings)
+uv run pyright type_bridge/  # Check core library
+uv run pyright examples/     # Check examples
+uv run pyright tests/        # Check tests (note: intentional validation errors are OK)
+```
+
+### Code Quality Requirements
+
+1. **No linter suppressions**: Do not use `# noqa`, `# type: ignore`, or similar comments
+   - Exception: Tests intentionally checking validation failures may show type warnings
+
+2. **Modern Python syntax**:
+   - Use PEP 604 (`X | Y`) instead of `Union[X, Y]`
+   - Use PEP 695 type parameters (`class Foo[T]:`) when possible
+   - Use `X | None` instead of `Optional[X]`
+
+3. **Consistent ModelAttrInfo usage**:
+   - Always use `attr_info.typ` and `attr_info.flags`
+   - Never use dict-style access like `attr_info["type"]`
+
+4. **Import organization**: Imports must be sorted and organized (ruff handles this automatically)
+
+### Testing Requirements
+
+All tests must pass:
+```bash
+uv run python -m pytest tests/ -v  # All 50 tests must pass
+```
+
+When adding new features:
+- Add corresponding tests in `tests/`
+- Ensure examples in `examples/` demonstrate the feature
+- Update CLAUDE.md with usage guidelines
+- Run all quality checks before committing

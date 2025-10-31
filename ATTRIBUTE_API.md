@@ -16,13 +16,13 @@ In TypeDB:
 ```python
 # Step 1: Define attribute types (base types)
 from typing import Optional
-from type_bridge import String, Long, Entity, EntityFlags, Flag, Key, Card
+from type_bridge import String, Integer, Entity, EntityFlags, Flag, Key, Card
 
 class Name(String):
     """Name attribute - can be owned by multiple entity types."""
     pass
 
-class Age(Long):
+class Age(Integer):
     """Age attribute."""
     pass
 
@@ -66,7 +66,7 @@ class Attribute(ABC):
 class String(Attribute):
     value_type = "string"
 
-class Long(Attribute):
+class Integer(Attribute):
     value_type = "long"
 
 class Double(Attribute):
@@ -108,7 +108,7 @@ name: str | Name  # Runtime annotation after __init_subclass__
 
 This happens during class creation in `__init_subclass__`, so:
 - `String` subclass fields become `str | FieldType`
-- `Long` subclass fields become `int | FieldType`
+- `Integer` subclass fields become `int | FieldType`
 - `Double` subclass fields become `float | FieldType`
 - `Boolean` subclass fields become `bool | FieldType`
 - `DateTime` subclass fields become `datetime | FieldType`
@@ -190,7 +190,7 @@ class Entity:
 ```python
 from typing import ClassVar, Optional
 from type_bridge import (
-    String, Long,
+    String, Integer,
     Entity, EntityFlags,
     Relation, RelationFlags, Role,
     Flag, Key, Card
@@ -203,10 +203,10 @@ class Name(String):
 class Email(String):
     pass
 
-class Age(Long):
+class Age(Integer):
     pass
 
-class Salary(Long):
+class Salary(Integer):
     pass
 
 class Position(String):
@@ -497,12 +497,12 @@ TypeBridge supports Python's `Literal` types to provide type-checker hints for e
 
 ```python
 from typing import Literal
-from type_bridge import Entity, EntityFlags, String, Long
+from type_bridge import Entity, EntityFlags, String, Integer
 
 class Status(String):
     pass
 
-class Priority(Long):
+class Priority(Integer):
     pass
 
 class Task(Entity):
@@ -520,7 +520,7 @@ task2 = Task(status="custom_status", priority=999)  # Works at runtime
 
 **Key Points:**
 - **Type-checker safety**: IDEs and type checkers provide autocomplete and warnings for literal values
-- **Runtime flexibility**: Pydantic accepts any value matching the Attribute type (any string for String, any int for Long)
+- **Runtime flexibility**: Pydantic accepts any value matching the Attribute type (any string for String, any int for Integer)
 - **Best of both worlds**: Get IDE benefits without restricting runtime behavior
 
 This pattern is particularly useful for:
@@ -554,12 +554,12 @@ TypeBridge v0.1.2+ is built on **Pydantic v2**, providing powerful validation an
 ### Example
 
 ```python
-from type_bridge import Entity, EntityFlags, String, Long
+from type_bridge import Entity, EntityFlags, String, Integer
 
 class Name(String):
     pass
 
-class Age(Long):
+class Age(Integer):
     pass
 
 class Person(Entity):

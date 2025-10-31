@@ -5,9 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime as datetime_type
 from typing import (
+    TYPE_CHECKING,
     Any,
     ClassVar,
-    Literal,
+    TypeVar,
     dataclass_transform,
     get_args,
     get_origin,
@@ -23,10 +24,17 @@ from type_bridge.attribute import (
     DateTime,
     Double,
     EntityFlags,
-    Long,
+    Integer,
     RelationFlags,
     String,
 )
+
+if TYPE_CHECKING:
+    from type_bridge.crud import EntityManager, RelationManager
+
+# Type variables for self types
+E = TypeVar("E", bound="Entity")
+R = TypeVar("R", bound="Relation")
 
 
 @dataclass
@@ -40,6 +48,7 @@ class FieldInfo:
         is_key: Whether this field is marked as @key
         is_unique: Whether this field is marked as @unique
     """
+
     attr_type: type[Attribute] | None = None
     card_min: int | None = 1
     card_max: int | None = 1
@@ -71,7 +80,8 @@ def extract_metadata(field_type: type) -> FieldInfo:
 
     # Handle Union types (Optional[T] or Literal[...] | T)
     from types import UnionType
-    if origin is UnionType or str(origin) == 'typing.Union':
+
+    if origin is UnionType or str(origin) == "typing.Union":
         # Check if it's Optional (has None in args)
         has_none = type(None) in args or None in args
 
@@ -119,7 +129,7 @@ def extract_metadata(field_type: type) -> FieldInfo:
         origin_name = str(origin)
 
         # Check for Key/Unique type aliases
-        if 'Key' in origin_name and len(args) >= 1:
+        if "Key" in origin_name and len(args) >= 1:
             info.is_key = True
             info.card_min, info.card_max = 1, 1
             info.attr_type = args[0]
@@ -129,7 +139,7 @@ def extract_metadata(field_type: type) -> FieldInfo:
                     return info
             except TypeError:
                 pass
-        elif 'Unique' in origin_name and len(args) >= 1:
+        elif "Unique" in origin_name and len(args) >= 1:
             info.is_unique = True
             info.card_min, info.card_max = 1, 1
             info.attr_type = args[0]
@@ -165,7 +175,7 @@ def _get_base_type_for_attribute(attr_cls: type[Attribute]) -> type | None:
     for base in attr_cls.__mro__:
         if base is String:
             return str
-        elif base is Long:
+        elif base is Integer:
             return int
         elif base is Double:
             return float
@@ -176,10 +186,13 @@ def _get_base_type_for_attribute(attr_cls: type[Attribute]) -> type | None:
     return None
 
 
-@dataclass_transform(
-    kw_only_default=False,
-    field_specifiers=(AttributeFlags, EntityFlags)
-)
+@dataclass
+class ModelAttrInfo:
+    typ: type[Attribute]
+    flags: AttributeFlags
+
+
+@dataclass_transform(kw_only_default=False, field_specifiers=(AttributeFlags, EntityFlags))
 class Entity(BaseModel):
     """Base class for TypeDB entities with Pydantic validation.
 
@@ -197,7 +210,7 @@ class Entity(BaseModel):
         class Name(String):
             pass
 
-        class Age(Long):
+        class Age(Integer):
             pass
 
         class Person(Entity):
@@ -218,14 +231,14 @@ class Entity(BaseModel):
     # Pydantic configuration
     model_config = ConfigDict(
         arbitrary_types_allowed=True,  # Allow Attribute subclass types
-        validate_assignment=True,       # Validate on attribute assignment
-        extra='allow',                  # Allow extra fields for flexibility
-        ignored_types=(EntityFlags,),   # Ignore EntityFlags type for flags field
+        validate_assignment=True,  # Validate on attribute assignment
+        extra="allow",  # Allow extra fields for flexibility
+        ignored_types=(EntityFlags,),  # Ignore EntityFlags type for flags field
     )
 
     # Internal metadata (class-level)
     _flags: ClassVar[EntityFlags] = EntityFlags()
-    _owned_attrs: ClassVar[dict[str, dict[str, Any]]] = {}
+    _owned_attrs: ClassVar[dict[str, ModelAttrInfo]] = {}
     _iid: str | None = None  # TypeDB internal ID
 
     def __init_subclass__(cls) -> None:
@@ -233,37 +246,37 @@ class Entity(BaseModel):
         super().__init_subclass__()
 
         # Get EntityFlags if defined, otherwise use default
-        flags = getattr(cls, 'flags', None)
+        flags = getattr(cls, "flags", None)
         if isinstance(flags, EntityFlags):
             cls._flags = flags
         else:
             # Inherit flags from parent if not explicitly set
             for base in cls.__bases__:
-                if hasattr(base, '_flags') and base is not Entity:
+                if hasattr(base, "_flags") and base is not Entity:
                     cls._flags = EntityFlags(
                         type_name=None,  # Will default to class name
-                        abstract=False
+                        abstract=False,
                     )
                     break
             else:
                 cls._flags = EntityFlags()
 
         # Extract owned attributes from type hints
-        owned_attrs = {}
+        owned_attrs: dict[str, ModelAttrInfo] = {}
         try:
             # Use include_extras=True to preserve Annotated metadata
             hints = get_type_hints(cls, include_extras=True)
         except Exception:
-            hints = getattr(cls, '__annotations__', {})
+            hints: dict[str, Any] = getattr(cls, "__annotations__", {})
 
         # Rewrite annotations to add base types for type checker support
         new_annotations = {}
 
         for field_name, field_type in hints.items():
-            if field_name.startswith('_'):
+            if field_name.startswith("_"):
                 new_annotations[field_name] = field_type
                 continue
-            if field_name == 'flags':  # Skip the flags field itself
+            if field_name == "flags":  # Skip the flags field itself
                 new_annotations[field_name] = field_type
                 continue
 
@@ -272,7 +285,9 @@ class Entity(BaseModel):
 
             # Extract attribute type and cardinality/key/unique metadata
             field_info = extract_metadata(field_type)
-            base_type = _get_base_type_for_attribute(field_info.attr_type) if field_info.attr_type else None
+            base_type = (
+                _get_base_type_for_attribute(field_info.attr_type) if field_info.attr_type else None
+            )
 
             # Check if field type is a list annotation
             field_origin = get_origin(field_type)
@@ -323,13 +338,10 @@ class Entity(BaseModel):
                         is_key=field_info.is_key,
                         is_unique=field_info.is_unique,
                         card_min=field_info.card_min,
-                        card_max=field_info.card_max
+                        card_max=field_info.card_max,
                     )
 
-                owned_attrs[field_name] = {
-                    'type': field_info.attr_type,
-                    'flags': flags
-                }
+                owned_attrs[field_name] = ModelAttrInfo(typ=field_info.attr_type, flags=flags)
 
                 # Rewrite annotation to include base type for type checkers
                 # This ensures pyright understands:
@@ -337,38 +349,44 @@ class Entity(BaseModel):
                 # - tags: Min[2, Tag] → tags: list[str]
                 # - age: Optional[Age] → age: int | Age | None
                 if base_type:
-                    from typing import Union
                     # Check cardinality to determine if we need a list
-                    is_multi = (flags.card_max is None or (flags.card_max is not None and flags.card_max > 1))
+                    is_multi = flags.card_max is None or (
+                        flags.card_max is not None and flags.card_max > 1
+                    )
 
                     # Check if already Optional/Union with None
                     origin = get_origin(field_type)
                     from types import UnionType
-                    if origin is UnionType or str(origin) == 'typing.Union':
+
+                    if origin is UnionType or str(origin) == "typing.Union":
                         args = get_args(field_type)
                         has_none = type(None) in args or None in args
                         if has_none:
                             # Already Optional
                             if is_multi:
                                 # Optional list: list[int | Attribute] | None
-                                new_annotations[field_name] = Union[list[Union[base_type, field_info.attr_type]], type(None)]  # noqa: UP007
+                                new_annotations[field_name] = (
+                                    list[base_type | field_info.attr_type] | None
+                                )
                             else:
                                 # Optional single: int | Age | None
-                                new_annotations[field_name] = Union[base_type, field_info.attr_type, type(None)]  # noqa: UP007
+                                new_annotations[field_name] = (
+                                    base_type | field_info.attr_type | None
+                                )
                         else:
                             # Union but not Optional
                             if is_multi:
-                                new_annotations[field_name] = list[Union[base_type, field_info.attr_type]]  # noqa: UP007
+                                new_annotations[field_name] = list[base_type | field_info.attr_type]
                             else:
-                                new_annotations[field_name] = Union[base_type, field_info.attr_type]  # noqa: UP007
+                                new_annotations[field_name] = base_type | field_info.attr_type
                     else:
                         # Not a union
                         if is_multi:
                             # Multiple values: list[str | Attribute] (accept both raw values and attribute instances)
-                            new_annotations[field_name] = list[Union[base_type, field_info.attr_type]]  # noqa: UP007
+                            new_annotations[field_name] = list[base_type | field_info.attr_type]
                         else:
                             # Single value: str | Name
-                            new_annotations[field_name] = Union[base_type, field_info.attr_type]  # noqa: UP007
+                            new_annotations[field_name] = base_type | field_info.attr_type
                 else:
                     new_annotations[field_name] = field_type
             else:
@@ -401,13 +419,41 @@ class Entity(BaseModel):
         return cls._flags.abstract
 
     @classmethod
-    def get_owned_attributes(cls) -> dict[str, dict[str, Any]]:
+    def get_owned_attributes(cls) -> dict[str, ModelAttrInfo]:
         """Get attributes owned by this entity.
 
         Returns:
-            Dictionary mapping field names to attribute info (type + flags)
+            Dictionary mapping field names to ModelAttrInfo (typ + flags)
         """
         return cls._owned_attrs.copy()
+
+    @classmethod
+    def manager(cls: type[E], db: Any) -> EntityManager[E]:
+        """Create an EntityManager for this entity type.
+
+        Args:
+            db: Database connection
+
+        Returns:
+            EntityManager instance for this entity type with proper type information
+
+        Example:
+            from type_bridge import Database
+
+            db = Database()
+            db.connect()
+
+            # Old way
+            person_mgr = EntityManager(db, Person)
+            person = person_mgr.insert(name="Alice", age=30)
+
+            # New way - with full type safety!
+            person = Person.manager(db).insert(name="Alice", age=30)
+            # person is inferred as Person type by type checkers
+        """
+        from type_bridge.crud import EntityManager
+
+        return EntityManager(db, cls)
 
     @classmethod
     def to_schema_definition(cls) -> str:
@@ -433,8 +479,8 @@ class Entity(BaseModel):
 
         # Add attribute ownerships
         for field_name, attr_info in cls._owned_attrs.items():
-            attr_class = attr_info['type']
-            flags = attr_info['flags']
+            attr_class = attr_info.typ
+            flags = attr_info.flags
             attr_name = attr_class.get_attribute_name()
 
             ownership = f"    owns {attr_name}"
@@ -462,7 +508,7 @@ class Entity(BaseModel):
             # Use Pydantic's getattr to get field value
             value = getattr(self, field_name, None)
             if value is not None:
-                attr_class = attr_info['type']
+                attr_class = attr_info.typ
                 attr_name = attr_class.get_attribute_name()
 
                 # Handle lists (multi-value attributes)
@@ -533,10 +579,7 @@ class Role:
         obj.__dict__[self.attr_name] = value
 
 
-@dataclass_transform(
-    kw_only_default=False,
-    field_specifiers=(AttributeFlags, RelationFlags)
-)
+@dataclass_transform(kw_only_default=False, field_specifiers=(AttributeFlags, RelationFlags))
 class Relation(BaseModel):
     """Base class for TypeDB relations with Pydantic validation.
 
@@ -554,7 +597,7 @@ class Relation(BaseModel):
         class Position(String):
             pass
 
-        class Salary(Long):
+        class Salary(Integer):
             pass
 
         class Employment(Relation):
@@ -570,14 +613,14 @@ class Relation(BaseModel):
     # Pydantic configuration
     model_config = ConfigDict(
         arbitrary_types_allowed=True,  # Allow Attribute subclass types and Role
-        validate_assignment=True,       # Validate on attribute assignment
-        extra='allow',                  # Allow extra fields for flexibility
+        validate_assignment=True,  # Validate on attribute assignment
+        extra="allow",  # Allow extra fields for flexibility
         ignored_types=(RelationFlags, Role),  # Ignore RelationFlags and Role types
     )
 
     # Internal metadata
     _flags: ClassVar[RelationFlags] = RelationFlags()
-    _owned_attrs: ClassVar[dict[str, dict[str, Any]]] = {}
+    _owned_attrs: ClassVar[dict[str, ModelAttrInfo]] = {}
     _roles: ClassVar[dict[str, Role]] = {}
     _iid: str | None = None  # TypeDB internal ID
 
@@ -586,16 +629,16 @@ class Relation(BaseModel):
         super().__init_subclass__()
 
         # Get RelationFlags if defined, otherwise use default
-        flags = getattr(cls, 'flags', None)
+        flags = getattr(cls, "flags", None)
         if isinstance(flags, RelationFlags):
             cls._flags = flags
         else:
             # Inherit flags from parent if not explicitly set
             for base in cls.__bases__:
-                if hasattr(base, '_flags') and base is not Relation:
+                if hasattr(base, "_flags") and base is not Relation:
                     cls._flags = RelationFlags(
                         type_name=None,  # Will default to class name
-                        abstract=False
+                        abstract=False,
                     )
                     break
             else:
@@ -616,16 +659,16 @@ class Relation(BaseModel):
             # Use include_extras=True to preserve Annotated metadata
             hints = get_type_hints(cls, include_extras=True)
         except Exception:
-            hints = getattr(cls, '__annotations__', {})
+            hints = getattr(cls, "__annotations__", {})
 
         # Rewrite annotations to add base types for type checker support
         new_annotations = {}
 
         for field_name, field_type in hints.items():
-            if field_name.startswith('_'):
+            if field_name.startswith("_"):
                 new_annotations[field_name] = field_type
                 continue
-            if field_name == 'flags':  # Skip the flags field itself
+            if field_name == "flags":  # Skip the flags field itself
                 new_annotations[field_name] = field_type
                 continue
             if field_name in roles:  # Skip role fields
@@ -637,7 +680,9 @@ class Relation(BaseModel):
 
             # Extract attribute type and cardinality/key/unique metadata
             field_info = extract_metadata(field_type)
-            base_type = _get_base_type_for_attribute(field_info.attr_type) if field_info.attr_type else None
+            base_type = (
+                _get_base_type_for_attribute(field_info.attr_type) if field_info.attr_type else None
+            )
 
             # Check if field type is a list annotation
             field_origin = get_origin(field_type)
@@ -688,13 +733,10 @@ class Relation(BaseModel):
                         is_key=field_info.is_key,
                         is_unique=field_info.is_unique,
                         card_min=field_info.card_min,
-                        card_max=field_info.card_max
+                        card_max=field_info.card_max,
                     )
 
-                owned_attrs[field_name] = {
-                    'type': field_info.attr_type,
-                    'flags': flags
-                }
+                owned_attrs[field_name] = ModelAttrInfo(typ=field_info.attr_type, flags=flags)
 
                 # Rewrite annotation to include base type for type checkers
                 # This ensures pyright understands:
@@ -702,38 +744,44 @@ class Relation(BaseModel):
                 # - tags: Min[2, Tag] → tags: list[str]
                 # - year: Optional[Year] → year: int | Year | None
                 if base_type:
-                    from typing import Union
                     # Check cardinality to determine if we need a list
-                    is_multi = (flags.card_max is None or (flags.card_max is not None and flags.card_max > 1))
+                    is_multi = flags.card_max is None or (
+                        flags.card_max is not None and flags.card_max > 1
+                    )
 
                     # Check if already Optional/Union with None
                     origin = get_origin(field_type)
                     from types import UnionType
-                    if origin is UnionType or str(origin) == 'typing.Union':
+
+                    if origin is UnionType or str(origin) == "typing.Union":
                         args = get_args(field_type)
                         has_none = type(None) in args or None in args
                         if has_none:
                             # Already Optional
                             if is_multi:
                                 # Optional list: list[int | Attribute] | None
-                                new_annotations[field_name] = Union[list[Union[base_type, field_info.attr_type]], type(None)]  # noqa: UP007
+                                new_annotations[field_name] = (
+                                    list[base_type | field_info.attr_type] | None
+                                )
                             else:
                                 # Optional single: int | Year | None
-                                new_annotations[field_name] = Union[base_type, field_info.attr_type, type(None)]  # noqa: UP007
+                                new_annotations[field_name] = (
+                                    base_type | field_info.attr_type | None
+                                )
                         else:
                             # Union but not Optional
                             if is_multi:
-                                new_annotations[field_name] = list[Union[base_type, field_info.attr_type]]  # noqa: UP007
+                                new_annotations[field_name] = list[base_type | field_info.attr_type]
                             else:
-                                new_annotations[field_name] = Union[base_type, field_info.attr_type]  # noqa: UP007
+                                new_annotations[field_name] = base_type | field_info.attr_type
                     else:
                         # Not a union
                         if is_multi:
                             # Multiple values: list[str | Attribute] (accept both raw values and attribute instances)
-                            new_annotations[field_name] = list[Union[base_type, field_info.attr_type]]  # noqa: UP007
+                            new_annotations[field_name] = list[base_type | field_info.attr_type]
                         else:
                             # Single value: str | Position
-                            new_annotations[field_name] = Union[base_type, field_info.attr_type]  # noqa: UP007
+                            new_annotations[field_name] = base_type | field_info.attr_type
                 else:
                     new_annotations[field_name] = field_type
             else:
@@ -766,11 +814,45 @@ class Relation(BaseModel):
         return cls._flags.abstract
 
     @classmethod
-    def get_owned_attributes(cls) -> dict[str, dict[str, Any]]:
+    def manager(cls: type[R], db: Any) -> RelationManager[R]:
+        """Create a RelationManager for this relation type.
+
+        Args:
+            db: Database connection
+
+        Returns:
+            RelationManager instance for this relation type with proper type information
+
+        Example:
+            from type_bridge import Database
+
+            db = Database()
+            db.connect()
+
+            # Old way
+            employment_mgr = RelationManager(db, Employment)
+            employment = employment_mgr.insert(
+                role_players={"employee": person, "employer": company},
+                attributes={"position": "Engineer"}
+            )
+
+            # New way - with full type safety!
+            employment = Employment.manager(db).insert(
+                role_players={"employee": person, "employer": company},
+                attributes={"position": "Engineer"}
+            )
+            # employment is inferred as Employment type by type checkers
+        """
+        from type_bridge.crud import RelationManager
+
+        return RelationManager(db, cls)
+
+    @classmethod
+    def get_owned_attributes(cls) -> dict[str, ModelAttrInfo]:
         """Get attributes owned by this relation.
 
         Returns:
-            Dictionary mapping field names to attribute info (type + flags)
+            Dictionary mapping field names to ModelAttrInfo (typ + flags)
         """
         return cls._owned_attrs.copy()
 
@@ -802,8 +884,8 @@ class Relation(BaseModel):
 
         # Add attribute ownerships
         for field_name, attr_info in cls._owned_attrs.items():
-            attr_class = attr_info['type']
-            flags = attr_info['flags']
+            attr_class = attr_info.typ
+            flags = attr_info.flags
             attr_name = attr_class.get_attribute_name()
 
             ownership = f"    owns {attr_name}"

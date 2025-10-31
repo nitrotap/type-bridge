@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from type_bridge.models import Entity
+
 
 class Query:
     """Builder for TypeQL queries."""
@@ -159,7 +161,7 @@ class QueryBuilder:
     """Helper class for building queries with model classes."""
 
     @staticmethod
-    def match_entity(model_class: type, var: str = "$e", **filters) -> Query:
+    def match_entity(model_class: type[Entity], var: str = "$e", **filters) -> Query:
         """Create a match query for an entity.
 
         Args:
@@ -179,8 +181,8 @@ class QueryBuilder:
         owned_attrs = model_class.get_owned_attributes()
         for field_name, field_value in filters.items():
             if field_name in owned_attrs:
-                attr_class = owned_attrs[field_name]
-                attr_name = attr_class.get_attribute_name()
+                attr_info = owned_attrs[field_name]
+                attr_name = attr_info.typ.get_attribute_name()
                 formatted_value = _format_value(field_value)
                 pattern_parts.append(f"has {attr_name} {formatted_value}")
 
@@ -190,7 +192,7 @@ class QueryBuilder:
         return query
 
     @staticmethod
-    def insert_entity(instance: Any, var: str = "$e") -> Query:
+    def insert_entity(instance: Entity, var: str = "$e") -> Query:
         """Create an insert query for an entity instance.
 
         Args:

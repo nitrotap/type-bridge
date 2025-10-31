@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from type_bridge import Entity, EntityFlags, Long, String
+from type_bridge import Entity, EntityFlags, Integer, String
 
 
 def test_pydantic_validation():
@@ -12,7 +12,7 @@ def test_pydantic_validation():
     class Name(String):
         pass
 
-    class Age(Long):
+    class Age(Integer):
         pass
 
     class Person(Entity):
@@ -37,7 +37,7 @@ def test_pydantic_validation_on_assignment():
     class Name(String):
         pass
 
-    class Age(Long):
+    class Age(Integer):
         pass
 
     class Person(Entity):
@@ -63,7 +63,7 @@ def test_pydantic_json_serialization():
     class Name(String):
         pass
 
-    class Age(Long):
+    class Age(Integer):
         pass
 
     class Person(Entity):
@@ -89,7 +89,7 @@ def test_pydantic_json_deserialization():
     class Name(String):
         pass
 
-    class Age(Long):
+    class Age(Integer):
         pass
 
     class Person(Entity):
@@ -116,7 +116,7 @@ def test_pydantic_model_copy():
     class Name(String):
         pass
 
-    class Age(Long):
+    class Age(Integer):
         pass
 
     class Person(Entity):
@@ -164,7 +164,7 @@ def test_pydantic_with_default_values():
     class Name(String):
         pass
 
-    class Age(Long):
+    class Age(Integer):
         pass
 
     class Person(Entity):
@@ -189,7 +189,7 @@ def test_pydantic_type_coercion():
     class Name(String):
         pass
 
-    class Age(Long):
+    class Age(Integer):
         pass
 
     class Person(Entity):
@@ -218,7 +218,7 @@ def test_pydantic_validation_errors():
     class Name(String):
         pass
 
-    class Age(Long):
+    class Age(Integer):
         pass
 
     class Person(Entity):

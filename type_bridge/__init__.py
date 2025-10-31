@@ -9,8 +9,8 @@ from type_bridge.attribute import (
     Double,
     EntityFlags,
     Flag,
+    Integer,
     Key,
-    Long,
     RelationFlags,
     String,
     Unique,
@@ -33,7 +33,7 @@ __all__ = [
     # Attributes
     "Attribute",
     "String",
-    "Long",
+    "Integer",
     "Double",
     "Boolean",
     "DateTime",

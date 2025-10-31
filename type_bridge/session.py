@@ -51,7 +51,9 @@ class Database:
             )
 
             # Create driver options
-            driver_options = DriverOptions()
+            # Disable TLS for local connections (non-HTTPS addresses)
+            is_tls_enabled = self.address.startswith('https://')
+            driver_options = DriverOptions(is_tls_enabled=is_tls_enabled)
 
             # Connect to TypeDB
             if credentials:
@@ -80,6 +82,7 @@ class Database:
         """Get the TypeDB driver, connecting if necessary."""
         if self._driver is None:
             self.connect()
+        assert self._driver is not None, "Driver should be initialized after connect()"
         return self._driver
 
     def create_database(self) -> None:
