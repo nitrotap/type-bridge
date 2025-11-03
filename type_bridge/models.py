@@ -689,23 +689,16 @@ class Relation(BaseModel):
             else:
                 cls._flags = RelationFlags()
 
-        # Collect roles from type hints and class attributes
+        # Collect roles from type hints
         roles = {}
 
-        # First, check annotations directly (including ClassVar fields)
+        # Check annotations for Role[T] fields
         annotations = getattr(cls, "__annotations__", {})
         for key, hint in annotations.items():
             if not key.startswith("_") and key != "flags":
-                # Check if it's a ClassVar[Role] or Role[T] type
+                # Check if it's a Role[T] type
                 origin = get_origin(hint)
-                if origin is ClassVar:
-                    # It's ClassVar[Role], get the inner type
-                    args = get_args(hint)
-                    if args and (get_origin(args[0]) is Role or args[0] is Role):
-                        value = getattr(cls, key, None)
-                        if isinstance(value, Role):
-                            roles[key] = value
-                elif origin is Role:
+                if origin is Role:
                     # It's Role[T]
                     value = getattr(cls, key, None)
                     if isinstance(value, Role):

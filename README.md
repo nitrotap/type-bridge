@@ -47,7 +47,6 @@ class Age(Integer):
 ### 2. Define Entities
 
 ```python
-from typing import Optional
 from type_bridge import Entity, EntityFlags, Flag, Key, Card
 
 class Person(Entity):
@@ -55,7 +54,7 @@ class Person(Entity):
 
     # Use Flag() for key/unique markers and Card for cardinality
     name: Name = Flag(Key)                   # @key (implies @card(1..1))
-    age: Optional[Age]                       # @card(0..1) - optional field
+    age: Age | None                          # @card(0..1) - optional field
     email: Email                             # @card(1..1) - default cardinality
     tags: list[Tag] = Flag(Card(min=2))      # @card(2..) - two or more
 ```
@@ -63,42 +62,49 @@ class Person(Entity):
 ### 3. Create Instances
 
 ```python
-# Two ways to create instances:
-
-# Option 1: Attribute instances (fully type-safe, zero pyright errors)
+# Create entity instances with attribute values
 alice = Person(
     name=Name("Alice"),
     age=Age(30),
     email=Email("alice@example.com")
 )
 
-# Option 2: Raw values (convenient, may show pyright warnings)
-bob = Person(name="Bob", age=25, email=Email("bob@example.com"))
-
-# Both work identically at runtime!
+# Pydantic handles validation and type coercion automatically
+print(alice.name.value)  # "Alice"
 ```
 
 ### 4. Work with Data
 
 ```python
-from type_bridge import Database, SchemaManager, EntityManager
+from type_bridge import Database, SchemaManager
 
-# Setup
+# Connect to database
 db = Database(address="localhost:1729", database="mydb")
-schema_manager = SchemaManager(db)
-schema_manager.register(Person)
-schema_manager.sync_schema(force=True)
+db.connect()
+db.create_database()
 
-# CRUD
-person_manager = EntityManager(db, Person)
-alice = person_manager.create(name="Alice", age=30)
-all_people = person_manager.all()
+# Define schema
+schema_manager = SchemaManager(db)
+schema_manager.register(Person, Company, Employment)
+schema_manager.sync_schema()
+
+# Insert entities
+alice = Person.manager(db).insert(
+    name="Alice",
+    age=30,
+    email="alice@example.com"
+)
+
+# Insert relations
+employment = Employment.manager(db).insert(
+    role_players={"employee": alice, "employer": techcorp},
+    attributes={"position": "Engineer", "salary": 100000}
+)
 ```
 
-### 4. Cardinality Constraints
+### 5. Cardinality Constraints
 
 ```python
-from typing import Optional
 from type_bridge import Card, Flag
 
 class Person(Entity):
@@ -106,13 +112,13 @@ class Person(Entity):
 
     # Cardinality options:
     name: Name                              # @card(1..1) - exactly one (default)
-    age: Optional[Age]                      # @card(0..1) - zero or one
+    age: Age | None                         # @card(0..1) - zero or one
     tags: list[Tag] = Flag(Card(min=2))     # @card(2..) - two or more (unbounded)
-    skills: list[Skill] = Flag(Card(max=5)) # @card(0..5) - zero to five (min defaults to 0)
+    skills: list[Skill] = Flag(Card(max=5)) # @card(0..5) - zero to five
     jobs: list[Job] = Flag(Card(1, 3))      # @card(1..3) - one to three
 ```
 
-### 5. Define Relations
+### 6. Define Relations
 
 ```python
 from type_bridge import Relation, RelationFlags, Role
@@ -124,12 +130,12 @@ class Employment(Relation):
     employee: Role[Person] = Role("employee", Person)
     employer: Role[Company] = Role("employer", Company)
 
-    # Relations can own attributes too
+    # Relations can own attributes
     position: Position                   # @card(1..1)
     salary: Salary | None                # @card(0..1)
 ```
 
-### 6. Using Python Inheritance
+### 7. Using Python Inheritance
 
 ```python
 class Animal(Entity):
@@ -146,18 +152,16 @@ See [ATTRIBUTE_API.md](ATTRIBUTE_API.md) for complete documentation.
 
 ## Pydantic Integration
 
-TypeBridge is built on Pydantic v2, giving you powerful features out of the box:
+TypeBridge is built on Pydantic v2, giving you powerful features:
 
 ```python
-from typing import Optional
-
 class Person(Entity):
     flags = EntityFlags(type_name="person")
     name: Name = Flag(Key)
-    age: Age = Age(0)
+    age: Age
 
-# Automatic validation
-alice = Person(name="Alice", age="30")  # String coerced to int
+# Automatic validation and type coercion
+alice = Person(name=Name("Alice"), age=Age(30))
 
 # JSON serialization
 json_data = alice.model_dump_json()
@@ -166,7 +170,7 @@ json_data = alice.model_dump_json()
 bob = Person.model_validate_json('{"name": "Bob", "age": 25}')
 
 # Model copying
-alice_copy = alice.model_copy(update={"age": 31})
+alice_copy = alice.model_copy(update={"age": Age(31)})
 ```
 
 ## Running Examples

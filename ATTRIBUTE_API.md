@@ -1,8 +1,8 @@
-# New Attribute-Based API
+# Attribute-Based API
 
 ## Overview
 
-The new Attribute-based API aligns TypeBridge more closely with TypeDB's actual type system, where **attributes are base types** that **entities and relations own**.
+TypeBridge provides an Attribute-based API that aligns with TypeDB's type system, where **attributes are base types** that **entities and relations own**.
 
 ## Design Principles
 
@@ -12,10 +12,9 @@ In TypeDB:
 2. **Entities** and **relations** declare **ownership** of these attributes
 3. Multiple types can own the same attribute
 
-### New TypeBridge API
+### TypeBridge API
 ```python
 # Step 1: Define attribute types (base types)
-from typing import Optional
 from type_bridge import String, Integer, Entity, EntityFlags, Flag, Key, Card
 
 class Name(String):
@@ -36,8 +35,7 @@ class Person(Entity):
 
     # Use Flag() for key/unique markers and cardinality
     name: Name = Flag(Key)                  # @key (implies @card(1..1))
-    age: Optional[Age]                      # @card(0..1) - optional single value
-    phone: Phone | None                     # @card(0..1) - union syntax also works
+    age: Age | None                         # @card(0..1) - optional single value
     email: Email                            # @card(1..1) - default, required
     tags: list[Tag] = Flag(Card(min=2))     # @card(2..) - multi-value with Card
 ```
@@ -67,7 +65,7 @@ class String(Attribute):
     value_type = "string"
 
 class Integer(Attribute):
-    value_type = "long"
+    value_type = "integer"
 
 class Double(Attribute):
     value_type = "double"
@@ -89,73 +87,6 @@ class Status(String):
 # Type checker provides autocomplete for "active", "inactive", "pending"
 status: Literal["active", "inactive", "pending"] | Status
 ```
-
-**Type Checker Support**: TypeBridge automatically rewrites field annotations at runtime to support Pydantic validation:
-
-When you write:
-```python
-class Name(String):
-    pass
-
-class Person(Entity):
-    name: Name  # You write this
-```
-
-TypeBridge automatically converts it to (at runtime):
-```python
-name: str | Name  # Runtime annotation after __init_subclass__
-```
-
-This happens during class creation in `__init_subclass__`, so:
-- `String` subclass fields become `str | FieldType`
-- `Integer` subclass fields become `int | FieldType`
-- `Double` subclass fields become `float | FieldType`
-- `Boolean` subclass fields become `bool | FieldType`
-- `DateTime` subclass fields become `datetime | FieldType`
-
-### Type Checker Compatibility
-
-TypeBridge supports **two ways** to create entity instances:
-
-**Option 1: Attribute Instances (fully type-safe, zero pyright errors)**
-
-```python
-# Pass attribute instances - zero pyright errors!
-alice = Person(
-    name=Name("Alice"),
-    age=Age(30),
-    email=Email("alice@example.com")
-)
-```
-
-**Pros**:
-- ✅ Zero pyright/mypy errors
-- ✅ Fully type-safe
-- ✅ Explicit about attribute types
-- ✅ IDE autocomplete works perfectly
-
-**Cons**:
-- Slightly more verbose
-- Requires wrapping each value
-
-**Option 2: Raw Values (convenient)**
-
-```python
-# Pass raw values - convenient but may show pyright warnings
-alice = Person(name="Alice", age=30, email="alice@example.com")
-```
-
-**Pros**:
-- ✅ Concise and convenient
-- ✅ Matches common Python patterns
-- ✅ Works perfectly at runtime
-
-**Cons**:
-- ⚠️ May show pyright warnings (false positives)
-
-**Both patterns work identically at runtime** thanks to Pydantic's validation. The attribute instances are automatically unwrapped to their primitive values for storage and queries.
-
-**Recommendation**: Use attribute instances when working with strict type checking, use raw values for convenience when type checker warnings are acceptable.
 
 ### 3. Entity Ownership Model (`models.py`)
 
@@ -188,7 +119,6 @@ class Entity:
 ## Complete Example
 
 ```python
-from typing import ClassVar, Optional
 from type_bridge import (
     String, Integer,
     Entity, EntityFlags,
@@ -220,7 +150,7 @@ class Person(Entity):
     flags = EntityFlags(type_name="person")
 
     name: Name = Flag(Key)                  # @key (implies @card(1..1))
-    age: Optional[Age]                      # @card(0..1)
+    age: Age | None                         # @card(0..1)
     email: Email                            # @card(1..1) - default
     skills: list[Skill] = Flag(Card(min=1)) # @card(1..) - multi-value
 
@@ -250,8 +180,8 @@ define
 # Attributes (defined once, can be owned by multiple types)
 attribute name, value string;
 attribute email, value string;
-attribute age, value long;
-attribute salary, value long;
+attribute age, value integer;
+attribute salary, value integer;
 attribute position, value string;
 attribute skill, value string;
 
@@ -292,8 +222,7 @@ class Person(Entity):
 
     # Single value patterns
     name: Name                              # @card(1..1) - required, exactly one
-    age: Optional[Age]                      # @card(0..1) - optional, at most one
-    phone: Phone | None                     # @card(0..1) - union syntax also works
+    age: Age | None                         # @card(0..1) - optional, at most one
 
     # Multi-value patterns (MUST use Flag(Card(...)))
     tags: list[Tag] = Flag(Card(min=1))     # @card(1..) - at least one, unbounded
@@ -311,7 +240,7 @@ class Person(Entity):
    # ✅ Correct
    tags: list[Tag] = Flag(Card(min=2))
 
-   # ❌ Wrong - use Optional instead
+   # ❌ Wrong - use Type | None instead
    age: Age = Flag(Card(min=0, max=1))  # TypeError!
    ```
 
@@ -325,40 +254,26 @@ class Person(Entity):
    tags: list[Tag] = Flag(Key)  # TypeError - Key alone is not enough!
    ```
 
-3. **For optional single values, use `Optional[Type]` or `Type | None`**:
+3. **For optional single values, use `Type | None`**:
    ```python
-   # ✅ Both work
-   age: Optional[Age]
-   phone: Phone | None
+   # ✅ Correct
+   age: Age | None
    ```
 
 ## Creating Instances
 
 ```python
-# Two ways to create instances:
-
-# Option 1: Attribute instances (type-safe, zero pyright errors)
+# Create entity instances with attribute values
 alice = Person(
     name=Name("Alice Johnson"),
     age=Age(30),
     email=Email("alice@example.com"),
-    skills=["Python", "TypeDB", "FastAPI"]  # Multi-value field
+    skills=[Skill("Python"), Skill("TypeDB"), Skill("FastAPI")]
 )
 
-# Option 2: Raw values (convenient, may show pyright warnings)
-bob = Person(
-    name="Bob Smith",
-    age=25,
-    email="bob@example.com",
-    skills=["JavaScript", "React"]
-)
-
-# Both produce the same insert queries
+# Generate insert query
 print(alice.to_insert_query())
-# Output: $e isa person, has name "Alice Johnson", has age 30, has email "alice@example.com"
-
-print(bob.to_insert_query())
-# Output: $e isa person, has name "Bob Smith", has age 25, has email "bob@example.com"
+# Output: $e isa person, has name "Alice Johnson", has age 30, has email "alice@example.com", ...
 ```
 
 ## Benefits
@@ -393,48 +308,10 @@ class Person(Entity):
     name: Name = Flag(Key)  # Clearly marked as @key
 ```
 
-### 5. **No Pydantic Conflicts**
-- Entities store values in a simple dict
-- No complex Pydantic validation issues
-- Cleaner, more predictable behavior
-
-## Cardinality Semantics
-
-TypeBridge provides cardinality constraints using Python's typing system that map to TypeDB's `@card` annotation:
-
-```python
-from typing import Optional
-from type_bridge import Min, Max, Range
-
-# Default cardinality
-field: Type                  # @card(1..1) - exactly one (default)
-
-# Optional (zero or one)
-field: Optional[Type]        # @card(0..1) - zero or one
-field: Type | None           # @card(0..1) - equivalent syntax
-
-# Minimum cardinality (unbounded)
-field: Min[2, Type]          # @card(2..) - two or more
-field: Min[1, Type]          # @card(1..) - one or more
-
-# Maximum cardinality
-field: Max[5, Type]          # @card(0..5) - zero to five
-field: Max[3, Type]          # @card(0..3) - zero to three
-
-# Range (min and max)
-field: Range[1, 3, Type]     # @card(1..3) - one to three
-field: Range[2, 5, Type]     # @card(2..5) - two to five
-```
-
-**Note**: For multi-cardinality fields (Max, Min, Range), you must pass a list at runtime:
-```python
-class Company(Entity):
-    flags = EntityFlags(type_name="company")
-    industries: Range[1, 5, Industry]
-
-# Must pass a list
-company = Company(industries=["Tech", "Software", "AI"])
-```
+### 5. **Pydantic Integration**
+- Built on Pydantic v2 for automatic validation
+- JSON serialization and deserialization support
+- Type coercion and field validation
 
 ## Using Python Inheritance for Supertypes
 
@@ -531,12 +408,12 @@ This pattern is particularly useful for:
 
 ## Pydantic Integration
 
-TypeBridge v0.1.2+ is built on **Pydantic v2**, providing powerful validation and serialization features:
+TypeBridge is built on **Pydantic v2**, providing powerful validation and serialization features:
 
 ### Features
 
 1. **Automatic Type Validation**
-   - Values are automatically validated and coerced to the correct type
+   - Values are automatically validated to the correct type
    - Invalid data raises clear validation errors
 
 2. **JSON Serialization/Deserialization**
@@ -549,7 +426,6 @@ TypeBridge v0.1.2+ is built on **Pydantic v2**, providing powerful validation an
 
 4. **Validation on Assignment**
    - Field assignments are automatically validated
-   - Type coercion happens on both initialization and assignment
 
 ### Example
 
@@ -565,21 +441,19 @@ class Age(Integer):
 class Person(Entity):
     flags = EntityFlags(type_name="person")
     name: Name
-    age: Age = Age(0)  # Default value
+    age: Age
 
-# Automatic validation and coercion
-alice = Person(name="Alice", age="30")  # "30" coerced to int 30
-assert isinstance(alice.age, int)
+# Create instance
+alice = Person(name=Name("Alice"), age=Age(30))
 
 # JSON serialization
 json_data = alice.model_dump_json()
-# {"name":"Alice","age":30}
 
 # JSON deserialization
 bob = Person.model_validate_json('{"name":"Bob","age":25}')
 
 # Model copying
-alice_older = alice.model_copy(update={"age": 31})
+alice_older = alice.model_copy(update={"age": Age(31)})
 ```
 
 ### Configuration
@@ -605,4 +479,4 @@ Entity and Relation classes are configured with:
 
 ## Conclusion
 
-The new Attribute-based API with Pydantic integration provides a more accurate representation of TypeDB's type system, making it clearer how attributes, entities, and relations work together. The Pydantic integration adds powerful validation, serialization, and type safety features while maintaining full compatibility with TypeDB operations. This design is more maintainable and aligns better with TypeDB's philosophy of treating attributes as first-class types.
+The Attribute-based API with Pydantic integration provides an accurate representation of TypeDB's type system, making it clear how attributes, entities, and relations work together. The Pydantic integration adds powerful validation, serialization, and type safety features while maintaining full compatibility with TypeDB operations. This design aligns with TypeDB's philosophy of treating attributes as first-class types.
