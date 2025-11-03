@@ -115,19 +115,18 @@ class Person(Entity):
 ### 5. Define Relations
 
 ```python
-from typing import ClassVar
 from type_bridge import Relation, RelationFlags, Role
 
 class Employment(Relation):
     flags = RelationFlags(type_name="employment")
 
-    # Define roles with ClassVar
-    employee: ClassVar[Role] = Role("employee", Person)
-    employer: ClassVar[Role] = Role("employer", Company)
+    # Define roles with type-safe Role[T] syntax
+    employee: Role[Person] = Role("employee", Person)
+    employer: Role[Company] = Role("employer", Company)
 
     # Relations can own attributes too
     position: Position                   # @card(1..1)
-    salary: Optional[Salary]             # @card(0..1)
+    salary: Salary | None                # @card(0..1)
 ```
 
 ### 6. Using Python Inheritance

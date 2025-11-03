@@ -1,7 +1,5 @@
 """Example demonstrating Pydantic integration features."""
 
-from typing import ClassVar
-
 from type_bridge import (
     Entity,
     EntityFlags,
@@ -54,8 +52,8 @@ class Employment(Relation):
 
     flags = RelationFlags(type_name="employment")
 
-    employee: ClassVar[Role] = Role("employee", Person)
-    employer: ClassVar[Role] = Role("employer", Company)
+    employee: Role[Person] = Role("employee", Person)
+    employer: Role[Company] = Role("employer", Company)
 
     salary: Salary | None = None  # Optional field with default
 

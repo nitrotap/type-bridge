@@ -1,5 +1,6 @@
 """CRUD operations for TypeDB entities and relations."""
 
+from datetime import datetime
 from typing import Any, TypeVar
 
 from type_bridge.models import Entity, Relation
@@ -143,6 +144,9 @@ class EntityManager[E: Entity]:
             return "true" if value else "false"
         elif isinstance(value, (int, float)):
             return str(value)
+        elif isinstance(value, datetime):
+            # TypeDB datetime format: YYYY-MM-DDTHH:MM:SS
+            return value.strftime("%Y-%m-%dT%H:%M:%S")
         else:
             return f'"{str(value)}"'
 
@@ -322,9 +326,17 @@ class RelationManager[R: Relation]:
         # Add attributes if provided
         if attributes:
             attr_parts = []
-            for attr_name, attr_value in attributes.items():
-                formatted_value = self._format_value(attr_value)
-                attr_parts.append(f"has {attr_name} {formatted_value}")
+            for field_name, attr_value in attributes.items():
+                # Skip None values for optional attributes
+                if attr_value is None:
+                    continue
+                # Get the attribute class from the model to get the correct TypeQL name
+                owned_attrs = self.model_class.get_owned_attributes()
+                if field_name in owned_attrs:
+                    attr_info = owned_attrs[field_name]
+                    typeql_attr_name = attr_info.typ.get_attribute_name()
+                    formatted_value = self._format_value(attr_value)
+                    attr_parts.append(f"has {typeql_attr_name} {formatted_value}")
             insert_pattern += ", " + ", ".join(attr_parts)
 
         query.insert(insert_pattern)
@@ -351,6 +363,9 @@ class RelationManager[R: Relation]:
             return "true" if value else "false"
         elif isinstance(value, (int, float)):
             return str(value)
+        elif isinstance(value, datetime):
+            # TypeDB datetime format: YYYY-MM-DDTHH:MM:SS
+            return value.strftime("%Y-%m-%dT%H:%M:%S")
         else:
             return f'"{str(value)}"'
 

@@ -1,7 +1,5 @@
 """Example demonstrating the new Attribute-based API with Card cardinality."""
 
-from typing import ClassVar
-
 from type_bridge import (
     Boolean,
     Card,
@@ -94,9 +92,9 @@ class Employment(Relation):
 
     flags = RelationFlags(type_name="employment")
 
-    # Roles
-    employee: ClassVar[Role] = Role("employee", Person)
-    employer: ClassVar[Role] = Role("employer", Company)
+    # Roles - using generic Role[T] for type safety
+    employee: Role[Person] = Role("employee", Person)
+    employer: Role[Company] = Role("employer", Company)
 
     # Owned attributes with cardinality
     position: Position  # @card(1..1) - exactly one (default)

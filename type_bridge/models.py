@@ -15,7 +15,8 @@ from typing import (
     get_type_hints,
 )
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, GetCoreSchemaHandler
+from pydantic_core import CoreSchema
 
 from type_bridge.attribute import (
     Attribute,
@@ -31,6 +32,7 @@ from type_bridge.attribute import (
 
 if TYPE_CHECKING:
     from type_bridge.crud import EntityManager, RelationManager
+    from type_bridge.session import Database
 
 # Type variables for self types
 E = TypeVar("E", bound="Entity")
@@ -455,6 +457,25 @@ class Entity(BaseModel):
 
         return EntityManager(db, cls)
 
+    def insert(self: E, db: Database) -> E:
+        """Insert this entity instance into the database.
+
+        Args:
+            db: Database connection
+
+        Returns:
+            Self for chaining
+
+        Example:
+            person = Person(name=Name("Alice"), age=Age(30))
+            person.insert(db)
+        """
+        query = self.to_insert_query()
+        with db.transaction("write") as tx:
+            tx.execute(query)
+            tx.commit()
+        return self
+
     @classmethod
     def to_schema_definition(cls) -> str:
         """Generate TypeQL schema definition for this entity.
@@ -478,7 +499,7 @@ class Entity(BaseModel):
         lines.append(entity_def)
 
         # Add attribute ownerships
-        for field_name, attr_info in cls._owned_attrs.items():
+        for _field_name, attr_info in cls._owned_attrs.items():
             attr_class = attr_info.typ
             flags = attr_info.flags
             attr_name = attr_class.get_attribute_name()
@@ -546,37 +567,61 @@ class Entity(BaseModel):
         return f"{self.__class__.__name__}({', '.join(field_strs)})"
 
 
-class Role:
-    """Descriptor for relation role players."""
+class Role[T: Entity]:
+    """Descriptor for relation role players with type safety.
 
-    def __init__(self, role_name: str, player_type: str | type):
+    Generic type T represents the entity type that can play this role.
+    """
+
+    def __init__(self, role_name: str, player_type: type[T]):
         """Initialize a role.
 
         Args:
             role_name: The name of the role in TypeDB
-            player_type: The type of entity that can play this role
+            player_type: The entity type that can play this role
         """
         self.role_name = role_name
-        if isinstance(player_type, str):
-            self.player_type = player_type
-        else:
-            # Get type name from the entity class
-            self.player_type = player_type.get_type_name()
+        self.player_entity_type = player_type
+        # Get type name from the entity class
+        self.player_type = player_type.get_type_name()
         self.attr_name: str | None = None
 
     def __set_name__(self, owner: type, name: str) -> None:
         """Called when role is assigned to a class."""
         self.attr_name = name
 
-    def __get__(self, obj: Any, objtype: type | None = None) -> Any:
+    def __get__(self, obj: Any, objtype: type | None = None) -> T | Role[T]:
         """Get role player from instance."""
         if obj is None:
             return self
         return obj.__dict__.get(self.attr_name)
 
-    def __set__(self, obj: Any, value: Any) -> None:
+    def __set__(self, obj: Any, value: T) -> None:
         """Set role player on instance."""
         obj.__dict__[self.attr_name] = value
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        """Define how Pydantic should validate Role fields.
+
+        Accepts either a Role instance or the entity type T.
+        """
+        from pydantic_core import core_schema
+
+        # Extract the entity type from Role[T]
+        entity_type = Any
+        if hasattr(source_type, "__args__") and source_type.__args__:
+            entity_type = source_type.__args__[0]
+
+        # Create a schema that accepts the entity type
+        python_schema = core_schema.is_instance_schema(entity_type)
+
+        return core_schema.no_info_after_validator_function(
+            lambda x: x,  # Just pass through the entity instance
+            python_schema,
+        )
 
 
 @dataclass_transform(kw_only_default=False, field_specifiers=(AttributeFlags, RelationFlags))
@@ -603,11 +648,11 @@ class Relation(BaseModel):
         class Employment(Relation):
             flags = RelationFlags(type_name="employment")
 
-            employee: ClassVar[Role] = Role("employee", Person)
-            employer: ClassVar[Role] = Role("employer", Company)
+            employee: Role[Person] = Role("employee", Person)
+            employer: Role[Company] = Role("employer", Company)
 
-            position: Position = Flag(Card(1))
-            salary: Salary = Flag(Card(0, 1))
+            position: Position
+            salary: Salary | None
     """
 
     # Pydantic configuration
@@ -644,13 +689,28 @@ class Relation(BaseModel):
             else:
                 cls._flags = RelationFlags()
 
-        # Collect roles
+        # Collect roles from type hints and class attributes
         roles = {}
-        for key in dir(cls):
+
+        # First, check annotations directly (including ClassVar fields)
+        annotations = getattr(cls, "__annotations__", {})
+        for key, hint in annotations.items():
             if not key.startswith("_") and key != "flags":
-                value = getattr(cls, key, None)
-                if isinstance(value, Role):
-                    roles[key] = value
+                # Check if it's a ClassVar[Role] or Role[T] type
+                origin = get_origin(hint)
+                if origin is ClassVar:
+                    # It's ClassVar[Role], get the inner type
+                    args = get_args(hint)
+                    if args and (get_origin(args[0]) is Role or args[0] is Role):
+                        value = getattr(cls, key, None)
+                        if isinstance(value, Role):
+                            roles[key] = value
+                elif origin is Role:
+                    # It's Role[T]
+                    value = getattr(cls, key, None)
+                    if isinstance(value, Role):
+                        roles[key] = value
+
         cls._roles = roles
 
         # Extract owned attributes from type hints
@@ -847,6 +907,50 @@ class Relation(BaseModel):
 
         return RelationManager(db, cls)
 
+    def insert(self: R, db: Database) -> R:
+        """Insert this relation instance into the database.
+
+        Args:
+            db: Database connection
+
+        Returns:
+            Self for chaining
+
+        Example:
+            employment = Employment(
+                position=Position("Engineer"),
+                salary=Salary(100000),
+                start_date=StartDate(datetime(2020, 1, 1)),
+                active=Active(True),
+                employee=person,
+                employer=company
+            )
+            employment.insert(db)
+        """
+        # Extract role players from instance
+        role_players = {}
+        for role_name, role in self.__class__._roles.items():
+            # Get the value from the instance's __dict__
+            value = self.__dict__.get(role_name)
+            if value is not None:
+                role_players[role_name] = value
+
+        # Extract attributes from instance
+        attributes = {}
+        for field_name in self.__class__._owned_attrs:
+            if hasattr(self, field_name):
+                value = getattr(self, field_name)
+                # Extract raw value from Attribute instances
+                if hasattr(value, 'value'):
+                    attributes[field_name] = value.value
+                else:
+                    attributes[field_name] = value
+
+        # Use manager to insert
+        manager = self.__class__.manager(db)
+        manager.insert(role_players=role_players, attributes=attributes)
+        return self
+
     @classmethod
     def get_owned_attributes(cls) -> dict[str, ModelAttrInfo]:
         """Get attributes owned by this relation.
@@ -879,11 +983,11 @@ class Relation(BaseModel):
         lines.append(relation_def)
 
         # Add roles
-        for role_name, role in cls._roles.items():
+        for _role_name, role in cls._roles.items():
             lines.append(f"    relates {role.role_name}")
 
         # Add attribute ownerships
-        for field_name, attr_info in cls._owned_attrs.items():
+        for _field_name, attr_info in cls._owned_attrs.items():
             attr_class = attr_info.typ
             flags = attr_info.flags
             attr_name = attr_class.get_attribute_name()

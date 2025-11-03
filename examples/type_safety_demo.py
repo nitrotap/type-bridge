@@ -4,8 +4,6 @@ This example shows how the generic EntityManager[E] and RelationManager[R]
 provide full type safety and IDE autocomplete support.
 """
 
-from typing import ClassVar
-
 from type_bridge import (
     Database,
     Entity,
@@ -60,8 +58,8 @@ class Company(Entity):
 class Employment(Relation):
     flags = RelationFlags(type_name="employment")
 
-    employee: ClassVar[Role] = Role("employee", Person)
-    employer: ClassVar[Role] = Role("employer", Company)
+    employee: Role[Person] = Role("employee", Person)
+    employer: Role[Company] = Role("employer", Company)
 
     position: Position
     salary: Salary | None = None

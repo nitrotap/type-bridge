@@ -233,11 +233,11 @@ class Company(Entity):
 class Employment(Relation):
     flags = RelationFlags(type_name="employment")
 
-    employee: ClassVar[Role] = Role("employee", Person)
-    employer: ClassVar[Role] = Role("employer", Company)
+    employee: Role[Person] = Role("employee", Person)
+    employer: Role[Company] = Role("employer", Company)
 
     position: Position        # @card(1..1) - default
-    salary: Optional[Salary]  # @card(0..1)
+    salary: Salary | None     # @card(0..1)
 ```
 
 ## Generated Schema

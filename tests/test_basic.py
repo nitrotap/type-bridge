@@ -1,7 +1,5 @@
 """Basic tests for the new Attribute-based API."""
 
-from typing import ClassVar
-
 from type_bridge import (
     Card,
     Entity,
@@ -299,8 +297,8 @@ def test_relation_creation():
     class Friendship(Relation):
         flags = RelationFlags(type_name="friendship")
 
-        friend1: ClassVar[Role] = Role("friend", Person)
-        friend2: ClassVar[Role] = Role("friend", Person)
+        friend1: Role[Person] = Role("friend", Person)
+        friend2: Role[Person] = Role("friend", Person)
 
     # Check roles
     assert "friend1" in Friendship._roles
@@ -324,8 +322,8 @@ def test_relation_with_attributes():
     class Friendship(Relation):
         flags = RelationFlags(type_name="friendship")
 
-        friend1: ClassVar[Role] = Role("friend", Person)
-        friend2: ClassVar[Role] = Role("friend", Person)
+        friend1: Role[Person] = Role("friend", Person)
+        friend2: Role[Person] = Role("friend", Person)
 
         since_year: SinceYear  # default card(1,1)
 
@@ -350,8 +348,8 @@ def test_relation_schema_generation():
     class Friendship(Relation):
         flags = RelationFlags(type_name="friendship")
 
-        friend1: ClassVar[Role] = Role("friend", Person)
-        friend2: ClassVar[Role] = Role("friend", Person)
+        friend1: Role[Person] = Role("friend", Person)
+        friend2: Role[Person] = Role("friend", Person)
 
     schema = Friendship.to_schema_definition()
     assert "relation friendship" in schema

@@ -7,6 +7,9 @@ from type_bridge.session import Database
 class SchemaManager:
     """Manager for database schema operations."""
 
+    db: Database
+    registered_models: list[type[Entity | Relation]]
+
     def __init__(self, db: Database):
         """Initialize schema manager.
 
@@ -14,7 +17,7 @@ class SchemaManager:
             db: Database connection
         """
         self.db = db
-        self._registered_models: list[type] = []
+        self.registered_models = []
 
     def register(self, *models: type) -> None:
         """Register model classes for schema management.
@@ -23,8 +26,8 @@ class SchemaManager:
             models: Model classes to register
         """
         for model in models:
-            if model not in self._registered_models:
-                self._registered_models.append(model)
+            if model not in self.registered_models:
+                self.registered_models.append(model)
 
     def generate_schema(self) -> str:
         """Generate complete TypeQL schema definition.
@@ -39,7 +42,7 @@ class SchemaManager:
         relations = []
         attribute_classes = set()
 
-        for model in self._registered_models:
+        for model in self.registered_models:
             if issubclass(model, Entity) and model is not Entity:
                 entities.append(model)
             elif issubclass(model, Relation) and model is not Relation:
@@ -47,8 +50,8 @@ class SchemaManager:
 
             # Collect all attribute classes owned by this model
             owned_attrs = model.get_owned_attributes()
-            for field_name, attr_class in owned_attrs.items():
-                attribute_classes.add(attr_class)
+            for field_name, attr_info in owned_attrs.items():
+                attribute_classes.add(attr_info.typ)
 
         # Define attributes first
         lines.append("define")
@@ -73,7 +76,9 @@ class SchemaManager:
             # Add role player definitions
             for role_name, role in relation_model._roles.items():
                 player_type = role.player_type
-                lines.append(f"{player_type} plays {relation_model.get_type_name()}:{role.role_name};")
+                lines.append(
+                    f"{player_type} plays {relation_model.get_type_name()}:{role.role_name};"
+                )
             lines.append("")
 
         return "\n".join(lines)
