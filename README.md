@@ -20,7 +20,7 @@ A modern, Pythonic ORM for TypeDB with an Attribute-based API that aligns with T
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/type_bridge.git
+git clone https://github.com/ds1sqe/type_bridge.git
 cd type_bridge
 
 # Install with uv
@@ -28,6 +28,9 @@ uv sync
 
 # Or with pip
 pip install -e .
+
+# Or add to project with uv
+uv add type-bridge
 ```
 
 ## Quick Start
