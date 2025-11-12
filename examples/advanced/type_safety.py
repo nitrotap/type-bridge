@@ -114,11 +114,7 @@ def demonstrate_type_safety():
     print("-" * 70)
 
     # Direct instantiation: use wrapped types (type system enforces this)
-    person = Person(
-        name=Name("Alice Johnson"),
-        age=Age(30),
-        email=Email("alice@example.com")
-    )
+    person = Person(name=Name("Alice Johnson"), age=Age(30), email=Email("alice@example.com"))
     Person.manager(db).insert(person)
     print(f"✓ Created person: {person.name.value}")
     # IDE will autocomplete: person.name, person.age, person.email
@@ -138,7 +134,7 @@ def demonstrate_type_safety():
         employee=person,
         employer=company,
         position=Position("Software Engineer"),
-        salary=Salary(100000)
+        salary=Salary(100000),
     )
     Employment.manager(db).insert(employment)
     print(f"✓ Created employment: {employment.position.value}")
@@ -151,11 +147,7 @@ def demonstrate_type_safety():
     # Manager is typed as EntityManager[Person]
     person_manager = Person.manager(db)
     # Create typed instance with wrapped types
-    another_person = Person(
-        name=Name("Bob Smith"),
-        age=Age(28),
-        email=Email("bob@example.com")
-    )
+    another_person = Person(name=Name("Bob Smith"), age=Age(28), email=Email("bob@example.com"))
     person_manager.insert(another_person)
     print(f"✓ Created another person: {another_person.name.value}")
 

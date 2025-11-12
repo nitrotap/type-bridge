@@ -17,6 +17,7 @@ from type_bridge.attribute.flags import (
     Flag,
     Key,
     RelationFlags,
+    TypeNameCase,
     Unique,
 )
 from type_bridge.attribute.integer import Integer
@@ -39,4 +40,5 @@ __all__ = [
     "AttributeFlags",
     "EntityFlags",
     "RelationFlags",
+    "TypeNameCase",
 ]

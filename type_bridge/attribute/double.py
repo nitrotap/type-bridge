@@ -140,16 +140,16 @@ class Double(Attribute):
     def __pow__(self, other: object) -> "Double":
         """Power operation."""
         if isinstance(other, (int, float)):
-            return Double(self.value ** other)
+            return Double(self.value**other)
         elif isinstance(other, Double):
-            return Double(self.value ** other.value)
+            return Double(self.value**other.value)
         else:
             return NotImplemented
 
     def __rpow__(self, other: object) -> "Double":
         """Right-hand power."""
         if isinstance(other, (int, float)):
-            return Double(other ** self.value)
+            return Double(other**self.value)
         else:
             return NotImplemented
 

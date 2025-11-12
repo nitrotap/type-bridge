@@ -84,7 +84,9 @@ def demonstrate_update_single_value(db: Database):
     # Fetch entity
     print("Fetching Alice Johnson...")
     alice = person_manager.get(name="Alice Johnson")[0]
-    print(f"  Before: {alice.name.value}, age={alice.age.value if alice.age else 'N/A'}, score={alice.score.value}")
+    print(
+        f"  Before: {alice.name.value}, age={alice.age.value if alice.age else 'N/A'}, score={alice.score.value}"
+    )
     print()
 
     # Modify single-value attributes
@@ -103,7 +105,9 @@ def demonstrate_update_single_value(db: Database):
 
     # Verify
     alice_updated = person_manager.get(name="Alice Johnson")[0]
-    print(f"  After: {alice_updated.name.value}, age={alice_updated.age.value if alice_updated.age else 'N/A'}, score={alice_updated.score.value}")
+    print(
+        f"  After: {alice_updated.name.value}, age={alice_updated.age.value if alice_updated.age else 'N/A'}, score={alice_updated.score.value}"
+    )
     print()
 
 
@@ -177,11 +181,15 @@ def demonstrate_update_multiple_persons(db: Database):
     # Update Charlie
     print("Updating Charlie Davis:")
     charlie = person_manager.get(name="Charlie Davis")[0]
-    print(f"  Before: age={charlie.age.value if charlie.age else 'N/A'}, score={charlie.score.value}")
+    print(
+        f"  Before: age={charlie.age.value if charlie.age else 'N/A'}, score={charlie.score.value}"
+    )
     charlie.age = Age(33)
     charlie.score = Score(93.0)
     person_manager.update(charlie)
-    print(f"  After: age={charlie.age.value if charlie.age else 'N/A'}, score={charlie.score.value}")
+    print(
+        f"  After: age={charlie.age.value if charlie.age else 'N/A'}, score={charlie.score.value}"
+    )
     print("  ✓ Updated")
     print()
 
@@ -223,7 +231,9 @@ def demonstrate_typical_workflow(db: Database):
 
     # Verify
     diana_updated = person_manager.get(name="Diana Evans")[0]
-    print(f"Verification: {diana_updated.name.value}, age={diana_updated.age.value if diana_updated.age else 'N/A'}, score={diana_updated.score.value}")
+    print(
+        f"Verification: {diana_updated.name.value}, age={diana_updated.age.value if diana_updated.age else 'N/A'}, score={diana_updated.score.value}"
+    )
     print()
 
 
@@ -277,7 +287,9 @@ def show_final_state(db: Database):
     updated_persons = ["Alice Johnson", "Bob Smith", "Charlie Davis", "Diana Evans"]
     for name in updated_persons:
         person = person_manager.get(name=name)[0]
-        print(f"  • {person.name.value}: age={person.age.value if person.age else 'N/A'}, score={person.score.value}")
+        print(
+            f"  • {person.name.value}: age={person.age.value if person.age else 'N/A'}, score={person.score.value}"
+        )
     print()
 
     # Show updated companies

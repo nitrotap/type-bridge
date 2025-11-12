@@ -1,6 +1,8 @@
 """Flag system for TypeDB attribute annotations."""
 
+import re
 from dataclasses import dataclass
+from enum import Enum
 from typing import Annotated, Any, TypeVar
 
 T = TypeVar("T")
@@ -11,18 +13,93 @@ type Key[T] = Annotated[T, "key"]
 type Unique[T] = Annotated[T, "unique"]
 
 
+class TypeNameCase(Enum):
+    """Type name case formatting options for Entity and Relation types.
+
+    Options:
+        LOWERCASE: Convert class name to lowercase (default)
+                   Example: PersonName → personname
+        CLASS_NAME: Keep class name as-is (PascalCase)
+                    Example: PersonName → PersonName
+        SNAKE_CASE: Convert class name to snake_case
+                    Example: PersonName → person_name
+    """
+
+    LOWERCASE = "lowercase"
+    CLASS_NAME = "classname"
+    SNAKE_CASE = "snake_case"
+
+
+def _to_snake_case(name: str) -> str:
+    """Convert a PascalCase or camelCase string to snake_case.
+
+    Args:
+        name: The class name to convert
+
+    Returns:
+        The snake_case version of the name
+
+    Examples:
+        >>> _to_snake_case("PersonName")
+        'person_name'
+        >>> _to_snake_case("HTTPResponse")
+        'http_response'
+        >>> _to_snake_case("SimpleClass")
+        'simple_class'
+    """
+    # Insert an underscore before any uppercase letter that follows a lowercase letter
+    # or a digit, or before uppercase letters that are followed by lowercase letters
+    s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
+    # Insert an underscore before any uppercase letter that follows a lowercase letter or digit
+    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
+
+
+def format_type_name(class_name: str, case: TypeNameCase) -> str:
+    """Format a class name according to the specified case style.
+
+    Args:
+        class_name: The Python class name
+        case: The case formatting style to apply
+
+    Returns:
+        The formatted type name
+
+    Examples:
+        >>> format_type_name("PersonName", TypeNameCase.LOWERCASE)
+        'personname'
+        >>> format_type_name("PersonName", TypeNameCase.CLASS_NAME)
+        'PersonName'
+        >>> format_type_name("PersonName", TypeNameCase.SNAKE_CASE)
+        'person_name'
+    """
+    if case == TypeNameCase.LOWERCASE:
+        return class_name.lower()
+    elif case == TypeNameCase.CLASS_NAME:
+        return class_name
+    elif case == TypeNameCase.SNAKE_CASE:
+        return _to_snake_case(class_name)
+    else:
+        # Default to lowercase for unknown cases
+        return class_name.lower()
+
+
 @dataclass
 class EntityFlags:
     """Metadata flags for Entity classes.
 
     Args:
-        type_name: TypeDB type name (defaults to lowercase class name)
+        type_name: TypeDB type name (if None, uses class name with case formatting)
         abstract: Whether this is an abstract entity type
         base: Whether this is a Python base class that should not appear in TypeDB schema
+        case: Case formatting for auto-generated type names (default: LOWERCASE)
 
     Example:
         class Person(Entity):
             flags = EntityFlags(type_name="person")
+            name: Name
+
+        class PersonName(Entity):
+            flags = EntityFlags(case=TypeNameCase.SNAKE_CASE)  # → person_name
             name: Name
 
         class AbstractPerson(Entity):
@@ -37,6 +114,7 @@ class EntityFlags:
     type_name: str | None = None
     abstract: bool = False
     base: bool = False
+    case: TypeNameCase = TypeNameCase.LOWERCASE
 
 
 @dataclass
@@ -44,13 +122,18 @@ class RelationFlags:
     """Metadata flags for Relation classes.
 
     Args:
-        type_name: TypeDB type name (defaults to lowercase class name)
+        type_name: TypeDB type name (if None, uses class name with case formatting)
         abstract: Whether this is an abstract relation type
         base: Whether this is a Python base class that should not appear in TypeDB schema
+        case: Case formatting for auto-generated type names (default: LOWERCASE)
 
     Example:
         class Employment(Relation):
             flags = RelationFlags(type_name="employment")
+            employee: Role = Role("employee", Person)
+
+        class PersonEmployment(Relation):
+            flags = RelationFlags(case=TypeNameCase.SNAKE_CASE)  # → person_employment
             employee: Role = Role("employee", Person)
 
         class Relation(tbg.Relation):
@@ -61,6 +144,7 @@ class RelationFlags:
     type_name: str | None = None
     abstract: bool = False
     base: bool = False
+    case: TypeNameCase = TypeNameCase.LOWERCASE
 
 
 class Card:

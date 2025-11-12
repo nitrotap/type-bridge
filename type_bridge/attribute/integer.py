@@ -130,16 +130,16 @@ class Integer(Attribute):
     def __pow__(self, other: object) -> "Integer":
         """Power operation."""
         if isinstance(other, int):
-            return Integer(self.value ** other)
+            return Integer(self.value**other)
         elif isinstance(other, Integer):
-            return Integer(self.value ** other.value)
+            return Integer(self.value**other.value)
         else:
             return NotImplemented
 
     def __rpow__(self, other: object) -> "Integer":
         """Right-hand power."""
         if isinstance(other, int):
-            return Integer(other ** self.value)
+            return Integer(other**self.value)
         else:
             return NotImplemented
 

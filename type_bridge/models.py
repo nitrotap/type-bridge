@@ -30,6 +30,7 @@ from type_bridge.attribute import (
     RelationFlags,
     String,
 )
+from type_bridge.attribute.flags import format_type_name
 
 if TYPE_CHECKING:
     from type_bridge.crud import EntityManager, RelationManager
@@ -290,7 +291,7 @@ class Entity(BaseModel):
         # Validate type name doesn't conflict with TypeDB built-ins
         # (skip validation for base classes that won't appear in schema)
         if not cls._flags.base:
-            type_name = cls._flags.type_name or cls.__name__.lower()
+            type_name = cls._flags.type_name or format_type_name(cls.__name__, cls._flags.case)
             _validate_type_name(type_name, cls.__name__)
 
         # Extract owned attributes from type hints
@@ -461,8 +462,14 @@ class Entity(BaseModel):
 
     @classmethod
     def get_type_name(cls) -> str:
-        """Get the TypeDB type name for this entity."""
-        return cls._flags.type_name or cls.__name__.lower()
+        """Get the TypeDB type name for this entity.
+
+        If type_name is explicitly set in EntityFlags, it is used as-is.
+        Otherwise, the class name is formatted according to the case parameter.
+        """
+        if cls._flags.type_name:
+            return cls._flags.type_name
+        return format_type_name(cls.__name__, cls._flags.case)
 
     @classmethod
     def get_supertype(cls) -> str | None:
@@ -771,7 +778,7 @@ class Relation(BaseModel):
         validate_assignment=True,  # Validate on attribute assignment
         extra="allow",  # Allow extra fields for flexibility
         ignored_types=(RelationFlags, Role),  # Ignore RelationFlags and Role types
-        revalidate_instances='always',  # Revalidate on model_copy
+        revalidate_instances="always",  # Revalidate on model_copy
     )
 
     # Internal metadata
@@ -803,7 +810,7 @@ class Relation(BaseModel):
         # Validate type name doesn't conflict with TypeDB built-ins
         # (skip validation for base classes that won't appear in schema)
         if not cls._flags.base:
-            type_name = cls._flags.type_name or cls.__name__.lower()
+            type_name = cls._flags.type_name or format_type_name(cls.__name__, cls._flags.case)
             _validate_type_name(type_name, cls.__name__)
 
         # Collect roles from type hints
@@ -994,8 +1001,14 @@ class Relation(BaseModel):
 
     @classmethod
     def get_type_name(cls) -> str:
-        """Get the TypeDB type name for this relation."""
-        return cls._flags.type_name or cls.__name__.lower()
+        """Get the TypeDB type name for this relation.
+
+        If type_name is explicitly set in RelationFlags, it is used as-is.
+        Otherwise, the class name is formatted according to the case parameter.
+        """
+        if cls._flags.type_name:
+            return cls._flags.type_name
+        return format_type_name(cls.__name__, cls._flags.case)
 
     @classmethod
     def get_supertype(cls) -> str | None:

@@ -52,7 +52,7 @@ class Database:
 
             # Create driver options
             # Disable TLS for local connections (non-HTTPS addresses)
-            is_tls_enabled = self.address.startswith('https://')
+            is_tls_enabled = self.address.startswith("https://")
             driver_options = DriverOptions(is_tls_enabled=is_tls_enabled)
 
             # Connect to TypeDB
@@ -60,7 +60,9 @@ class Database:
                 self._driver = TypeDB.driver(self.address, credentials, driver_options)
             else:
                 # For local TypeDB Core without authentication
-                self._driver = TypeDB.driver(self.address, Credentials("admin", "password"), driver_options)
+                self._driver = TypeDB.driver(
+                    self.address, Credentials("admin", "password"), driver_options
+                )
 
     def close(self) -> None:
         """Close connection to TypeDB server."""
@@ -184,7 +186,9 @@ class Transaction:
                     results.append(item.as_json())
                 else:
                     # Try to convert to dict
-                    results.append(dict(item) if hasattr(item, "__iter__") else {"result": str(item)})
+                    results.append(
+                        dict(item) if hasattr(item, "__iter__") else {"result": str(item)}
+                    )
 
         return results
 

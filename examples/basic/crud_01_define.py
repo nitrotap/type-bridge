@@ -256,10 +256,7 @@ alice = Person(
 """)
 
     alice = Person(
-        name=Name("Alice Johnson"),
-        age=Age(30),
-        email=Email("alice@example.com"),
-        score=Score(95.5)
+        name=Name("Alice Johnson"), age=Age(30), email=Email("alice@example.com"), score=Score(95.5)
     )
 
     print("\nGenerated TypeQL Insert Query:")
@@ -312,7 +309,7 @@ employment = Employment(
         employee=alice,
         employer=techcorp,
         position=Position("Software Engineer"),
-        salary=Salary(120000)
+        salary=Salary(120000),
     )
 
     print("\nGenerated TypeQL Insert Query:")
@@ -362,8 +359,6 @@ def demonstrate_step5_complete_schema():
 
     print("-" * 80)
     print()
-
-
 
 
 def main():

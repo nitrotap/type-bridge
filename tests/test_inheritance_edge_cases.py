@@ -29,7 +29,6 @@ class TestInheritanceEdgeCases:
         """Test that using 'attribute' as an attribute name raises an error."""
 
         with pytest.raises(ValueError, match="conflicts with TypeDB built-in type"):
-
             # Class name directly conflicts (will lowercase to "attribute")
             class Attribute(String):  # type: ignore[misc]
                 pass
@@ -72,7 +71,6 @@ class TestInheritanceEdgeCases:
         # This should raise an error because the class name is "Entity"
         # which would default to type_name="entity" (collision)
         with pytest.raises(ValueError, match="'entity'.*conflicts with TypeDB built-in"):
-
             # Intentionally name the class "Entity" to trigger the edge case
             class Entity(tbg.Entity):  # type: ignore[no-redef]
                 pass  # No flags - would default to type_name="entity"

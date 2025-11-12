@@ -13,6 +13,7 @@ from type_bridge.attribute import (
     Key,
     RelationFlags,
     String,
+    TypeNameCase,
     Unique,
 )
 from type_bridge.crud import EntityManager, RelationManager
@@ -47,6 +48,7 @@ __all__ = [
     # Entity/Relation flags
     "EntityFlags",
     "RelationFlags",
+    "TypeNameCase",
     # Query
     "Query",
     "QueryBuilder",

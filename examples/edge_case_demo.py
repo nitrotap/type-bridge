@@ -7,7 +7,6 @@ that conflict with TypeDB's built-in types.
 import type_bridge as tbg
 from type_bridge import EntityFlags, String
 
-
 # ❌ EDGE CASE 1: Trying to create a custom Entity base class without proper naming
 # This would fail because the class name "Entity" defaults to type_name="entity"
 # which conflicts with TypeDB's built-in "entity" type

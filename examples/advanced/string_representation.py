@@ -75,9 +75,7 @@ def main():
     print("\n1. Entity Representations")
     print("-" * 70)
 
-    alice = Person(
-        name=Name("Alice Johnson"), email=Email("alice@example.com"), age=Age(30)
-    )
+    alice = Person(name=Name("Alice Johnson"), email=Email("alice@example.com"), age=Age(30))
 
     bob = Person(name=Name("Bob Smith"), email=Email("bob@example.com"), age=None)
 

@@ -524,12 +524,16 @@ class RelationManager[R: Relation]:
                 attr_class = attr_info.typ
                 attr_name = attr_class.get_attribute_name()
                 formatted_value = self._format_value(value)
-                match_parts.append(f"${role_name} isa {entity_type_name}, has {attr_name} {formatted_value}")
+                match_parts.append(
+                    f"${role_name} isa {entity_type_name}, has {attr_name} {formatted_value}"
+                )
                 break  # Only use first key attribute
 
         # Build insert clause
         relation_type_name = self.model_class.get_type_name()
-        role_parts = [f"{roles[role_name].role_name}: ${role_name}" for role_name in role_players.keys()]
+        role_parts = [
+            f"{roles[role_name].role_name}: ${role_name}" for role_name in role_players.keys()
+        ]
         relation_pattern = f"({', '.join(role_parts)}) isa {relation_type_name}"
 
         # Add attributes
@@ -544,7 +548,7 @@ class RelationManager[R: Relation]:
                 if isinstance(value, list):
                     for item in value:
                         # Extract value from Attribute instance
-                        if hasattr(item, 'value'):
+                        if hasattr(item, "value"):
                             item = item.value
                         # Format for TypeQL
                         if isinstance(item, str):
@@ -558,7 +562,7 @@ class RelationManager[R: Relation]:
                         attr_parts.append(f"has {attr_name} {formatted}")
                 else:
                     # Extract value from Attribute instance
-                    if hasattr(value, 'value'):
+                    if hasattr(value, "value"):
                         value = value.value
                     # Format for TypeQL
                     if isinstance(value, str):

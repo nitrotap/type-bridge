@@ -8,7 +8,6 @@ This example shows:
 5. Querying data to verify insertion
 """
 
-
 from type_bridge import (
     Boolean,
     Card,

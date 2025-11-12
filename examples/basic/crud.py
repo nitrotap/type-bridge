@@ -47,6 +47,7 @@ def run_part(part_number: int, script_name: str, description: str):
         if module_name in sys.modules:
             # Reload if already imported
             import importlib
+
             module = importlib.reload(sys.modules[module_name])
         else:
             module = __import__(module_name)
@@ -62,6 +63,7 @@ def run_part(part_number: int, script_name: str, description: str):
     except Exception as e:
         print(f"❌ Error running {script_name}: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -247,6 +249,7 @@ def main():
     except Exception as e:
         print(f"\n\n❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
 
     print()

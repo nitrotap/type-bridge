@@ -25,9 +25,7 @@ class EntityChanges:
 
     def has_changes(self) -> bool:
         """Check if there are any changes."""
-        return bool(
-            self.added_attributes or self.removed_attributes or self.modified_attributes
-        )
+        return bool(self.added_attributes or self.removed_attributes or self.modified_attributes)
 
 
 @dataclass

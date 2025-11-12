@@ -44,17 +44,17 @@ class YY(XX):
     age: Age
 
 
-print(f"✅ Created custom 'Entity' base class with base=True")
+print("✅ Created custom 'Entity' base class with base=True")
 print(f"   Entity.is_base() = {Entity.is_base()}")
 print(f"   Entity.to_schema_definition() = {Entity.to_schema_definition()}")
 print()
 
-print(f"Schema for XX:")
+print("Schema for XX:")
 print(f"  {XX.to_schema_definition()}")
 print(f"  Supertype: {XX.get_supertype()}")
 print()
 
-print(f"Schema for YY:")
+print("Schema for YY:")
 print(f"  {YY.to_schema_definition()}")
 print(f"  Supertype: {YY.get_supertype()}")
 print()
@@ -137,9 +137,11 @@ class Animal(AuditedEntity):
     age: Age
 
 
-print("Inheritance chain: Animal -> AuditedEntity(base) -> LivingThing(abstract) -> BaseEntity(base)")
+print(
+    "Inheritance chain: Animal -> AuditedEntity(base) -> LivingThing(abstract) -> BaseEntity(base)"
+)
 print(f"  Animal.get_supertype() = {Animal.get_supertype()}")
-print(f"  Skips both base classes, finds 'living_thing'")
+print("  Skips both base classes, finds 'living_thing'")
 print()
 
 print("Schema for Animal:")
@@ -147,7 +149,7 @@ print(f"  {Animal.to_schema_definition()}")
 print()
 
 animal = Animal(name=Name("Lion"), age=Age(5))
-print(f"Methods from base classes work:")
+print("Methods from base classes work:")
 print(f"  audit_log(): {animal.audit_log()}")
 print(f"  get_audit_metadata(): {animal.get_audit_metadata()}")
 print()

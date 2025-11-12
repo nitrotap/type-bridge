@@ -280,8 +280,7 @@ def demonstrate_complex_queries(db: Database):
     print("Companies in Technology sector:")
     all_companies = company_manager.all()
     tech_companies = [
-        c for c in all_companies
-        if any(ind.value == "Technology" for ind in c.industry)
+        c for c in all_companies if any(ind.value == "Technology" for ind in c.industry)
     ]
     for company in tech_companies:
         print(f"  • {company.name.value}")

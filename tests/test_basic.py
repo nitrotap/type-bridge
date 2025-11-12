@@ -39,12 +39,16 @@ def test_flag_annotation():
     # Test Key flag
     key_flag = Flag(Key)
     assert key_flag.is_key is True
-    assert key_flag.to_typeql_annotations() == ["@key"]  # @key implies @card(1,1), no need to output it
+    assert key_flag.to_typeql_annotations() == [
+        "@key"
+    ]  # @key implies @card(1,1), no need to output it
 
     # Test Unique flag
     unique_flag = Flag(Unique)
     assert unique_flag.is_unique is True
-    assert unique_flag.to_typeql_annotations() == ["@unique"]  # @unique with default @card(1,1) omits @card
+    assert unique_flag.to_typeql_annotations() == [
+        "@unique"
+    ]  # @unique with default @card(1,1) omits @card
 
     # Test combined Key + Unique flags
     combined_flag = Flag(Key, Unique)
@@ -70,7 +74,9 @@ def test_flag_annotation():
     assert key_card.is_key is True
     assert key_card.card_min == 1
     assert key_card.card_max is None
-    assert key_card.to_typeql_annotations() == ["@key"]  # @key always implies exactly one, @card is omitted
+    assert key_card.to_typeql_annotations() == [
+        "@key"
+    ]  # @key always implies exactly one, @card is omitted
 
 
 def test_card_with_list_types():
@@ -119,13 +125,19 @@ def test_card_validation_rejects_non_list():
         pass
 
     # Should raise TypeError when Card is used on non-list type
-    with pytest.raises(TypeError, match="Flag\\(Card\\(...\\)\\) can only be used with list\\[Type\\]"):
+    with pytest.raises(
+        TypeError, match="Flag\\(Card\\(...\\)\\) can only be used with list\\[Type\\]"
+    ):
+
         class InvalidPerson(Entity):
             flags = EntityFlags(type_name="invalid_person")
             age: Age = Flag(Card(min=0, max=1))  # Should fail!
 
     # Should also reject Card on union types with None
-    with pytest.raises(TypeError, match="Flag\\(Card\\(...\\)\\) can only be used with list\\[Type\\]"):
+    with pytest.raises(
+        TypeError, match="Flag\\(Card\\(...\\)\\) can only be used with list\\[Type\\]"
+    ):
+
         class InvalidPerson2(Entity):
             flags = EntityFlags(type_name="invalid_person2")
             phone: Phone | None = Flag(Card(min=0, max=1))  # Should fail! Use Optional instead
@@ -149,13 +161,19 @@ def test_list_requires_card():
         pass
 
     # Should raise TypeError when list[Type] is used without Flag(Card(...))
-    with pytest.raises(TypeError, match="list\\[Type\\] annotations must use Flag\\(Card\\(...\\)\\)"):
+    with pytest.raises(
+        TypeError, match="list\\[Type\\] annotations must use Flag\\(Card\\(...\\)\\)"
+    ):
+
         class InvalidPerson(Entity):
             flags = EntityFlags(type_name="invalid_person")
             tags: list[Tag]  # Should fail! Must use Flag(Card(...))
 
     # Should also fail without any default value
-    with pytest.raises(TypeError, match="list\\[Type\\] annotations must use Flag\\(Card\\(...\\)\\)"):
+    with pytest.raises(
+        TypeError, match="list\\[Type\\] annotations must use Flag\\(Card\\(...\\)\\)"
+    ):
+
         class InvalidPerson2(Entity):
             flags = EntityFlags(type_name="invalid_person2")
             tags: list[Tag] = Flag(Key)  # Should fail! Key doesn't provide Card
@@ -379,5 +397,3 @@ def test_attribute_schema_generation():
 
     assert "attribute name, value string;" in name_schema
     assert "attribute age, value integer;" in age_schema
-
-
