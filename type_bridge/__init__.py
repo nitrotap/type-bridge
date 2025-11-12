@@ -18,7 +18,7 @@ from type_bridge.attribute import (
     Unique,
 )
 from type_bridge.crud import EntityManager, RelationManager
-from type_bridge.models import Entity, Relation, Role
+from type_bridge.models import Entity, Relation, Role, TypeDBType
 from type_bridge.query import Query, QueryBuilder
 from type_bridge.schema import MigrationManager, SchemaManager
 from type_bridge.session import Database
@@ -29,6 +29,7 @@ __all__ = [
     # Database and session
     "Database",
     # Models
+    "TypeDBType",
     "Entity",
     "Relation",
     "Role",
