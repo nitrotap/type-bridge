@@ -360,8 +360,8 @@ class EntityManager[E: Entity]:
         elif isinstance(value, (int, float)):
             return str(value)
         elif isinstance(value, datetime):
-            # TypeDB datetime format: YYYY-MM-DDTHH:MM:SS
-            return value.strftime("%Y-%m-%dT%H:%M:%S")
+            # TypeDB datetime literals are unquoted ISO 8601 strings
+            return value.isoformat()
         else:
             return f'"{str(value)}"'
 
@@ -742,8 +742,8 @@ class RelationManager[R: Relation]:
         elif isinstance(value, (int, float)):
             return str(value)
         elif isinstance(value, datetime):
-            # TypeDB datetime format: YYYY-MM-DDTHH:MM:SS
-            return value.strftime("%Y-%m-%dT%H:%M:%S")
+            # TypeDB datetime literals are unquoted ISO 8601 strings
+            return value.isoformat()
         else:
             return f'"{str(value)}"'
 

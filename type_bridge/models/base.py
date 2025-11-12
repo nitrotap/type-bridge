@@ -220,6 +220,7 @@ class TypeDBType(BaseModel, ABC):
         elif isinstance(value, (int, float)):
             return str(value)
         elif isinstance(value, datetime_type):
-            return f'"{value.isoformat()}"'
+            # TypeDB datetime literals are unquoted ISO 8601 strings
+            return value.isoformat()
         else:
             return str(value)

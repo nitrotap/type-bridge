@@ -698,6 +698,12 @@ uv run pyright tests/        # Check tests (note: intentional validation errors 
 
 4. **Import organization**: Imports must be sorted and organized (ruff handles this automatically)
 
+5. **Temporary files and reports**: When creating temporary test scripts, reports, or analysis files during development/debugging:
+   - Create them in the `tmp/` directory (already in .gitignore)
+   - Do NOT create temporary files in the project root
+   - Examples: test scripts, debug reports, analysis documents, verification files
+   - Exception: Permanent documentation that should be committed belongs in the root or docs/
+
 ### Testing Requirements
 
 All tests must pass:

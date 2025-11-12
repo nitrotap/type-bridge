@@ -110,6 +110,7 @@ def test_card_with_list_types():
 
     # Check schema generation
     schema = Person.to_schema_definition()
+    assert isinstance(schema, str)
     assert "@card(2..)" in schema  # Unbounded max
     assert "@card(1..5)" in schema  # Range syntax
 
@@ -282,6 +283,7 @@ def test_entity_schema_generation():
         email: Email | None  # @card(0,1) - Union syntax
 
     schema = Person.to_schema_definition()
+    assert isinstance(schema, str)
     assert "entity person" in schema
     assert "owns Name @key" in schema  # Name uses CLASS_NAME default, @key implies @card(1,1)
     assert "owns Age @card(0..1)" in schema  # Age uses CLASS_NAME default
@@ -379,6 +381,7 @@ def test_relation_schema_generation():
         friend2: Role[Person] = Role("friend", Person)
 
     schema = Friendship.to_schema_definition()
+    assert isinstance(schema, str)
     assert "relation friendship" in schema
     assert "relates friend" in schema
 

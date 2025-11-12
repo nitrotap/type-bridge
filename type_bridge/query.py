@@ -1,5 +1,6 @@
 """Query builder for TypeQL."""
 
+from datetime import datetime
 from typing import Any
 
 from type_bridge.models import Entity
@@ -251,5 +252,8 @@ def _format_value(value: Any) -> str:
         return "true" if value else "false"
     elif isinstance(value, (int, float)):
         return str(value)
+    elif isinstance(value, datetime):
+        # TypeDB datetime literals are unquoted ISO 8601 strings
+        return value.isoformat()
     else:
         return f'"{str(value)}"'
