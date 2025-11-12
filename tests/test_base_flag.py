@@ -257,3 +257,44 @@ class TestBaseFlag:
         schema = Animal.to_schema_definition()
         assert schema is not None
         assert "entity animal sub living_thing" in schema
+
+    def test_inheritance_with_default_classname_case(self):
+        """Test that inheritance works with default CLASS_NAME formatting."""
+
+        class Name(String):
+            pass
+
+        # Create a Python base class
+        class Entity(tbg.Entity):
+            flags = EntityFlags(base=True)
+
+        # Create concrete entities WITHOUT explicit flags
+        # They should automatically get default flags with CLASS_NAME: XX → "XX", YY → "YY"
+        class XX(Entity):
+            name: Name
+
+        class YY(XX):
+            other_name: Name
+
+        # Check type names use CLASS_NAME default
+        assert XX.get_type_name() == "XX"
+        assert YY.get_type_name() == "YY"
+
+        # XX should not have Entity as supertype (Entity is base class)
+        assert XX.get_supertype() is None  # Skips base class, no other parents
+
+        # YY should have XX as supertype
+        assert YY.get_supertype() == "XX"
+
+        # Check schema generation
+        xx_schema = XX.to_schema_definition()
+        assert xx_schema is not None
+        assert "entity XX" in xx_schema  # CLASS_NAME default
+        assert "sub" not in xx_schema  # No supertype
+        assert "owns Name" in xx_schema  # Name attribute uses CLASS_NAME default
+
+        yy_schema = YY.to_schema_definition()
+        assert yy_schema is not None
+        assert "entity YY sub XX" in yy_schema  # Both use CLASS_NAME default
+        assert "owns Name" in yy_schema  # Inherited from XX
+        assert "owns Name" in yy_schema  # YY's other_name field (same attribute type)

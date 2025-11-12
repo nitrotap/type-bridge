@@ -17,6 +17,7 @@ from type_bridge.attribute.flags import (
     Flag,
     Key,
     RelationFlags,
+    TypeFlags,
     TypeNameCase,
     Unique,
 )
@@ -38,7 +39,8 @@ __all__ = [
     "Unique",
     "Card",
     "AttributeFlags",
-    "EntityFlags",
-    "RelationFlags",
+    "TypeFlags",
+    "EntityFlags",  # Backward compatibility
+    "RelationFlags",  # Backward compatibility
     "TypeNameCase",
 ]

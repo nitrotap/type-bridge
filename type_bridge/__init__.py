@@ -13,6 +13,7 @@ from type_bridge.attribute import (
     Key,
     RelationFlags,
     String,
+    TypeFlags,
     TypeNameCase,
     Unique,
 )
@@ -46,8 +47,9 @@ __all__ = [
     # Cardinality types
     "Card",
     # Entity/Relation flags
-    "EntityFlags",
-    "RelationFlags",
+    "TypeFlags",
+    "EntityFlags",  # Backward compatibility
+    "RelationFlags",  # Backward compatibility
     "TypeNameCase",
     # Query
     "Query",

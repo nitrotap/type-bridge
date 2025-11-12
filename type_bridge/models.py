@@ -272,26 +272,20 @@ class Entity(BaseModel):
         """Called when Entity subclass is created."""
         super().__init_subclass__()
 
-        # Get EntityFlags if defined, otherwise use default
-        flags = getattr(cls, "flags", None)
-        if isinstance(flags, EntityFlags):
-            cls._flags = flags
+        # Get EntityFlags if defined, otherwise create new default flags
+        # Check if flags is defined directly on this class (not inherited)
+        if "flags" in cls.__dict__ and isinstance(cls.__dict__["flags"], EntityFlags):
+            # Explicitly set flags on this class
+            cls._flags = cls.__dict__["flags"]
         else:
-            # Inherit flags from parent if not explicitly set
-            for base in cls.__bases__:
-                if hasattr(base, "_flags") and base is not Entity:
-                    cls._flags = EntityFlags(
-                        type_name=None,  # Will default to class name
-                        abstract=False,
-                    )
-                    break
-            else:
-                cls._flags = EntityFlags()
+            # No explicit flags on this class - create new default flags
+            # This ensures each subclass gets its own flags instance
+            cls._flags = EntityFlags()
 
         # Validate type name doesn't conflict with TypeDB built-ins
         # (skip validation for base classes that won't appear in schema)
         if not cls._flags.base:
-            type_name = cls._flags.type_name or format_type_name(cls.__name__, cls._flags.case)
+            type_name = cls._flags.name or format_type_name(cls.__name__, cls._flags.case)
             _validate_type_name(type_name, cls.__name__)
 
         # Extract owned attributes from type hints
@@ -464,11 +458,11 @@ class Entity(BaseModel):
     def get_type_name(cls) -> str:
         """Get the TypeDB type name for this entity.
 
-        If type_name is explicitly set in EntityFlags, it is used as-is.
+        If name is explicitly set in TypeFlags, it is used as-is.
         Otherwise, the class name is formatted according to the case parameter.
         """
-        if cls._flags.type_name:
-            return cls._flags.type_name
+        if cls._flags.name:
+            return cls._flags.name
         return format_type_name(cls.__name__, cls._flags.case)
 
     @classmethod
@@ -791,26 +785,20 @@ class Relation(BaseModel):
         """Initialize relation subclass."""
         super().__init_subclass__()
 
-        # Get RelationFlags if defined, otherwise use default
-        flags = getattr(cls, "flags", None)
-        if isinstance(flags, RelationFlags):
-            cls._flags = flags
+        # Get RelationFlags if defined, otherwise create new default flags
+        # Check if flags is defined directly on this class (not inherited)
+        if "flags" in cls.__dict__ and isinstance(cls.__dict__["flags"], RelationFlags):
+            # Explicitly set flags on this class
+            cls._flags = cls.__dict__["flags"]
         else:
-            # Inherit flags from parent if not explicitly set
-            for base in cls.__bases__:
-                if hasattr(base, "_flags") and base is not Relation:
-                    cls._flags = RelationFlags(
-                        type_name=None,  # Will default to class name
-                        abstract=False,
-                    )
-                    break
-            else:
-                cls._flags = RelationFlags()
+            # No explicit flags on this class - create new default flags
+            # This ensures each subclass gets its own flags instance
+            cls._flags = RelationFlags()
 
         # Validate type name doesn't conflict with TypeDB built-ins
         # (skip validation for base classes that won't appear in schema)
         if not cls._flags.base:
-            type_name = cls._flags.type_name or format_type_name(cls.__name__, cls._flags.case)
+            type_name = cls._flags.name or format_type_name(cls.__name__, cls._flags.case)
             _validate_type_name(type_name, cls.__name__)
 
         # Collect roles from type hints
@@ -1003,11 +991,11 @@ class Relation(BaseModel):
     def get_type_name(cls) -> str:
         """Get the TypeDB type name for this relation.
 
-        If type_name is explicitly set in RelationFlags, it is used as-is.
+        If name is explicitly set in TypeFlags, it is used as-is.
         Otherwise, the class name is formatted according to the case parameter.
         """
-        if cls._flags.type_name:
-            return cls._flags.type_name
+        if cls._flags.name:
+            return cls._flags.name
         return format_type_name(cls.__name__, cls._flags.case)
 
     @classmethod

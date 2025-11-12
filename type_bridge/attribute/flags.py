@@ -84,75 +84,72 @@ def format_type_name(class_name: str, case: TypeNameCase) -> str:
 
 
 @dataclass
-class EntityFlags:
-    """Metadata flags for Entity classes.
+class TypeFlags:
+    """Metadata flags for Entity and Relation classes.
 
     Args:
-        type_name: TypeDB type name (if None, uses class name with case formatting)
-        abstract: Whether this is an abstract entity type
+        name: TypeDB type name (if None, uses class name with case formatting)
+        abstract: Whether this is an abstract type
         base: Whether this is a Python base class that should not appear in TypeDB schema
         case: Case formatting for auto-generated type names (default: CLASS_NAME)
 
     Example:
         class Person(Entity):
-            flags = EntityFlags(type_name="person")
+            flags = TypeFlags(name="person")
             name: Name
 
         class PersonName(Entity):
-            flags = EntityFlags()  # → PersonName (default CLASS_NAME)
+            flags = TypeFlags()  # → PersonName (default CLASS_NAME)
             name: Name
 
         class PersonName(Entity):
-            flags = EntityFlags(case=TypeNameCase.SNAKE_CASE)  # → person_name
+            flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)  # → person_name
             name: Name
 
         class AbstractPerson(Entity):
-            flags = EntityFlags(abstract=True)
+            flags = TypeFlags(abstract=True)
             name: Name
 
-        class Entity(tbg.Entity):
-            flags = EntityFlags(base=True)  # Python base class only
+        class BaseEntity(Entity):
+            flags = TypeFlags(base=True)  # Python base class only
             # Children skip this in TypeDB hierarchy
     """
 
-    type_name: str | None = None
+    name: str | None = None
     abstract: bool = False
     base: bool = False
     case: TypeNameCase = TypeNameCase.CLASS_NAME
 
+    def __init__(
+        self,
+        name: str | None = None,
+        abstract: bool = False,
+        base: bool = False,
+        case: TypeNameCase = TypeNameCase.CLASS_NAME,
+        type_name: str | None = None,  # Backward compatibility
+    ):
+        """Initialize TypeFlags.
 
-@dataclass
-class RelationFlags:
-    """Metadata flags for Relation classes.
+        Args:
+            name: TypeDB type name (if None, uses class name with case formatting)
+            abstract: Whether this is an abstract type
+            base: Whether this is a Python base class that should not appear in TypeDB schema
+            case: Case formatting for auto-generated type names (default: CLASS_NAME)
+            type_name: (Deprecated) Use 'name' instead. Kept for backward compatibility.
+        """
+        # Handle backward compatibility: type_name takes precedence if provided
+        if type_name is not None:
+            self.name = type_name
+        else:
+            self.name = name
+        self.abstract = abstract
+        self.base = base
+        self.case = case
 
-    Args:
-        type_name: TypeDB type name (if None, uses class name with case formatting)
-        abstract: Whether this is an abstract relation type
-        base: Whether this is a Python base class that should not appear in TypeDB schema
-        case: Case formatting for auto-generated type names (default: CLASS_NAME)
 
-    Example:
-        class Employment(Relation):
-            flags = RelationFlags(type_name="employment")
-            employee: Role = Role("employee", Person)
-
-        class PersonEmployment(Relation):
-            flags = RelationFlags()  # → PersonEmployment (default CLASS_NAME)
-            employee: Role = Role("employee", Person)
-
-        class PersonEmployment(Relation):
-            flags = RelationFlags(case=TypeNameCase.SNAKE_CASE)  # → person_employment
-            employee: Role = Role("employee", Person)
-
-        class Relation(tbg.Relation):
-            flags = RelationFlags(base=True)  # Python base class only
-            # Children skip this in TypeDB hierarchy
-    """
-
-    type_name: str | None = None
-    abstract: bool = False
-    base: bool = False
-    case: TypeNameCase = TypeNameCase.CLASS_NAME
+# Backward compatibility aliases
+EntityFlags = TypeFlags
+RelationFlags = TypeFlags
 
 
 class Card:
