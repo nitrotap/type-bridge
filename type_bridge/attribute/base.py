@@ -3,6 +3,8 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from type_bridge.validation import ReservedWordError, validate_type_name as validate_reserved_word
+
 if TYPE_CHECKING:
     from type_bridge.attribute.flags import TypeNameCase
 
@@ -11,7 +13,7 @@ TYPEDB_BUILTIN_TYPES = {"thing", "entity", "relation", "attribute"}
 
 
 def _validate_attribute_name(attr_name: str, class_name: str) -> None:
-    """Validate that an attribute name doesn't conflict with TypeDB built-ins.
+    """Validate that an attribute name doesn't conflict with TypeDB built-ins or TypeQL keywords.
 
     Args:
         attr_name: The attribute name to validate
@@ -19,13 +21,19 @@ def _validate_attribute_name(attr_name: str, class_name: str) -> None:
 
     Raises:
         ValueError: If attribute name conflicts with a TypeDB built-in type
+        ReservedWordError: If attribute name is a TypeQL reserved word
     """
+    # First check TypeDB built-in types (thing, entity, relation, attribute)
     if attr_name.lower() in TYPEDB_BUILTIN_TYPES:
         raise ValueError(
             f"Attribute name '{attr_name}' for class '{class_name}' conflicts with TypeDB built-in type. "
             f"Built-in types are: {', '.join(sorted(TYPEDB_BUILTIN_TYPES))}. "
             f"Please rename your attribute class to avoid this conflict."
         )
+
+    # Then check TypeQL reserved words
+    # This will raise ReservedWordError if attr_name is reserved
+    validate_reserved_word(attr_name, "attribute")
 
 
 class Attribute(ABC):
@@ -108,8 +116,14 @@ class Attribute(ABC):
         # This ensures Name(String) gets _attr_name="name", not "string"
         cls._attr_name = computed_name
 
+        # Skip validation for built-in attribute types (Boolean, Integer, String, etc.)
+        # These are framework-provided and intentionally use TypeQL reserved words
+        is_builtin = cls.__module__.startswith("type_bridge.attribute")
+
         # Validate attribute name doesn't conflict with TypeDB built-ins
-        _validate_attribute_name(cls._attr_name, cls.__name__)
+        # Only validate user-defined attribute types, not framework built-ins
+        if not is_builtin:
+            _validate_attribute_name(cls._attr_name, cls.__name__)
 
     @property
     def value(self) -> Any:

@@ -17,10 +17,10 @@ def test_integer_creation():
 def test_integer_value_type():
     """Test that Integer has correct value_type for TypeDB."""
 
-    class Count(Integer):
+    class Quantity(Integer):
         pass
 
-    assert Count.value_type == "integer"
+    assert Quantity.value_type == "integer"
 
 
 def test_integer_in_entity():
@@ -63,27 +63,27 @@ def test_integer_insert_query():
 def test_integer_edge_cases():
     """Test insert query generation with Integer edge cases."""
 
-    class Count(Integer):
+    class Total(Integer):
         pass
 
     class Counter(Entity):
         flags = EntityFlags(type_name="counter")
-        count: Count
+        count: Total
 
     # Test with zero
-    counter_zero = Counter(count=Count(0))
+    counter_zero = Counter(count=Total(0))
     query_zero = counter_zero.to_insert_query()
-    assert "has Count 0" in query_zero
+    assert "has Total 0" in query_zero
 
     # Test with negative number
-    counter_negative = Counter(count=Count(-42))
+    counter_negative = Counter(count=Total(-42))
     query_negative = counter_negative.to_insert_query()
-    assert "has Count -42" in query_negative
+    assert "has Total -42" in query_negative
 
     # Test with large number
-    counter_large = Counter(count=Count(999999999))
+    counter_large = Counter(count=Total(999999999))
     query_large = counter_large.to_insert_query()
-    assert "has Count 999999999" in query_large
+    assert "has Total 999999999" in query_large
 
 
 def test_integer_optional_attribute():
@@ -115,16 +115,16 @@ def test_integer_optional_attribute():
 def test_integer_comparison():
     """Test Integer attribute comparison."""
 
-    class Count(Integer):
+    class Amount(Integer):
         pass
 
     # Same value
-    c1 = Count(42)
-    c2 = Count(42)
+    c1 = Amount(42)
+    c2 = Amount(42)
     assert c1 == c2
 
     # Different values
-    c3 = Count(100)
+    c3 = Amount(100)
     assert c1 != c3
 
 

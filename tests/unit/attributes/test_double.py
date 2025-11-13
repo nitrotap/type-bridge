@@ -64,28 +64,28 @@ def test_double_insert_query():
 def test_double_edge_cases():
     """Test insert query generation with Double edge cases."""
 
-    class Value(Double):
+    class Reading(Double):
         pass
 
     class Measurement(Entity):
         flags = EntityFlags(type_name="measurement")
-        value: Value
+        value: Reading
 
     # Test with zero
-    measurement_zero = Measurement(value=Value(0.0))
+    measurement_zero = Measurement(value=Reading(0.0))
     query_zero = measurement_zero.to_insert_query()
-    assert "has Value 0.0" in query_zero
+    assert "has Reading 0.0" in query_zero
 
     # Test with negative float
-    measurement_negative = Measurement(value=Value(-3.14))
+    measurement_negative = Measurement(value=Reading(-3.14))
     query_negative = measurement_negative.to_insert_query()
-    assert "has Value -3.14" in query_negative
+    assert "has Reading -3.14" in query_negative
 
     # Test with scientific notation value
-    measurement_small = Measurement(value=Value(0.000001))
+    measurement_small = Measurement(value=Reading(0.000001))
     query_small = measurement_small.to_insert_query()
     # Python will format this in scientific notation or decimal
-    assert "has Value" in query_small
+    assert "has Reading" in query_small
 
 
 def test_double_optional_attribute():
@@ -166,24 +166,24 @@ def test_double_string_representation():
 def test_double_precision():
     """Test Double preserves floating-point precision."""
 
-    class Value(Double):
+    class Measurement(Double):
         pass
 
     # Test with high precision value
-    value = Value(3.141592653589793)
+    value = Measurement(3.141592653589793)
     assert value.value == 3.141592653589793
 
 
 def test_double_large_numbers():
     """Test Double with large numbers."""
 
-    class Value(Double):
+    class Amount(Double):
         pass
 
     # Test with large number
-    large = Value(1e15)
+    large = Amount(1e15)
     assert large.value == 1e15
 
     # Test with very small number
-    small = Value(1e-15)
+    small = Amount(1e-15)
     assert small.value == 1e-15

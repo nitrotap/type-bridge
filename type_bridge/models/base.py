@@ -66,7 +66,20 @@ class TypeDBType(BaseModel, ABC):
         )
         if not cls._flags.base and not is_base_entity_or_relation:
             type_name = cls._flags.name or format_type_name(cls.__name__, cls._flags.case)
-            validate_type_name(type_name, cls.__name__)
+
+            # Determine context based on class hierarchy
+            from type_bridge.models.entity import Entity
+            from type_bridge.models.relation import Relation
+
+            if issubclass(cls, Relation):
+                context = "relation"
+            elif issubclass(cls, Entity):
+                context = "entity"
+            else:
+                # Default for TypeDBType subclasses
+                context = "entity"
+
+            validate_type_name(type_name, cls.__name__, context)
 
     @model_validator(mode="wrap")
     @classmethod

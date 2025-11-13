@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema
 
+from type_bridge.validation import ReservedWordError, validate_type_name as validate_reserved_word
+
 if TYPE_CHECKING:
     from type_bridge.models.entity import Entity
 
@@ -28,7 +30,13 @@ class Role[T: "Entity"]:
         Args:
             role_name: The name of the role in TypeDB
             player_type: The entity type that can play this role
+
+        Raises:
+            ReservedWordError: If role_name is a TypeQL reserved word
         """
+        # Validate role name doesn't conflict with TypeQL reserved words
+        validate_reserved_word(role_name, "role")
+
         self.role_name = role_name
         self.player_entity_type = player_type
         # Get type name from the entity class
