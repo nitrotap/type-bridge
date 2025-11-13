@@ -10,6 +10,7 @@ from type_bridge.attribute import (
     DateTimeTZ,
     Decimal,
     Double,
+    Duration,
     EntityFlags,
     Flag,
     Integer,
@@ -46,6 +47,7 @@ __all__ = [
     "DateTime",
     "DateTimeTZ",
     "Decimal",
+    "Duration",
     # Attribute annotations
     "AttributeFlags",
     "Flag",

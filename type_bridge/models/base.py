@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from datetime import date as date_type
 from datetime import datetime as datetime_type
+from datetime import timedelta
 from typing import Any, ClassVar, dataclass_transform
 
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -212,6 +213,9 @@ class TypeDBType(BaseModel, ABC):
         """Format a Python value for TypeQL."""
         from decimal import Decimal as DecimalType
 
+        import isodate
+        from isodate import Duration as IsodateDuration
+
         # Extract value from Attribute instances
         if isinstance(value, Attribute):
             value = value.value
@@ -225,6 +229,9 @@ class TypeDBType(BaseModel, ABC):
             return f"{value}dec"
         elif isinstance(value, (int, float)):
             return str(value)
+        elif isinstance(value, (IsodateDuration, timedelta)):
+            # TypeDB duration literals are unquoted ISO 8601 duration strings
+            return isodate.duration_isoformat(value)
         elif isinstance(value, datetime_type):
             # TypeDB datetime literals are unquoted ISO 8601 strings
             return value.isoformat()

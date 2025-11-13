@@ -96,6 +96,38 @@ class DateTimeTZ(Attribute):
         naive_dt = dt_value.replace(tzinfo=None)
         return DateTime(naive_dt)
 
+    def __add__(self, other: Any) -> "DateTimeTZ":
+        """Add a Duration to this DateTimeTZ.
+
+        Args:
+            other: A Duration to add to this timezone-aware datetime
+
+        Returns:
+            New DateTimeTZ with the duration added
+
+        Note:
+            Duration addition respects timezone changes (DST, etc.)
+
+        Example:
+            from type_bridge import Duration
+            from datetime import datetime, timezone
+            dt = DateTimeTZ(datetime(2024, 1, 31, 14, 0, 0, tzinfo=timezone.utc))
+            duration = Duration("P1M")
+            result = dt + duration  # DateTimeTZ(2024-02-28 14:00:00+00:00)
+        """
+        from type_bridge.attribute.duration import Duration
+
+        if isinstance(other, Duration):
+            # Add duration to timezone-aware datetime
+            # isodate handles timezone-aware datetime + duration correctly
+            new_dt = self.value + other.value
+            return DateTimeTZ(new_dt)
+        return NotImplemented
+
+    def __radd__(self, other: Any) -> "DateTimeTZ":
+        """Reverse addition for Duration + DateTimeTZ."""
+        return self.__add__(other)
+
     @classmethod
     def __get_pydantic_core_schema__(
         cls, source_type: type[DateTimeTZValue], handler: GetCoreSchemaHandler

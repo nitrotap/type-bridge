@@ -87,6 +87,35 @@ class DateTime(Attribute):
 
         return DateTimeTZ(aware_dt)
 
+    def __add__(self, other: Any) -> "DateTime":
+        """Add a Duration to this DateTime.
+
+        Args:
+            other: A Duration to add to this datetime
+
+        Returns:
+            New DateTime with the duration added
+
+        Example:
+            from type_bridge import Duration
+            dt = DateTime(datetime(2024, 1, 31, 14, 0, 0))
+            duration = Duration("P1M")
+            result = dt + duration  # DateTime(2024-02-28 14:00:00)
+        """
+        from type_bridge.attribute.duration import Duration
+
+        if isinstance(other, Duration):
+            # Add duration to datetime
+            # Use isodate's add_duration which handles month/day arithmetic
+
+            new_dt = self.value + other.value
+            return DateTime(new_dt)
+        return NotImplemented
+
+    def __radd__(self, other: Any) -> "DateTime":
+        """Reverse addition for Duration + DateTime."""
+        return self.__add__(other)
+
     @classmethod
     def __get_pydantic_core_schema__(
         cls, source_type: type[DateTimeValue], handler: GetCoreSchemaHandler

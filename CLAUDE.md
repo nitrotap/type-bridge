@@ -223,12 +223,13 @@ TypeBridge provides built-in attribute types that map to TypeDB's value types:
 - `Date` → `value date` in TypeDB (date only, no time)
 - `DateTime` → `value datetime` in TypeDB (naive datetime, no timezone)
 - `DateTimeTZ` → `value datetime-tz` in TypeDB (timezone-aware datetime)
+- `Duration` → `value duration` in TypeDB (ISO 8601 duration, calendar-aware)
 
 Example:
 ```python
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 from decimal import Decimal as DecimalType
-from type_bridge import String, Integer, Double, Decimal, Date, DateTime, DateTimeTZ
+from type_bridge import String, Integer, Double, Decimal, Date, DateTime, DateTimeTZ, Duration
 
 class Name(String):
     pass
@@ -249,6 +250,9 @@ class CreatedAt(DateTime):  # Naive datetime (no timezone)
     pass
 
 class UpdatedAt(DateTimeTZ):  # Timezone-aware datetime
+    pass
+
+class SessionDuration(Duration):  # ISO 8601 duration
     pass
 ```
 
@@ -380,6 +384,94 @@ naive_jst = aware_dt.strip_timezone(jst)  # Convert to JST, then strip
 **Conversion semantics:**
 - `DateTime.add_timezone(tz=None)`: If tz is None, adds system timezone; otherwise adds specified timezone
 - `DateTimeTZ.strip_timezone(tz=None)`: If tz is None, strips timezone as-is; otherwise converts to tz first, then strips
+
+### Duration Type
+
+TypeDB's `duration` type represents calendar-aware time spans using ISO 8601 duration format.
+
+**Key characteristics:**
+- Storage: 32-bit months, 32-bit days, 64-bit nanoseconds
+- Format: ISO 8601 duration (e.g., `P1Y2M3DT4H5M6.789S`)
+- **Partially ordered**: `P1M` and `P30D` cannot be compared directly
+- **Calendar-aware**: `P1D` ≠ `PT24H`, `P1M` varies by month
+
+**ISO 8601 Duration Syntax:**
+```
+P[years]Y[months]M[days]DT[hours]H[minutes]M[seconds]S
+```
+
+Date components (before T):
+- `Y` = years
+- `M` = months
+- `W` = weeks (cannot combine with other units)
+- `D` = days
+
+Time components (after T):
+- `H` = hours
+- `M` = minutes
+- `S` = seconds (can have up to 9 decimal digits for nanoseconds)
+
+**Examples:**
+```python
+from datetime import timedelta
+from type_bridge import Duration, DateTime, Entity, EntityFlags
+
+class EventCadence(Duration):
+    pass
+
+# Simple durations
+hourly = EventCadence("PT1H")                      # 1 hour
+daily = EventCadence("P1D")                        # 1 day
+weekly = EventCadence("P7D")                       # 7 days (weeks converted to days)
+monthly = EventCadence("P1M")                      # 1 month
+
+# Complex duration
+complex = EventCadence("P1Y2M3DT4H5M6.789S")      # 1 year, 2 months, 3 days, 4:05:06.789
+
+# From Python timedelta (converted to Duration internally)
+from_td = EventCadence(timedelta(hours=2, minutes=30))  # PT2H30M
+
+# Ambiguous M disambiguation:
+one_month = EventCadence("P1M")   # 1 month (no T)
+one_minute = EventCadence("PT1M")  # 1 minute (with T)
+```
+
+**Arithmetic operations with DateTime/DateTimeTZ:**
+```python
+from datetime import datetime, timezone
+
+# Add duration to datetime
+start = DateTime(datetime(2024, 1, 31, 14, 0, 0))
+one_month = Duration("P1M")
+result = start + one_month  # Feb 29, 2024 (leap year, last day of month)
+
+# Add duration to timezone-aware datetime
+start_utc = DateTimeTZ(datetime(2024, 1, 31, 14, 0, 0, tzinfo=timezone.utc))
+result_utc = start_utc + one_month  # Respects timezone
+
+# Duration arithmetic
+d1 = Duration("P1M")
+d2 = Duration("P15D")
+total = d1 + d2  # P1M15D
+```
+
+**Important notes:**
+- Addition order matters: `P1M + P1D` ≠ `P1D + P1M` (calendar arithmetic)
+- Month addition respects calendar:
+  - Jan 31 + 1 month = Feb 29 (uses last day of month if invalid)
+- Duration with DateTimeTZ respects DST and timezone changes
+- Durations are partially ordered (can't compare `P1M` vs `P30D`)
+
+**When to use Duration:**
+- Recurring events (monthly meetings, weekly tasks)
+- Calendar-relative time spans (add 1 month, 3 days)
+- Time intervals that respect calendar boundaries
+- When months/years are needed (not just days/hours)
+
+**When NOT to use Duration:**
+- Simple time intervals → use `Integer` (seconds) or `Double` (hours)
+- Fixed-length periods → use `Integer` for seconds
+- When ordering/comparison is required → use fixed units
 
 ## Deprecated APIs
 

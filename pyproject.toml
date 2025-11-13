@@ -25,6 +25,7 @@ classifiers = [
 dependencies = [
     "typedb-driver==3.5.5",
     "pydantic>=2.0.0",
+    "isodate==0.7.2",
 ]
 
 [project.urls]
