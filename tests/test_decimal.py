@@ -2,8 +2,6 @@
 
 from decimal import Decimal as DecimalType
 
-import pytest
-
 from type_bridge import Decimal, Entity, EntityFlags, Flag, Key, String
 
 

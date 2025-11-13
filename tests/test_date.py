@@ -2,8 +2,6 @@
 
 from datetime import date, datetime
 
-import pytest
-
 from type_bridge import Card, Date, Entity, EntityFlags, Flag, Key, String
 
 

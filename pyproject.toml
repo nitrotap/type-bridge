@@ -38,6 +38,7 @@ Issues = "https://github.com/ds1sqe/type_bridge/issues"
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-order>=1.2.0",
     "ruff>=0.6.0",
 ]
 
@@ -59,3 +60,9 @@ ignore = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "integration: marks tests as integration tests (require running TypeDB)",
+    "unit: marks tests as unit tests (fast, no external dependencies)",
+]
+# By default, run only unit tests (exclude integration tests)
+addopts = "-m 'not integration'"

@@ -35,8 +35,18 @@ uv pip install -e ".[dev]"   # Install in editable mode
 
 ### Testing
 ```bash
-uv run python -m pytest tests/ -v          # Run tests with verbose output
-uv run python -m pytest tests/ -v -k test_name  # Run specific test
+# Unit tests (fast, no external dependencies)
+uv run pytest                              # Run unit tests only (default)
+uv run pytest -v                           # Run unit tests with verbose output
+uv run pytest -k test_name                 # Run specific unit test
+
+# Integration tests (require running TypeDB)
+# First, start TypeDB 3.x server: typedb server
+uv run pytest -m integration              # Run integration tests only
+uv run pytest -m integration -v           # Run integration tests with verbose output
+
+# Run all tests (unit + integration)
+uv run pytest -m ""                       # Run all tests
 ```
 
 ### Linting
@@ -108,7 +118,73 @@ tests/
 │                                 # Flag system, and cardinality
 ├── test_cardinal_api.py          # Tests for Card API with Flag system
 ├── test_literal_support.py       # Tests for Literal type support
-└── test_pydantic_integration.py  # Tests for Pydantic integration features
+├── test_pydantic_integration.py  # Tests for Pydantic integration features
+└── integration/                  # Integration tests (require running TypeDB)
+    ├── conftest.py               # Integration test fixtures (DB connection, cleanup)
+    ├── test_schema_operations.py # Schema creation, migration, conflict detection
+    ├── test_crud_workflows.py    # End-to-end CRUD operations
+    └── test_query_building.py    # Complex queries with real data
+```
+
+## Testing Strategy
+
+TypeBridge uses a two-tier testing approach:
+
+### Unit Tests (Default)
+
+Located in `tests/` (excluding `tests/integration/`)
+
+- **Fast**: Run in milliseconds without external dependencies
+- **Isolated**: Test individual components in isolation
+- **No TypeDB required**: Use mocks and in-memory validation
+- **Run by default**: `pytest` runs unit tests only
+
+Coverage:
+- Attribute type validation and operations
+- Entity/Relation model definitions
+- Schema generation logic
+- Query building (TypeQL string generation)
+- Flag system (Key, Unique, Card)
+- Pydantic integration
+
+### Integration Tests
+
+Located in `tests/integration/`
+
+- **Sequential**: Use `@pytest.mark.order()` for predictable execution order
+- **Real database**: Require running TypeDB 3.x server
+- **End-to-end**: Test complete workflows from schema to queries
+- **Explicit execution**: Must use `pytest -m integration`
+
+Coverage:
+- Schema creation, migration, conflict detection
+- CRUD operations (insert, fetch, update, delete)
+- Complex queries with real data
+- Transaction management
+- Database lifecycle (creation, cleanup)
+
+**Setup for integration tests:**
+```bash
+# 1. Start TypeDB server
+typedb server
+
+# 2. Run integration tests
+uv run pytest -m integration -v
+```
+
+**Test execution patterns:**
+```bash
+# Unit tests only (default, fast)
+uv run pytest
+
+# Integration tests only (requires TypeDB)
+uv run pytest -m integration
+
+# All tests (unit + integration)
+uv run pytest -m ""
+
+# Specific integration test
+uv run pytest tests/integration/test_schema_operations.py -v
 ```
 
 ## TypeDB ORM Design Considerations
