@@ -11,11 +11,15 @@ unit/
 │   ├── test_inheritance.py      # Inheritance and type hierarchies
 │   └── test_pydantic.py         # Pydantic integration and validation
 ├── attributes/                  # Attribute type tests
+│   ├── test_boolean.py          # Boolean attribute type
 │   ├── test_date.py             # Date attribute type
 │   ├── test_datetime_tz.py      # DateTimeTZ attribute type
 │   ├── test_decimal.py          # Decimal attribute type
+│   ├── test_double.py           # Double attribute type
 │   ├── test_duration.py         # Duration attribute type (ISO 8601)
-│   └── test_insert_queries.py   # Attribute formatting in insert queries
+│   ├── test_formatting.py       # Mixed attribute formatting in insert queries
+│   ├── test_integer.py          # Integer attribute type
+│   └── test_string.py           # String attribute type
 ├── flags/                       # Flag system tests
 │   ├── test_base_flag.py        # Base flag for schema exclusion
 │   ├── test_cardinality.py      # Card API for cardinality constraints
@@ -33,12 +37,16 @@ unit/
 - **test_inheritance.py** (11 tests): Type hierarchies, base classes, edge cases
 - **test_pydantic.py** (9 tests): Validation, serialization, type coercion
 
-### Attribute Tests (85 tests)
+### Attribute Tests (115 tests)
+- **test_boolean.py** (8 tests): Boolean type creation, formatting, multi-value
 - **test_date.py** (17 tests): Date type creation, formatting, validation
 - **test_datetime_tz.py** (14 tests): Timezone-aware datetime, conversions
 - **test_decimal.py** (16 tests): Fixed-point decimal with 19-digit precision
+- **test_double.py** (11 tests): Double type creation, precision, edge cases
 - **test_duration.py** (25 tests): ISO 8601 durations, arithmetic operations
-- **test_insert_queries.py** (13 tests): Attribute value formatting in TypeQL
+- **test_formatting.py** (5 tests): Mixed attribute formatting in TypeQL queries
+- **test_integer.py** (8 tests): Integer type creation, edge cases, formatting
+- **test_string.py** (11 tests): String type creation, special characters, concatenation
 
 ### Flag Tests (43 tests)
 - **test_base_flag.py** (12 tests): Base class flag for schema exclusion

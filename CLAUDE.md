@@ -120,11 +120,15 @@ tests/
 │   │   ├── test_inheritance.py   # Inheritance and type hierarchies
 │   │   └── test_pydantic.py      # Pydantic integration and validation
 │   ├── attributes/               # Attribute type tests
+│   │   ├── test_boolean.py       # Boolean attribute type
 │   │   ├── test_date.py          # Date attribute type
 │   │   ├── test_datetime_tz.py   # DateTimeTZ attribute type
 │   │   ├── test_decimal.py       # Decimal attribute type
+│   │   ├── test_double.py        # Double attribute type
 │   │   ├── test_duration.py      # Duration attribute type (ISO 8601)
-│   │   └── test_insert_queries.py # Attribute formatting in insert queries
+│   │   ├── test_formatting.py    # Mixed attribute formatting
+│   │   ├── test_integer.py       # Integer attribute type
+│   │   └── test_string.py        # String attribute type
 │   ├── flags/                    # Flag system tests
 │   │   ├── test_base_flag.py     # Base flag for schema exclusion
 │   │   ├── test_cardinality.py   # Card API for cardinality constraints
@@ -152,15 +156,17 @@ Located in `tests/unit/` with organized subdirectories:
 - `crud/`: CRUD operations (update API)
 
 Characteristics:
-- **Fast**: Run in ~0.2 seconds without external dependencies
+- **Fast**: Run in ~0.3 seconds without external dependencies
 - **Isolated**: Test individual components in isolation
 - **No TypeDB required**: Use mocks and in-memory validation
 - **Run by default**: `pytest` runs unit tests only
-- **178 tests total**: Organized by functionality
+- **208 tests total**: Organized by functionality
 
 Coverage:
 - Core API: Entity/Relation creation, schema generation, inheritance (33 tests)
-- Attribute types: Date, DateTimeTZ, Decimal, Duration, formatting (85 tests)
+- Attribute types: All 8 types with dedicated test files (115 tests)
+  - Boolean, Date, DateTimeTZ, Decimal, Double, Duration, Integer, String
+  - Mixed formatting tests for query generation
 - Flag system: Base flags, cardinality, type name cases (43 tests)
 - CRUD operations: Update API for single/multi-value attributes (6 tests)
 
@@ -192,22 +198,24 @@ uv run pytest -m integration -v
 **Test execution patterns:**
 ```bash
 # Unit tests only (default, fast)
-uv run pytest                              # All 178 unit tests
+uv run pytest                              # All 208 unit tests
 
 # Run specific unit test category
 uv run pytest tests/unit/core/             # Core tests (33 tests)
-uv run pytest tests/unit/attributes/       # Attribute tests (85 tests)
+uv run pytest tests/unit/attributes/       # Attribute tests (115 tests)
 uv run pytest tests/unit/flags/            # Flag tests (43 tests)
 uv run pytest tests/unit/crud/             # CRUD tests (6 tests)
 
-# Run specific unit test file
-uv run pytest tests/unit/attributes/test_duration.py -v
+# Run specific attribute type test
+uv run pytest tests/unit/attributes/test_integer.py -v
+uv run pytest tests/unit/attributes/test_string.py -v
+uv run pytest tests/unit/attributes/test_boolean.py -v
 
 # Integration tests only (requires TypeDB)
 uv run pytest -m integration              # All 27 integration tests
 
 # All tests (unit + integration)
-uv run pytest -m ""                       # All 205 tests
+uv run pytest -m ""                       # All 235 tests
 
 # Specific integration test
 uv run pytest tests/integration/test_schema_operations.py -v
