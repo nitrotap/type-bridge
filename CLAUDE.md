@@ -220,14 +220,15 @@ TypeBridge provides built-in attribute types that map to TypeDB's value types:
 - `Double` → `value double` in TypeDB (floating-point)
 - `Decimal` → `value decimal` in TypeDB (fixed-point, 19 decimal digits precision)
 - `Boolean` → `value boolean` in TypeDB
+- `Date` → `value date` in TypeDB (date only, no time)
 - `DateTime` → `value datetime` in TypeDB (naive datetime, no timezone)
 - `DateTimeTZ` → `value datetime-tz` in TypeDB (timezone-aware datetime)
 
 Example:
 ```python
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal as DecimalType
-from type_bridge import String, Integer, Double, Decimal, DateTime, DateTimeTZ
+from type_bridge import String, Integer, Double, Decimal, Date, DateTime, DateTimeTZ
 
 class Name(String):
     pass
@@ -239,6 +240,9 @@ class Score(Double):  # Floating-point number
     pass
 
 class Price(Decimal):  # Fixed-point decimal with high precision
+    pass
+
+class BirthDate(Date):  # Date only (no time)
     pass
 
 class CreatedAt(DateTime):  # Naive datetime (no timezone)
@@ -284,21 +288,68 @@ TypeDB provides two numeric types for non-integer values:
 - Statistical calculations
 - When approximate values are acceptable
 
-### DateTime vs DateTimeTZ
+### Date, DateTime, and DateTimeTZ
 
-TypeDB distinguishes between two datetime types:
+TypeDB provides three temporal types with distinct use cases:
 
-1. **DateTime** (`value datetime`): For naive datetimes without timezone information
-   ```python
-   created = CreatedAt(datetime(2024, 1, 15, 10, 30, 45))
-   ```
+#### 1. Date (`value date`)
+Date-only values without time information.
 
-2. **DateTimeTZ** (`value datetime-tz`): For timezone-aware datetimes
-   ```python
-   updated = UpdatedAt(datetime(2024, 1, 15, 10, 30, 45, tzinfo=timezone.utc))
-   ```
+- **Use for**: Birth dates, publish dates, deadlines, anniversaries
+- **Format**: ISO 8601 date (YYYY-MM-DD)
+- **Range**: January 1, 262144 BCE to December 31, 262142 CE
+- **Example**:
+  ```python
+  from datetime import date
 
-### DateTime Conversions
+  class PublishDate(Date):
+      pass
+
+  # Usage
+  book = Book(publish_date=PublishDate(date(2024, 3, 30)))
+  # In TypeQL: has PublishDate 2024-03-30
+  ```
+
+#### 2. DateTime (`value datetime`)
+Naive datetime without timezone information.
+
+- **Use for**: Timestamps where timezone context is implicit or unnecessary
+- **Format**: ISO 8601 datetime (YYYY-MM-DDTHH:MM:SS)
+- **Example**:
+  ```python
+  from datetime import datetime
+
+  class CreatedAt(DateTime):
+      pass
+
+  # Usage
+  event = Event(created_at=CreatedAt(datetime(2024, 3, 30, 10, 30, 45)))
+  # In TypeQL: has CreatedAt 2024-03-30T10:30:45
+  ```
+
+#### 3. DateTimeTZ (`value datetime-tz`)
+Timezone-aware datetime with explicit timezone information.
+
+- **Use for**: Distributed systems, events across timezones, UTC timestamps
+- **Format**: ISO 8601 with timezone (YYYY-MM-DDTHH:MM:SS±HH:MM or with IANA TZ identifier)
+- **Example**:
+  ```python
+  from datetime import datetime, timezone
+
+  class UpdatedAt(DateTimeTZ):
+      pass
+
+  # Usage
+  record = Record(updated_at=UpdatedAt(datetime(2024, 3, 30, 10, 30, 45, tzinfo=timezone.utc)))
+  # In TypeQL: has UpdatedAt 2024-03-30T10:30:45+00:00
+  ```
+
+**When to use each type:**
+- **Date**: When you only care about the calendar date (birthdays, publish dates, deadlines)
+- **DateTime**: When you need date + time but timezone is implicit (local events, single-timezone systems)
+- **DateTimeTZ**: When timezone matters (global events, distributed systems, UTC timestamps)
+
+### DateTime and DateTimeTZ Conversions
 
 TypeBridge provides conversion methods between DateTime and DateTimeTZ:
 

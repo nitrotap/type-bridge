@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
+from datetime import date as date_type
 from datetime import datetime as datetime_type
 from typing import Any, ClassVar, dataclass_transform
 
@@ -226,6 +227,9 @@ class TypeDBType(BaseModel, ABC):
             return str(value)
         elif isinstance(value, datetime_type):
             # TypeDB datetime literals are unquoted ISO 8601 strings
+            return value.isoformat()
+        elif isinstance(value, date_type):
+            # TypeDB date literals are unquoted ISO 8601 date strings (YYYY-MM-DD)
             return value.isoformat()
         else:
             return str(value)
