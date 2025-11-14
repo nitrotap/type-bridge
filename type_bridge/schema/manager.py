@@ -71,38 +71,19 @@ class SchemaManager:
         if not self.db.database_exists():
             return False
 
-        # Query for custom entity, relation, or attribute types
-        # Built-in types: thing, entity, relation, attribute
-        query = """
-        match
-        $x sub thing;
-        fetch
-        $x: label;
-        """
+        # Check if any of the registered types already exist in the schema
+        # This is the most reliable way in TypeDB 3.x
+        for model in self.registered_models:
+            if issubclass(model, Entity) and model is not Entity:
+                type_name = model.get_type_name()
+                if self._type_exists(type_name, "entity"):
+                    return True
+            elif issubclass(model, Relation) and model is not Relation:
+                type_name = model.get_type_name()
+                if self._type_exists(type_name, "relation"):
+                    return True
 
-        try:
-            with self.db.transaction("read") as tx:
-                results = list(tx.execute(query))
-
-                # Check if there are any user-defined types
-                # Built-ins include: thing, entity, relation, attribute
-                built_in_types = {"thing", "entity", "relation", "attribute"}
-
-                for result in results:
-                    # Extract label from result
-                    if hasattr(result, "get"):
-                        label = result.get("x", {}).get("label")
-                    else:
-                        # Handle different result formats
-                        continue
-
-                    if label and label not in built_in_types:
-                        return True
-
-                return False
-        except Exception:
-            # If query fails, assume no schema
-            return False
+        return False
 
     def introspect_current_schema_info(self) -> SchemaInfo | None:
         """Introspect current database schema and build SchemaInfo.
@@ -161,29 +142,40 @@ class SchemaManager:
         """
         # Check for existing schema before making changes
         if not force and self.has_existing_schema():
-            # Create a minimal diff to show the error
-            from type_bridge.schema.diff import SchemaDiff
+            # In TypeDB 3.x, schema introspection is limited without instances
+            # For safety, we treat any attempt to redefine existing types as a potential conflict
+            existing_types = []
+            for model in self.registered_models:
+                if issubclass(model, Entity) and model is not Entity:
+                    type_name = model.get_type_name()
+                    if self._type_exists(type_name, "entity"):
+                        existing_types.append(f"entity '{type_name}'")
+                elif issubclass(model, Relation) and model is not Relation:
+                    type_name = model.get_type_name()
+                    if self._type_exists(type_name, "relation"):
+                        existing_types.append(f"relation '{type_name}'")
 
-            diff = SchemaDiff()
-            # We can't build full diff without introspecting, but we know there's existing schema
-            raise SchemaConflictError(
-                diff,
-                message=(
-                    "Schema conflict detected! Database already has existing schema.\n"
-                    "\n"
-                    "Cannot safely sync schema because the database contains existing types.\n"
-                    "This could lead to:\n"
-                    "  - Data loss if types are removed\n"
-                    "  - Schema conflicts if types are modified\n"
-                    "  - Undefined behavior if ownership changes\n"
-                    "\n"
-                    "Resolution options:\n"
-                    "1. Use sync_schema(force=True) to recreate database from scratch (⚠️  DATA LOSS)\n"
-                    "2. Manually drop the existing database first\n"
-                    "3. Use MigrationManager for incremental schema changes\n"
-                    "4. Start with an empty database\n"
-                ),
-            )
+            if existing_types:
+                from type_bridge.schema.diff import SchemaDiff
+
+                types_str = ", ".join(existing_types)
+                raise SchemaConflictError(
+                    SchemaDiff(),
+                    message=(
+                        f"Schema conflict detected! The following types already exist in the database: {types_str}\n"
+                        "\n"
+                        "Redefining existing types may cause:\n"
+                        "  - Data loss if attributes or roles are removed\n"
+                        "  - Schema conflicts if types are modified\n"
+                        "  - Undefined behavior if ownership changes\n"
+                        "\n"
+                        "Resolution options:\n"
+                        "1. Use sync_schema(force=True) to recreate database from scratch (⚠️  DATA LOSS)\n"
+                        "2. Manually drop the existing database first\n"
+                        "3. Use MigrationManager for incremental schema changes\n"
+                        "4. Ensure no conflicting types exist before syncing\n"
+                    ),
+                )
 
         if force:
             # Delete and recreate database
@@ -201,6 +193,155 @@ class SchemaManager:
         with self.db.transaction("schema") as tx:
             tx.execute(schema)
             tx.commit()
+
+    def _check_schema_conflicts(self) -> str:
+        """Check if registered models conflict with existing database schema.
+
+        Returns:
+            String describing conflicts, or empty string if no conflicts
+        """
+        conflicts = []
+
+        # Check each registered entity
+        for model in self.registered_models:
+            if issubclass(model, Entity) and model is not Entity:
+                type_name = model.get_type_name()
+                # Check if this entity type exists in database
+                if self._type_exists(type_name, "entity"):
+                    # Get attributes owned in database
+                    db_attrs = self._get_owned_attributes(type_name, "entity")
+                    # Get attributes from model
+                    model_attrs = {
+                        attr_info.typ.get_attribute_name()
+                        for attr_info in model.get_owned_attributes().values()
+                    }
+                    # Check for removed attributes
+                    removed = db_attrs - model_attrs
+                    if removed:
+                        conflicts.append(
+                            f"  Entity '{type_name}': Removed attributes: {', '.join(sorted(removed))}"
+                        )
+
+            elif issubclass(model, Relation) and model is not Relation:
+                type_name = model.get_type_name()
+                # Check if this relation type exists in database
+                if self._type_exists(type_name, "relation"):
+                    # Get attributes owned in database
+                    db_attrs = self._get_owned_attributes(type_name, "relation")
+                    # Get attributes from model
+                    model_attrs = {
+                        attr_info.typ.get_attribute_name()
+                        for attr_info in model.get_owned_attributes().values()
+                    }
+                    # Check for removed attributes
+                    removed = db_attrs - model_attrs
+                    if removed:
+                        conflicts.append(
+                            f"  Relation '{type_name}': Removed attributes: {', '.join(sorted(removed))}"
+                        )
+
+        return "\n".join(conflicts)
+
+    def _type_exists(self, type_name: str, category: str) -> bool:
+        """Check if a type exists in the database schema.
+
+        Args:
+            type_name: Name of the type to check
+            category: Category of type ("entity" or "relation")
+
+        Returns:
+            True if type exists in schema, False otherwise
+        """
+        # Try to match any instance of this type
+        query = f"""
+        match
+        $t isa {type_name};
+        fetch {{
+          $t.*
+        }};
+        """
+
+        try:
+            with self.db.transaction("read") as tx:
+                # If type exists, query will succeed (even with 0 results)
+                # If type doesn't exist, query will raise an error
+                list(tx.execute(query))
+                return True
+        except Exception:
+            # Type doesn't exist in schema
+            return False
+
+    def _get_owned_attributes(self, type_name: str, category: str) -> set[str]:
+        """Get attributes owned by a type in the database schema.
+
+        Args:
+            type_name: Name of the type
+            category: Category of type ("entity" or "relation")
+
+        Returns:
+            Set of attribute type names owned by this type
+        """
+        # First, try to query existing instances
+        query = f"""
+        match
+        $t isa {type_name};
+        fetch {{
+          $t.*
+        }};
+        """
+
+        try:
+            with self.db.transaction("read") as tx:
+                results = list(tx.execute(query))
+
+                # Extract attribute types from the first result
+                if results:
+                    first_result = results[0]
+                    # The result keys (excluding 't') are the attribute type names
+                    attrs = set()
+                    for key in first_result.keys():
+                        if key != "t":
+                            attrs.add(key)
+                    return attrs
+
+            # No instances exist - try to create a temporary one to introspect schema
+            # Insert a minimal instance with default/null values for all required attributes
+            # This is needed for conflict detection when no data exists yet
+            insert_query = f"""
+            insert
+            $t isa {type_name};
+            """
+
+            with self.db.transaction("write") as tx:
+                tx.execute(insert_query)
+                tx.commit()
+
+            # Now query the temporary instance
+            with self.db.transaction("read") as tx:
+                results = list(tx.execute(query))
+                attrs = set()
+                if results:
+                    first_result = results[0]
+                    for key in first_result.keys():
+                        if key != "t":
+                            attrs.add(key)
+
+                # Delete the temporary instance
+                delete_query = f"""
+                match
+                $t isa {type_name};
+                delete
+                $t;
+                """
+                with self.db.transaction("write") as tx2:
+                    tx2.execute(delete_query)
+                    tx2.commit()
+
+                return attrs
+
+        except Exception:
+            # If query fails or we can't create temporary instance, return empty set
+            return set()
 
     def drop_schema(self) -> None:
         """Drop all schema definitions."""

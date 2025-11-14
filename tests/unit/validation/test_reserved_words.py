@@ -21,13 +21,30 @@ class TestReservedWordDetection:
     def test_common_reserved_words(self):
         """Check that common TypeQL keywords are recognized as reserved."""
         reserved = [
-            "define", "match", "insert", "delete", "update",
-            "entity", "relation", "attribute",
-            "has", "owns", "plays", "relates",
-            "boolean", "integer", "string", "double",
-            "true", "false",
-            "or", "not",  # Note: "and" is not a TypeQL keyword
-            "count", "sum", "max", "min",
+            "define",
+            "match",
+            "insert",
+            "delete",
+            "update",
+            "entity",
+            "relation",
+            "attribute",
+            "has",
+            "owns",
+            "plays",
+            "relates",
+            "boolean",
+            "integer",
+            "string",
+            "double",
+            "true",
+            "false",
+            "or",
+            "not",  # Note: "and" is not a TypeQL keyword
+            "count",
+            "sum",
+            "max",
+            "min",
         ]
         for word in reserved:
             assert is_reserved_word(word), f"{word} should be reserved"
@@ -35,8 +52,15 @@ class TestReservedWordDetection:
     def test_non_reserved_words(self):
         """Check that normal words are not flagged as reserved."""
         not_reserved = [
-            "person", "company", "employee", "name", "age",
-            "address", "salary", "department", "project",
+            "person",
+            "company",
+            "employee",
+            "name",
+            "age",
+            "address",
+            "salary",
+            "department",
+            "project",
         ]
         for word in not_reserved:
             assert not is_reserved_word(word), f"{word} should not be reserved"
@@ -84,9 +108,14 @@ class TestValidationFunction:
     def test_valid_names_pass(self):
         """Valid names should pass validation."""
         valid_names = [
-            "person", "company", "employee_name",
-            "first-name", "Age", "EmailAddress",
-            "person_123", "name_value"
+            "person",
+            "company",
+            "employee_name",
+            "first-name",
+            "Age",
+            "EmailAddress",
+            "person_123",
+            "name_value",
         ]
         for name in valid_names:
             validate_type_name(name, "entity")  # Should not raise
@@ -98,6 +127,7 @@ class TestEntityValidation:
     def test_entity_with_reserved_name_fails(self):
         """Entity with reserved type name should raise error."""
         with pytest.raises(ReservedWordError, match="match.*entity"):
+
             class Match(Entity):
                 flags = EntityFlags(name="match")
 
@@ -111,17 +141,21 @@ class TestEntityValidation:
     def test_entity_with_typeql_keyword_fails(self):
         """Entity with TypeQL keyword as name should fail."""
         with pytest.raises(ReservedWordError, match="insert"):
+
             class MyEntity(Entity):
                 flags = EntityFlags(name="insert")
 
     def test_entity_with_valid_name_succeeds(self):
         """Entity with valid name should succeed."""
+
         class Person(Entity):
             flags = EntityFlags(name="person")
+
         assert Person.get_type_name() == "person"
 
         class Company(Entity):
             pass
+
         assert Company.get_type_name() == "Company"
 
 
@@ -131,19 +165,23 @@ class TestRelationValidation:
     def test_relation_with_reserved_name_fails(self):
         """Relation with reserved type name should raise error."""
         with pytest.raises(ReservedWordError, match="delete.*relation"):
+
             class Delete(Relation):
                 flags = RelationFlags(name="delete")
 
     def test_relation_with_typeql_keyword_fails(self):
         """Relation with TypeQL keyword as name should fail."""
         with pytest.raises(ReservedWordError):
+
             class MyRelation(Relation):
                 flags = RelationFlags(name="update")
 
     def test_relation_with_valid_name_succeeds(self):
         """Relation with valid name should succeed."""
+
         class Employment(Relation):
             flags = RelationFlags(name="employment")
+
         assert Employment.get_type_name() == "employment"
 
 
@@ -153,37 +191,45 @@ class TestAttributeValidation:
     def test_attribute_with_reserved_name_fails(self):
         """Attribute with reserved name should raise error."""
         with pytest.raises(ReservedWordError, match="string.*attribute"):
+
             class StringAttr(String):
                 attr_name = "string"  # 'string' is a TypeQL value type keyword
 
     def test_attribute_with_typeql_value_type_fails(self):
         """Attribute named after TypeQL value type should fail."""
         with pytest.raises(ReservedWordError):
+
             class MyBoolean(String):
                 attr_name = "boolean"
 
         with pytest.raises(ReservedWordError):
+
             class MyInteger(String):
                 attr_name = "integer"
 
     def test_attribute_with_typeql_keyword_fails(self):
         """Attribute with TypeQL keyword as name should fail."""
         with pytest.raises(ReservedWordError):
+
             class MyAttribute(String):
                 attr_name = "count"  # 'count' is a reduction keyword
 
     def test_attribute_with_valid_name_succeeds(self):
         """Attribute with valid name should succeed."""
+
         class Name(String):
             pass
+
         assert Name.get_attribute_name() == "Name"
 
         class Age(Integer):
             pass
+
         assert Age.get_attribute_name() == "Age"
 
         class EmailAddress(String):
             attr_name = "email"
+
         assert EmailAddress.get_attribute_name() == "email"
 
 
@@ -192,6 +238,7 @@ class TestRoleValidation:
 
     def test_role_with_reserved_name_fails(self):
         """Role with reserved name should raise error."""
+
         # Need a valid entity for testing
         class Person(Entity):
             pass
@@ -201,6 +248,7 @@ class TestRoleValidation:
 
     def test_role_with_typeql_keyword_fails(self):
         """Role with TypeQL keyword as name should fail."""
+
         class Company(Entity):
             pass
 
@@ -212,6 +260,7 @@ class TestRoleValidation:
 
     def test_role_with_valid_name_succeeds(self):
         """Role with valid name should succeed."""
+
         class Person(Entity):
             pass
 
@@ -269,12 +318,14 @@ class TestIntegrationScenarios:
 
         # Try to create entities with reserved names
         try:
+
             class Match(Entity):
                 pass
         except ReservedWordError as e:
             errors.append(("Match entity", e))
 
         try:
+
             class Insert(Entity):
                 flags = EntityFlags(name="insert")
         except ReservedWordError as e:
@@ -282,6 +333,7 @@ class TestIntegrationScenarios:
 
         # Try to create attributes with reserved names
         try:
+
             class Boolean(String):
                 pass
         except ReservedWordError as e:
@@ -293,6 +345,7 @@ class TestIntegrationScenarios:
 
     def test_inherited_entity_validates_correctly(self):
         """Inherited entities should also be validated."""
+
         # Base class with valid name
         class Animal(Entity):
             flags = EntityFlags(abstract=True)
@@ -303,6 +356,7 @@ class TestIntegrationScenarios:
 
         # This should fail
         with pytest.raises(ReservedWordError):
+
             class Update(Animal):
                 flags = EntityFlags(name="update")
 
@@ -312,27 +366,33 @@ class TestBaseClassEscapeHatch:
 
     def test_entity_with_base_true_bypasses_validation(self):
         """Entity with base=True should not be validated for reserved words."""
+
         # This should succeed even though 'match' is reserved
         class Match(Entity):
             flags = EntityFlags(base=True, name="match")
+
         assert Match.get_type_name() == "match"
         assert Match.is_base() is True
 
         # Another example with a different reserved word
         class Define(Entity):
             flags = EntityFlags(base=True)
+
         assert Define.is_base() is True
 
     def test_relation_with_base_true_bypasses_validation(self):
         """Relation with base=True should not be validated for reserved words."""
+
         # This should succeed even though 'insert' is reserved
         class Insert(Relation):
             flags = RelationFlags(base=True, name="insert")
+
         assert Insert.get_type_name() == "insert"
         assert Insert.is_base() is True
 
     def test_base_class_not_in_schema(self):
         """Base classes should return None for schema definition."""
+
         class Update(Entity):
             flags = EntityFlags(base=True, name="update")
 
@@ -341,6 +401,7 @@ class TestBaseClassEscapeHatch:
 
     def test_inherited_from_base_class_is_validated(self):
         """Classes inheriting from base classes should still be validated."""
+
         # Base class with reserved name (allowed)
         class Match(Entity):
             flags = EntityFlags(base=True, name="match")
@@ -348,10 +409,12 @@ class TestBaseClassEscapeHatch:
         # Inheriting class with valid name (should work)
         class Person(Match):
             flags = EntityFlags(name="person")
+
         assert Person.get_type_name() == "person"
 
         # Inheriting class with reserved name (should fail)
         with pytest.raises(ReservedWordError):
+
             class Delete(Match):
                 flags = EntityFlags(name="delete")
 

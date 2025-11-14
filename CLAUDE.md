@@ -33,6 +33,31 @@ uv sync --extra dev          # Install dependencies including dev tools
 uv pip install -e ".[dev]"   # Install in editable mode
 ```
 
+### Docker Setup for Integration Tests
+
+Integration tests require a TypeDB 3.5.5 server. The project includes Docker configuration for automated setup:
+
+**Requirements:**
+- Docker and Docker Compose installed
+- Ports: 1729 (TypeDB server)
+
+**Docker is managed automatically** by the test fixtures. Simply run:
+```bash
+./test-integration.sh          # Starts Docker, runs tests, stops Docker
+```
+
+**Manual Docker control:**
+```bash
+docker compose up -d           # Start TypeDB container
+docker compose down            # Stop TypeDB container
+docker compose logs typedb     # View TypeDB logs
+```
+
+**Skip Docker (use existing server):**
+```bash
+USE_DOCKER=false uv run pytest -m integration
+```
+
 ### Testing
 ```bash
 # Unit tests (fast, no external dependencies)
@@ -41,12 +66,17 @@ uv run pytest -v                           # Run unit tests with verbose output
 uv run pytest -k test_name                 # Run specific unit test
 
 # Integration tests (require running TypeDB)
+# Option 1: Use Docker (recommended - automatic management)
+./test-integration.sh                     # Run integration tests with Docker
+./test-integration.sh -v                  # Run integration tests with Docker (verbose)
+
+# Option 2: Use existing TypeDB server (set USE_DOCKER=false)
 # First, start TypeDB 3.x server: typedb server
-uv run pytest -m integration              # Run integration tests only
-uv run pytest -m integration -v           # Run integration tests with verbose output
+USE_DOCKER=false uv run pytest -m integration    # Run integration tests (no Docker)
+USE_DOCKER=false uv run pytest -m integration -v # Run integration tests (verbose)
 
 # Run all tests (unit + integration)
-uv run pytest -m ""                       # Run all tests
+uv run pytest -m ""                       # Run all tests (Docker managed automatically)
 ```
 
 ### Linting
@@ -145,31 +175,33 @@ tests/
 
 ## Testing Strategy
 
-TypeBridge uses a two-tier testing approach:
+TypeBridge uses a two-tier testing approach with **100% test pass rate (347/347 tests)**:
 
 ### Unit Tests (Default)
 
 Located in `tests/unit/` with organized subdirectories:
 - `core/`: Basic entity/relation/attribute API, inheritance, Pydantic integration
-- `attributes/`: Attribute types (Date, DateTimeTZ, Decimal, Duration, insert queries)
+- `attributes/`: All 9 attribute types with dedicated test files
 - `flags/`: Flag system (base flags, cardinality, type name formatting)
 - `crud/`: CRUD operations (update API)
+- `validation/`: Reserved word and keyword validation
 
 Characteristics:
 - **Fast**: Run in ~0.3 seconds without external dependencies
 - **Isolated**: Test individual components in isolation
 - **No TypeDB required**: Use mocks and in-memory validation
 - **Run by default**: `pytest` runs unit tests only
-- **240 tests total**: Organized by functionality
+- **249 tests total**: Organized by functionality
 
 Coverage:
 - Core API: Entity/Relation creation, schema generation, inheritance (33 tests)
-- Attribute types: All 8 types with dedicated test files (115 tests)
-  - Boolean, Date, DateTimeTZ, Decimal, Double, Duration, Integer, String
+- Attribute types: All 9 types with dedicated test files (115 tests)
+  - Boolean, Date, DateTime, DateTimeTZ, Decimal, Double, Duration, Integer, String
   - Mixed formatting tests for query generation
 - Flag system: Base flags, cardinality, type name cases (54 tests)
 - CRUD operations: Update API for single/multi-value attributes (6 tests)
-- Validation: Pydantic integration, keyword validation, type checking (32 tests)
+- Validation: Pydantic integration, keyword validation, type checking, schema validation (41 tests)
+  - Duplicate attribute type detection (6 tests)
 
 ### Integration Tests
 
@@ -179,33 +211,40 @@ Located in `tests/integration/`
 - **Real database**: Require running TypeDB 3.x server
 - **End-to-end**: Test complete workflows from schema to queries
 - **Explicit execution**: Must use `pytest -m integration`
+- **98 tests total**: Full CRUD, schema, and query coverage
 
 Coverage:
-- Schema creation, migration, conflict detection
-- CRUD operations (insert, fetch, update, delete)
-- Complex queries with real data
-- Transaction management
-- Database lifecycle (creation, cleanup)
+- Schema creation, conflict detection, inheritance (8 tests)
+- CRUD operations for all 9 attribute types (insert, fetch, update, delete)
+- Multi-value attribute operations (9 tests)
+- Complex queries with real data (pagination, filtering, role players)
+- TypeDB 3.x specific features (proper `isa` syntax, offset before limit)
+- Transaction management and database lifecycle
 
 **Setup for integration tests:**
 ```bash
-# 1. Start TypeDB server
+# Option 1: Use Docker (recommended - automatic)
+./test-integration.sh -v
+
+# Option 2: Use existing TypeDB server
+# 1. Start TypeDB 3.x server
 typedb server
 
-# 2. Run integration tests
-uv run pytest -m integration -v
+# 2. Run integration tests (skip Docker)
+USE_DOCKER=false uv run pytest -m integration -v
 ```
 
 **Test execution patterns:**
 ```bash
 # Unit tests only (default, fast)
-uv run pytest                              # All 208 unit tests
+uv run pytest                              # All 249 unit tests
 
 # Run specific unit test category
 uv run pytest tests/unit/core/             # Core tests (33 tests)
 uv run pytest tests/unit/attributes/       # Attribute tests (115 tests)
-uv run pytest tests/unit/flags/            # Flag tests (43 tests)
+uv run pytest tests/unit/flags/            # Flag tests (54 tests)
 uv run pytest tests/unit/crud/             # CRUD tests (6 tests)
+uv run pytest tests/unit/validation/       # Validation tests (41 tests)
 
 # Run specific attribute type test
 uv run pytest tests/unit/attributes/test_integer.py -v
@@ -213,13 +252,16 @@ uv run pytest tests/unit/attributes/test_string.py -v
 uv run pytest tests/unit/attributes/test_boolean.py -v
 
 # Integration tests only (requires TypeDB)
-uv run pytest -m integration              # All 27 integration tests
+uv run pytest -m integration              # All 98 integration tests
 
 # All tests (unit + integration)
-uv run pytest -m ""                       # All 235 tests
+uv run pytest -m ""                       # All 347 tests
+./test.sh                                 # Full test suite with detailed output
+./check.sh                                # Linting and type checking
 
 # Specific integration test
-uv run pytest tests/integration/test_schema_operations.py -v
+uv run pytest tests/integration/schema/test_conflict.py -v
+uv run pytest tests/integration/queries/test_pagination.py -v
 ```
 
 ## TypeDB ORM Design Considerations
@@ -284,6 +326,84 @@ TypeBridge follows TypeDB's type system closely:
    - `list[Type] = Flag(Card(min=N))` → N or more @card(N..)
    - `list[Type] = Flag(Card(max=N))` → zero to N @card(0..N)
    - `list[Type] = Flag(Card(min, max))` → min to max @card(min..max)
+
+## Schema Validation Rules
+
+TypeBridge enforces TypeDB best practices through automatic validation during schema generation.
+
+### Duplicate Attribute Type Detection
+
+**Rule**: Each semantic field in an entity or relation MUST use a distinct attribute type.
+
+**Why this matters**: TypeDB does not store Python field names - it only stores attribute types and their values. When you use the same attribute type for multiple fields (e.g., `created: TimeStamp` and `modified: TimeStamp`), TypeDB sees a single ownership relationship: `Issue owns TimeStamp`, not separate `created` and `modified` fields. This causes cardinality constraint violations.
+
+**Validation**: The schema manager will raise `SchemaValidationError` if duplicate attribute types are detected.
+
+**Example - Incorrect (will raise error)**:
+```python
+from type_bridge import Entity, SchemaManager
+from type_bridge.attribute.datetime import DateTime
+from type_bridge.attribute.string import String
+from type_bridge.attribute.flags import Flag, Key
+
+class TimeStamp(DateTime):
+    pass
+
+class IssueKey(String):
+    pass
+
+class Issue(Entity):
+    key: IssueKey = Flag(Key)
+    created: TimeStamp   # ❌ Error: duplicate attribute type
+    modified: TimeStamp  # ❌ Error: duplicate attribute type
+
+# Raises SchemaValidationError:
+# "TimeStamp used in fields: 'created', 'modified'"
+schema_manager = SchemaManager(db)
+schema_manager.register(Issue)
+schema_manager.generate_schema()  # ❌ Raises error
+```
+
+**Example - Correct (distinct attribute types)**:
+```python
+class CreatedStamp(DateTime):
+    """Timestamp for when entity was created"""
+    pass
+
+class ModifiedStamp(DateTime):
+    """Timestamp for when entity was last modified"""
+    pass
+
+class IssueKey(String):
+    pass
+
+class Issue(Entity):
+    key: IssueKey = Flag(Key)
+    created: CreatedStamp   # ✓ Distinct type
+    modified: ModifiedStamp # ✓ Distinct type
+
+# Generates correct TypeQL:
+# entity Issue,
+#     owns IssueKey @key,
+#     owns CreatedStamp @card(1..1),
+#     owns ModifiedStamp @card(1..1);
+#
+# Note: Each attribute type gets its own ownership line with cardinality annotation.
+# This is TypeDB's semantic model - ownership is per attribute type, not per field name.
+schema_manager = SchemaManager(db)
+schema_manager.register(Issue)
+schema_manager.generate_schema()  # ✓ Success
+```
+
+**Best practice**: Use distinct attribute types for each semantic field, even when they share the same underlying value type (string, datetime, etc.). This makes schemas more expressive and avoids ownership conflicts.
+
+**Benefits**:
+- Prevents cardinality constraint violations at runtime
+- Makes schema more self-documenting (attribute names reflect their purpose)
+- Allows different constraints per field in the future (e.g., unique created but not modified)
+- Catches design errors early during schema generation instead of during data insertion
+
+**Discussion**: Is this validation approach correct? Should TypeBridge enforce this rule, or provide it as an optional warning? Feedback welcome on the design decision to fail fast vs. allow users to handle edge cases manually.
 
 ## TypeQL Syntax Requirements
 
@@ -1011,6 +1131,70 @@ The driver API for version 3.5.5 differs from earlier versions:
 3. **TransactionType enum**: `READ`, `WRITE`, `SCHEMA`
 
 4. **Authentication**: Requires `Credentials(username, password)` even for local development
+
+## TypeDB 3.x Syntax and Behavior Changes
+
+TypeDB 3.x introduced important syntax and behavior changes that affect query generation:
+
+### Query Syntax Changes
+
+1. **Type queries use `isa` instead of `sub`**:
+   ```typeql
+   # ✅ TypeDB 3.x (correct)
+   match $x isa person;
+
+   # ❌ TypeDB 2.x (deprecated)
+   match $x sub person;
+   ```
+
+2. **Cannot query root types directly**:
+   - Cannot match on `entity`, `relation`, or `attribute` root types
+   - Must query specific subtypes (e.g., `person`, `employment`)
+   ```typeql
+   # ❌ This will fail in TypeDB 3.x
+   match $x isa entity;
+
+   # ✅ Query specific entity types
+   match $x isa person;
+   ```
+
+3. **Pagination requires explicit sorting**:
+   - `offset` relies on consistent sort order
+   - Always include `sort` clause when using `offset`
+   ```typeql
+   # ✅ Correct pagination
+   match $p isa person;
+   sort $p asc;
+   offset 10;
+   limit 5;
+
+   # ⚠️ Unpredictable results without sort
+   match $p isa person;
+   offset 10;
+   limit 5;
+   ```
+
+4. **Clause ordering matters**:
+   - `offset` must come before `limit`
+   ```typeql
+   # ✅ Correct order
+   match $p isa person;
+   offset 10;
+   limit 5;
+
+   # ❌ Wrong order (syntax error)
+   match $p isa person;
+   limit 5;
+   offset 10;
+   ```
+
+### Implementation Considerations
+
+When generating TypeQL queries:
+- Use `isa` for type matching in all queries
+- Avoid querying root types (`entity`, `relation`, `attribute`)
+- Always include explicit `sort` clause when using `offset` for pagination
+- Ensure clause order: `match` → `sort` → `offset` → `limit`
 
 ## Code Quality Standards
 

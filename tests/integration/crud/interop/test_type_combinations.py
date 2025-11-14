@@ -50,9 +50,7 @@ def test_person_entity_string_integer_date(clean_db):
     manager = Person.manager(clean_db)
 
     # Insert person
-    person = Person(
-        name=Name("Alice"), age=Age(30), birth_date=BirthDate(date(1994, 3, 15))
-    )
+    person = Person(name=Name("Alice"), age=Age(30), birth_date=BirthDate(date(1994, 3, 15)))
     manager.insert(person)
 
     # Fetch and verify
@@ -188,9 +186,7 @@ def test_measurement_entity_string_double_datetimetz(clean_db):
     results = manager.get(sensor="TEMP-01")
     assert len(results) == 1
     assert abs(results[0].temperature.value - 23.5) < 0.01
-    assert results[0].measured_at.value == datetime(
-        2024, 1, 15, 10, 30, 0, tzinfo=UTC
-    )
+    assert results[0].measured_at.value == datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
 
 
 @pytest.mark.integration

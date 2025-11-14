@@ -67,12 +67,8 @@ def test_duration_fetch(clean_db):
 
     # Insert sessions
     sessions = [
-        Session(
-            name=SessionName("ShortMeet"), duration=SessionDuration(timedelta(minutes=30))
-        ),
-        Session(
-            name=SessionName("LongMeet"), duration=SessionDuration(timedelta(hours=3))
-        ),
+        Session(name=SessionName("ShortMeet"), duration=SessionDuration(timedelta(minutes=30))),
+        Session(name=SessionName("LongMeet"), duration=SessionDuration(timedelta(hours=3))),
     ]
     manager.insert_many(sessions)
 
@@ -106,9 +102,7 @@ def test_duration_update(clean_db):
     manager = Session.manager(clean_db)
 
     # Insert session
-    session = Session(
-        name=SessionName("Workshop"), duration=SessionDuration(timedelta(hours=1))
-    )
+    session = Session(name=SessionName("Workshop"), duration=SessionDuration(timedelta(hours=1)))
     manager.insert(session)
 
     # Fetch and update
@@ -146,9 +140,7 @@ def test_duration_delete(clean_db):
     manager = Session.manager(clean_db)
 
     # Insert session
-    session = Session(
-        name=SessionName("Standup"), duration=SessionDuration(timedelta(minutes=15))
-    )
+    session = Session(name=SessionName("Standup"), duration=SessionDuration(timedelta(minutes=15)))
     manager.insert(session)
 
     # Delete by Duration attribute

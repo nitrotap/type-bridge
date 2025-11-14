@@ -42,9 +42,7 @@ def test_fetch_relation_by_role_player(db_with_schema):
 
     # Create relation
     employment_manager = Employment.manager(db_with_schema)
-    employment = Employment(
-        employee=bob, employer=devco, position=Position("Developer")
-    )
+    employment = Employment(employee=bob, employer=devco, position=Position("Developer"))
     employment_manager.insert(employment)
 
     # Fetch relation by role player
@@ -90,9 +88,7 @@ def test_fetch_relation_by_attribute(db_with_schema):
 
     # Create relation
     employment_manager = Employment.manager(db_with_schema)
-    employment = Employment(
-        employee=charlie, employer=startup, position=Position("CTO")
-    )
+    employment = Employment(employee=charlie, employer=startup, position=Position("CTO"))
     employment_manager.insert(employment)
 
     # Fetch relation by attribute

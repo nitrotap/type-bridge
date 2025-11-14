@@ -42,9 +42,7 @@ def test_insert_relation(db_with_schema):
 
     # Create relation
     employment_manager = Employment.manager(db_with_schema)
-    employment = Employment(
-        employee=alice, employer=techcorp, position=Position("Engineer")
-    )
+    employment = Employment(employee=alice, employer=techcorp, position=Position("Engineer"))
     employment_manager.insert(employment)
 
     # Verify insertion by fetching

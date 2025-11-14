@@ -40,9 +40,7 @@ def test_datetimetz_insert(clean_db):
     # Verify insertion
     results = manager.get(name="GlobalMeet")
     assert len(results) == 1
-    assert results[0].updated_at.value == datetime(
-        2024, 1, 15, 10, 30, 0, tzinfo=UTC
-    )
+    assert results[0].updated_at.value == datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
 
 
 @pytest.mark.integration
@@ -72,15 +70,11 @@ def test_datetimetz_fetch(clean_db):
     events = [
         Event(
             name=EventName("MorningSync"),
-            updated_at=UpdatedAt(
-                datetime(2024, 2, 1, 9, 0, 0, tzinfo=UTC)
-            ),
+            updated_at=UpdatedAt(datetime(2024, 2, 1, 9, 0, 0, tzinfo=UTC)),
         ),
         Event(
             name=EventName("EveningReview"),
-            updated_at=UpdatedAt(
-                datetime(2024, 3, 1, 18, 0, 0, tzinfo=UTC)
-            ),
+            updated_at=UpdatedAt(datetime(2024, 3, 1, 18, 0, 0, tzinfo=UTC)),
         ),
     ]
     manager.insert_many(events)
@@ -124,16 +118,12 @@ def test_datetimetz_update(clean_db):
     # Fetch and update
     results = manager.get(name="Standup")
     event_fetched = results[0]
-    event_fetched.updated_at = UpdatedAt(
-        datetime(2024, 4, 1, 10, 15, 0, tzinfo=UTC)
-    )
+    event_fetched.updated_at = UpdatedAt(datetime(2024, 4, 1, 10, 15, 0, tzinfo=UTC))
     manager.update(event_fetched)
 
     # Verify update
     updated = manager.get(name="Standup")
-    assert updated[0].updated_at.value == datetime(
-        2024, 4, 1, 10, 15, 0, tzinfo=UTC
-    )
+    assert updated[0].updated_at.value == datetime(2024, 4, 1, 10, 15, 0, tzinfo=UTC)
 
 
 @pytest.mark.integration
@@ -167,9 +157,7 @@ def test_datetimetz_delete(clean_db):
     manager.insert(event)
 
     # Delete by DateTimeTZ attribute
-    deleted_count = manager.delete(
-        updated_at=datetime(2024, 5, 1, 15, 0, 0, tzinfo=UTC)
-    )
+    deleted_count = manager.delete(updated_at=datetime(2024, 5, 1, 15, 0, 0, tzinfo=UTC))
     assert deleted_count == 1
 
     # Verify deletion

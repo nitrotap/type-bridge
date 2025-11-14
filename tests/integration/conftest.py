@@ -1,5 +1,9 @@
 """Pytest fixtures for integration tests."""
 
+import os
+import subprocess
+import time
+
 import pytest
 from typedb.driver import DriverOptions
 
@@ -11,8 +15,71 @@ TEST_DB_ADDRESS = "localhost:1729"
 
 
 @pytest.fixture(scope="session")
-def typedb_driver():
+def docker_typedb():
+    """Start TypeDB Docker container for the test session.
+
+    Yields:
+        None (container runs in background)
+    """
+    # Check if we should use Docker (default: yes, unless USE_DOCKER=false)
+    use_docker = os.getenv("USE_DOCKER", "true").lower() != "false"
+
+    if not use_docker:
+        # Skip Docker management - assume TypeDB is already running
+        yield
+        return
+
+    # Get project root directory
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+
+    # Start Docker container
+    try:
+        # Stop any existing container
+        subprocess.run(
+            ["docker", "compose", "down"],
+            cwd=project_root,
+            capture_output=True,
+        )
+
+        # Start container
+        subprocess.run(
+            ["docker", "compose", "up", "-d"],
+            cwd=project_root,
+            check=True,
+            capture_output=True,
+        )
+
+        # Wait for TypeDB to be healthy
+        max_retries = 30
+        for i in range(max_retries):
+            result = subprocess.run(
+                ["docker", "inspect", "--format={{.State.Health.Status}}", "typedb_test"],
+                capture_output=True,
+                text=True,
+            )
+            if result.stdout.strip() == "healthy":
+                break
+            time.sleep(1)
+        else:
+            raise RuntimeError("TypeDB container failed to become healthy")
+
+        yield
+
+    finally:
+        # Stop Docker container
+        subprocess.run(
+            ["docker", "compose", "down"],
+            cwd=project_root,
+            capture_output=True,
+        )
+
+
+@pytest.fixture(scope="session")
+def typedb_driver(docker_typedb):
     """Create a TypeDB driver connection for the test session.
+
+    Args:
+        docker_typedb: Fixture that ensures Docker container is running
 
     Yields:
         TypeDB driver instance

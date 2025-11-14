@@ -132,12 +132,8 @@ def test_fetch_entity_with_all_types(clean_db):
     # Insert test data
     records = [
         Record(name=Name("Bob"), age=Age(25), is_active=IsActive(True), score=Score(80.0)),
-        Record(
-            name=Name("Charlie"), age=Age(30), is_active=IsActive(False), score=Score(90.0)
-        ),
-        Record(
-            name=Name("Diana"), age=Age(25), is_active=IsActive(True), score=Score(85.0)
-        ),
+        Record(name=Name("Charlie"), age=Age(30), is_active=IsActive(False), score=Score(90.0)),
+        Record(name=Name("Diana"), age=Age(25), is_active=IsActive(True), score=Score(85.0)),
     ]
     manager.insert_many(records)
 
@@ -186,9 +182,7 @@ def test_update_multiple_types(clean_db):
     manager = Record.manager(clean_db)
 
     # Insert record
-    record = Record(
-        name=Name("Eve"), age=Age(28), score=Score(75.0), is_active=IsActive(False)
-    )
+    record = Record(name=Name("Eve"), age=Age(28), score=Score(75.0), is_active=IsActive(False))
     manager.insert(record)
 
     # Fetch and update multiple types

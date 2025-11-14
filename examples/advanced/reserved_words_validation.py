@@ -20,16 +20,20 @@ def demonstrate_entity_validation():
 
     # Example 1: Valid entity name
     try:
+
         class Person(Entity):
             flags = EntityFlags(name="person")
+
         print("✓ Valid: 'person' is not a reserved word")
     except ReservedWordError as e:
         print(f"✗ Error: {e}")
 
     # Example 2: Using TypeQL keyword as entity name (will fail)
     try:
+
         class Match(Entity):
             flags = EntityFlags(name="match")
+
         print("✓ Created entity with name 'match'")
     except ReservedWordError as e:
         print("✗ Error creating 'match' entity:")
@@ -38,8 +42,10 @@ def demonstrate_entity_validation():
 
     # Example 3: Escape hatch with base=True
     try:
+
         class Define(Entity):
             flags = EntityFlags(base=True, name="define")
+
         print("✓ Created base entity with reserved name 'define' (base=True bypasses validation)")
     except ReservedWordError as e:
         print(f"✗ Error: {e}")
@@ -55,16 +61,20 @@ def demonstrate_attribute_validation():
 
     # Example 1: Valid attribute name
     try:
+
         class Name(String):
             pass
+
         print("✓ Valid: 'Name' is not a reserved word")
     except ReservedWordError as e:
         print(f"✗ Error: {e}")
 
     # Example 2: Using TypeQL value type as attribute name (will fail)
     try:
+
         class MyString(String):
             attr_name = "string"  # 'string' is a TypeQL value type
+
         print("✓ Created attribute with name 'string'")
     except ReservedWordError as e:
         print("✗ Error creating 'string' attribute:")
@@ -73,8 +83,10 @@ def demonstrate_attribute_validation():
 
     # Example 3: Using reduction keyword (will fail)
     try:
+
         class CountAttribute(Integer):
             attr_name = "count"  # 'count' is a reduction keyword
+
         print("✓ Created attribute with name 'count'")
     except ReservedWordError as e:
         print("✗ Error creating 'count' attribute:")
@@ -92,16 +104,20 @@ def demonstrate_relation_validation():
 
     # Example 1: Valid relation name
     try:
+
         class Employment(Relation):
             flags = RelationFlags(name="employment")
+
         print("✓ Valid: 'employment' is not a reserved word")
     except ReservedWordError as e:
         print(f"✗ Error: {e}")
 
     # Example 2: Using TypeQL keyword as relation name (will fail)
     try:
+
         class Update(Relation):
             flags = RelationFlags(name="update")
+
         print("✓ Created relation with name 'update'")
     except ReservedWordError as e:
         print("✗ Error creating 'update' relation:")
@@ -161,6 +177,7 @@ def demonstrate_error_suggestions():
 
     # Catch full error to show suggestions
     try:
+
         class StringAttribute(String):
             attr_name = "string"
     except ReservedWordError as e:

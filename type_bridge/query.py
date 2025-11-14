@@ -143,14 +143,15 @@ class Query:
             insert_body = "; ".join(self._insert_clauses)
             parts.append(f"insert\n{insert_body};")
 
-        # Sort, limit and offset modifiers (must come BEFORE fetch in TypeQL 3.x)
+        # Sort, offset, and limit modifiers (must come BEFORE fetch in TypeQL 3.x)
+        # IMPORTANT: offset must come BEFORE limit for pagination to work correctly
         if self._sort_clauses:
             for var, direction in self._sort_clauses:
                 parts.append(f"sort {var} {direction};")
-        if self._limit is not None:
-            parts.append(f"limit {self._limit};")
         if self._offset is not None:
             parts.append(f"offset {self._offset};")
+        if self._limit is not None:
+            parts.append(f"limit {self._limit};")
 
         # Fetch clause (TypeQL 3.x syntax: fetch { $var.* })
         if self._fetch_specs:

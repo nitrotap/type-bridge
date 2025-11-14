@@ -172,10 +172,7 @@ def test_string_special_characters_escaping(clean_db):
     manager = Message.manager(clean_db)
 
     # Test 1: Insert with double quotes
-    msg1 = Message(
-        name=Name("greeting"),
-        description=Description('He said "hello" to me')
-    )
+    msg1 = Message(name=Name("greeting"), description=Description('He said "hello" to me'))
     manager.insert(msg1)
 
     # Verify quotes are preserved
@@ -185,10 +182,7 @@ def test_string_special_characters_escaping(clean_db):
     assert results[0].description.value == 'He said "hello" to me'
 
     # Test 2: Insert with backslashes
-    msg2 = Message(
-        name=Name("path"),
-        description=Description("C:\\Users\\Documents")
-    )
+    msg2 = Message(name=Name("path"), description=Description("C:\\Users\\Documents"))
     manager.insert(msg2)
 
     # Verify backslashes are preserved
@@ -199,8 +193,7 @@ def test_string_special_characters_escaping(clean_db):
 
     # Test 3: Insert with both quotes and backslashes
     msg3 = Message(
-        name=Name("complex"),
-        description=Description(r'Path: "C:\Program Files\App" is valid')
+        name=Name("complex"), description=Description(r'Path: "C:\Program Files\App" is valid')
     )
     manager.insert(msg3)
 
@@ -224,7 +217,7 @@ def test_string_special_characters_escaping(clean_db):
     # Test 5: Multiple quotes and various special patterns
     msg4 = Message(
         name=Name("multiple_quotes"),
-        description=Description('Multiple "quotes" in "different" places')
+        description=Description('Multiple "quotes" in "different" places'),
     )
     manager.insert(msg4)
 
@@ -235,8 +228,7 @@ def test_string_special_characters_escaping(clean_db):
 
     # Test 6: Single quotes (should not be escaped in TypeQL double-quoted strings)
     msg5 = Message(
-        name=Name("single_quotes"),
-        description=Description("It's a 'test' with single quotes")
+        name=Name("single_quotes"), description=Description("It's a 'test' with single quotes")
     )
     manager.insert(msg5)
 
@@ -246,10 +238,7 @@ def test_string_special_characters_escaping(clean_db):
     assert results[0].description.value == "It's a 'test' with single quotes"
 
     # Test 7: Empty string (edge case)
-    msg6 = Message(
-        name=Name("empty"),
-        description=Description("")
-    )
+    msg6 = Message(name=Name("empty"), description=Description(""))
     manager.insert(msg6)
 
     results = manager.get(name="empty")

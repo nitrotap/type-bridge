@@ -442,6 +442,31 @@ class EntityQuery[E: Entity]:
         query = QueryBuilder.match_entity(self.model_class, **self.filters)
         query.fetch("$e")  # Fetch all attributes with $e.*
 
+        # TypeDB 3.x requires sorting for pagination to work reliably
+        # Always add sorting when using limit or offset to ensure consistent pagination
+        if self._limit_value is not None or self._offset_value is not None:
+            owned_attrs = self.model_class.get_owned_attributes()
+            sort_attr = None
+
+            # Try to find a key attribute first (keys are always present and unique)
+            for field_name, attr_info in owned_attrs.items():
+                if attr_info.flags.is_key:
+                    sort_attr = attr_info.typ.get_attribute_name()
+                    break
+
+            # If no key found, try to find any required attribute
+            if sort_attr is None:
+                for field_name, attr_info in owned_attrs.items():
+                    if attr_info.flags.card_min is not None and attr_info.flags.card_min >= 1:
+                        sort_attr = attr_info.typ.get_attribute_name()
+                        break
+
+            # Add sort clause with attribute variable
+            if sort_attr:
+                # Add attribute to match pattern
+                query.match(f"$e has {sort_attr} $sort_attr")
+                query.sort("$sort_attr", "asc")
+
         if self._limit_value is not None:
             query.limit(self._limit_value)
         if self._offset_value is not None:

@@ -98,9 +98,7 @@ def test_complex_query_with_relations(db_with_schema):
     person_manager.insert(alice)
     company_manager.insert(techcorp)
 
-    employment = Employment(
-        employee=alice, employer=techcorp, position=Position("Senior Engineer")
-    )
+    employment = Employment(employee=alice, employer=techcorp, position=Position("Senior Engineer"))
     employment_manager.insert(employment)
 
     # Query by both role player and attribute

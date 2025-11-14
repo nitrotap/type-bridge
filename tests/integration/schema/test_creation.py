@@ -9,6 +9,7 @@ from type_bridge import Entity, EntityFlags, Flag, Integer, Key, SchemaManager, 
 @pytest.mark.order(1)
 def test_schema_creation_and_sync(clean_db):
     """Test creating and syncing a schema to TypeDB."""
+
     # Define schema
     class Name(String):
         pass

@@ -31,9 +31,7 @@ def test_decimal_insert(clean_db):
     manager = Account.manager(clean_db)
 
     # Insert account with Decimal
-    account = Account(
-        name=AccountName("Savings"), balance=Balance(PyDecimal("1234.56"))
-    )
+    account = Account(name=AccountName("Savings"), balance=Balance(PyDecimal("1234.56")))
     manager.insert(account)
 
     # Verify insertion
@@ -68,9 +66,7 @@ def test_decimal_fetch(clean_db):
     # Insert accounts
     accounts = [
         Account(name=AccountName("Checking"), balance=Balance(PyDecimal("500.00"))),
-        Account(
-            name=AccountName("Investment"), balance=Balance(PyDecimal("10000.00"))
-        ),
+        Account(name=AccountName("Investment"), balance=Balance(PyDecimal("10000.00"))),
     ]
     manager.insert_many(accounts)
 

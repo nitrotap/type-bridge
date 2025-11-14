@@ -123,9 +123,7 @@ def test_chainable_query(db_with_schema):
     manager = Person.manager(db_with_schema)
 
     # Insert test data
-    persons = [
-        Person(name=Name(f"Person{i}"), age=Age(20 + i)) for i in range(10)
-    ]
+    persons = [Person(name=Name(f"Person{i}"), age=Age(20 + i)) for i in range(10)]
     manager.insert_many(persons)
 
     # Chainable query: filter + limit

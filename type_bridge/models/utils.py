@@ -187,7 +187,7 @@ TYPEDB_BUILTIN_TYPES = {"thing", "entity", "relation", "attribute"}
 def validate_type_name(
     type_name: str,
     class_name: str,
-    context: Literal["entity", "relation", "attribute", "role"] = "entity"
+    context: Literal["entity", "relation", "attribute", "role"] = "entity",
 ) -> None:
     """Validate that a type name doesn't conflict with TypeDB built-ins or TypeQL keywords.
 

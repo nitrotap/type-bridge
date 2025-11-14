@@ -11,6 +11,7 @@ from type_bridge.reserved_words import is_reserved_word
 
 class ValidationError(ValueError):
     """Base class for validation errors in TypeBridge."""
+
     pass
 
 
@@ -28,7 +29,7 @@ class ReservedWordError(ValidationError):
         self,
         word: str,
         context: Literal["entity", "relation", "attribute", "role"],
-        suggestion: str | None = None
+        suggestion: str | None = None,
     ):
         """Initialize ReservedWordError.
 
@@ -46,9 +47,7 @@ class ReservedWordError(ValidationError):
 
     def _build_message(self) -> str:
         """Build a helpful error message."""
-        lines = [
-            f"Cannot use '{self.word}' as {self.context} name: it's a TypeQL reserved word!"
-        ]
+        lines = [f"Cannot use '{self.word}' as {self.context} name: it's a TypeQL reserved word!"]
 
         if self.suggestion:
             lines.append(f"Suggestion: Use '{self.suggestion}' instead")
@@ -120,8 +119,7 @@ class ReservedWordError(ValidationError):
 
 
 def validate_type_name(
-    name: str,
-    context: Literal["entity", "relation", "attribute", "role"]
+    name: str, context: Literal["entity", "relation", "attribute", "role"]
 ) -> None:
     """Validate that a type name doesn't conflict with TypeQL reserved words.
 
@@ -143,13 +141,11 @@ def validate_type_name(
     # TypeQL identifiers must start with a letter and contain only letters, numbers,
     # underscores, and hyphens
     if not name[0].isalpha():
-        raise ValidationError(
-            f"{context.capitalize()} name '{name}' must start with a letter"
-        )
+        raise ValidationError(f"{context.capitalize()} name '{name}' must start with a letter")
 
     # Check for invalid characters
     for char in name:
-        if not (char.isalnum() or char in {'_', '-'}):
+        if not (char.isalnum() or char in {"_", "-"}):
             raise ValidationError(
                 f"{context.capitalize()} name '{name}' contains invalid character '{char}'. "
                 f"Only letters, numbers, underscores, and hyphens are allowed."

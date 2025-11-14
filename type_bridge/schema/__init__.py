@@ -5,7 +5,7 @@ This package provides schema management functionality for TypeBridge, including:
 - Schema information container (SchemaInfo)
 - Schema management (SchemaManager)
 - Schema migrations (MigrationManager)
-- Schema exceptions (SchemaConflictError)
+- Schema exceptions (SchemaConflictError, SchemaValidationError)
 """
 
 from type_bridge.schema.diff import (
@@ -14,7 +14,7 @@ from type_bridge.schema.diff import (
     RelationChanges,
     SchemaDiff,
 )
-from type_bridge.schema.exceptions import SchemaConflictError
+from type_bridge.schema.exceptions import SchemaConflictError, SchemaValidationError
 from type_bridge.schema.info import SchemaInfo
 from type_bridge.schema.manager import SchemaManager
 from type_bridge.schema.migration import MigrationManager
@@ -32,4 +32,5 @@ __all__ = [
     "MigrationManager",
     # Exceptions
     "SchemaConflictError",
+    "SchemaValidationError",
 ]

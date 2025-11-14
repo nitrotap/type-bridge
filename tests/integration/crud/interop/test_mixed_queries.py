@@ -339,7 +339,7 @@ def test_complex_query_with_multiple_filters(clean_db):
     class IsActive(Boolean):
         pass
 
-    class Score (Double):
+    class Score(Double):
         pass
 
     class Person(Entity):
@@ -359,9 +359,7 @@ def test_complex_query_with_multiple_filters(clean_db):
     persons = [
         Person(name=Name("Mike"), age=Age(30), is_active=IsActive(True), score=Score(85.0)),
         Person(name=Name("Nina"), age=Age(25), is_active=IsActive(True), score=Score(90.0)),
-        Person(
-            name=Name("Oscar"), age=Age(30), is_active=IsActive(False), score=Score(75.0)
-        ),
+        Person(name=Name("Oscar"), age=Age(30), is_active=IsActive(False), score=Score(75.0)),
     ]
     manager.insert_many(persons)
 

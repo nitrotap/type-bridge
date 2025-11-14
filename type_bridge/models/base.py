@@ -49,7 +49,9 @@ class TypeDBType(BaseModel, ABC):
 
         # Get TypeFlags if defined, otherwise create new default flags
         # Check if flags is defined directly on this class (not inherited)
-        if "flags" in cls.__dict__ and isinstance(cls.__dict__["flags"], (TypeFlags, EntityFlags, RelationFlags)):
+        if "flags" in cls.__dict__ and isinstance(
+            cls.__dict__["flags"], (TypeFlags, EntityFlags, RelationFlags)
+        ):
             # Explicitly set flags on this class
             cls._flags = cls.__dict__["flags"]
         else:
@@ -61,9 +63,10 @@ class TypeDBType(BaseModel, ABC):
         # Skip validation for:
         # 1. Base classes that won't appear in schema (base=True)
         # 2. The abstract base Entity and Relation classes themselves
-        is_base_entity_or_relation = (
-            cls.__name__ in ("Entity", "Relation")
-            and cls.__module__ in ("type_bridge.models", "type_bridge.models.entity", "type_bridge.models.relation")
+        is_base_entity_or_relation = cls.__name__ in ("Entity", "Relation") and cls.__module__ in (
+            "type_bridge.models",
+            "type_bridge.models.entity",
+            "type_bridge.models.relation",
         )
         if not cls._flags.base and not is_base_entity_or_relation:
             type_name = cls._flags.name or format_type_name(cls.__name__, cls._flags.case)
