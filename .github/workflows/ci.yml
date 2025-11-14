@@ -138,14 +138,31 @@ jobs:
       - name: Wait for TypeDB server to be ready
         run: |
           echo "Waiting for TypeDB server to start..."
+          echo "Container ID: ${{ job.services.typedb.id }}"
+
+          # Show initial logs for debugging
+          echo "=== Initial TypeDB logs ==="
+          docker logs ${{ job.services.typedb.id }} 2>&1 || echo "Could not fetch logs"
+          echo "==========================="
+
+          # Wait for server to be ready by checking port connectivity
           for i in {1..30}; do
-            if docker logs ${{ job.services.typedb.id }} 2>&1 | grep -q "TypeDB Server is now running"; then
-              echo "TypeDB server is ready!"
+            if nc -z localhost 1729 2>/dev/null; then
+              echo "TypeDB server is ready on port 1729!"
+              docker logs ${{ job.services.typedb.id }} 2>&1 | tail -20
               break
             fi
-            echo "Waiting... ($i/30)"
+            echo "Waiting for port 1729... ($i/30)"
             sleep 2
           done
+
+          # Final check
+          if ! nc -z localhost 1729 2>/dev/null; then
+            echo "ERROR: TypeDB server did not start within 60 seconds"
+            echo "=== Full TypeDB logs ==="
+            docker logs ${{ job.services.typedb.id }} 2>&1
+            exit 1
+          fi
 
       - name: Run integration tests for ${{ matrix.test-group }} in parallel
         run: uv run pytest tests/integration/${{ matrix.test-group }} -v --tb=short -n auto
