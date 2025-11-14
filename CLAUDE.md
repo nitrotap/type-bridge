@@ -35,8 +35,18 @@ uv pip install -e ".[dev]"   # Install in editable mode
 
 ### Testing
 ```bash
-uv run python -m pytest tests/ -v          # Run tests with verbose output
-uv run python -m pytest tests/ -v -k test_name  # Run specific test
+# Unit tests (fast, no external dependencies)
+uv run pytest                              # Run unit tests only (default)
+uv run pytest -v                           # Run unit tests with verbose output
+uv run pytest -k test_name                 # Run specific unit test
+
+# Integration tests (require running TypeDB)
+# First, start TypeDB 3.x server: typedb server
+uv run pytest -m integration              # Run integration tests only
+uv run pytest -m integration -v           # Run integration tests with verbose output
+
+# Run all tests (unit + integration)
+uv run pytest -m ""                       # Run all tests
 ```
 
 ### Linting
@@ -104,11 +114,112 @@ examples/
 
 tests/
 ├── conftest.py                   # Pytest configuration
-├── test_basic.py                 # Comprehensive tests for attribute API, entities, relations,
-│                                 # Flag system, and cardinality
-├── test_cardinal_api.py          # Tests for Card API with Flag system
-├── test_literal_support.py       # Tests for Literal type support
-└── test_pydantic_integration.py  # Tests for Pydantic integration features
+├── unit/                         # Unit tests (fast, isolated, no external dependencies)
+│   ├── core/                     # Core functionality tests
+│   │   ├── test_basic.py         # Basic entity/relation/attribute API
+│   │   ├── test_inheritance.py   # Inheritance and type hierarchies
+│   │   └── test_pydantic.py      # Pydantic integration and validation
+│   ├── attributes/               # Attribute type tests
+│   │   ├── test_boolean.py       # Boolean attribute type
+│   │   ├── test_date.py          # Date attribute type
+│   │   ├── test_datetime_tz.py   # DateTimeTZ attribute type
+│   │   ├── test_decimal.py       # Decimal attribute type
+│   │   ├── test_double.py        # Double attribute type
+│   │   ├── test_duration.py      # Duration attribute type (ISO 8601)
+│   │   ├── test_formatting.py    # Mixed attribute formatting
+│   │   ├── test_integer.py       # Integer attribute type
+│   │   └── test_string.py        # String attribute type
+│   ├── flags/                    # Flag system tests
+│   │   ├── test_base_flag.py     # Base flag for schema exclusion
+│   │   ├── test_cardinality.py   # Card API for cardinality constraints
+│   │   ├── test_typename_case.py # Entity/Relation type name formatting
+│   │   └── test_attribute_typename_case.py # Attribute name formatting
+│   └── crud/                     # CRUD operation tests
+│       └── test_update_api.py    # Update API for entities
+└── integration/                  # Integration tests (require running TypeDB)
+    ├── conftest.py               # Integration test fixtures (DB connection, cleanup)
+    ├── test_schema_operations.py # Schema creation, migration, conflict detection
+    ├── test_crud_workflows.py    # End-to-end CRUD operations
+    └── test_query_building.py    # Complex queries with real data
+```
+
+## Testing Strategy
+
+TypeBridge uses a two-tier testing approach:
+
+### Unit Tests (Default)
+
+Located in `tests/unit/` with organized subdirectories:
+- `core/`: Basic entity/relation/attribute API, inheritance, Pydantic integration
+- `attributes/`: Attribute types (Date, DateTimeTZ, Decimal, Duration, insert queries)
+- `flags/`: Flag system (base flags, cardinality, type name formatting)
+- `crud/`: CRUD operations (update API)
+
+Characteristics:
+- **Fast**: Run in ~0.3 seconds without external dependencies
+- **Isolated**: Test individual components in isolation
+- **No TypeDB required**: Use mocks and in-memory validation
+- **Run by default**: `pytest` runs unit tests only
+- **240 tests total**: Organized by functionality
+
+Coverage:
+- Core API: Entity/Relation creation, schema generation, inheritance (33 tests)
+- Attribute types: All 8 types with dedicated test files (115 tests)
+  - Boolean, Date, DateTimeTZ, Decimal, Double, Duration, Integer, String
+  - Mixed formatting tests for query generation
+- Flag system: Base flags, cardinality, type name cases (54 tests)
+- CRUD operations: Update API for single/multi-value attributes (6 tests)
+- Validation: Pydantic integration, keyword validation, type checking (32 tests)
+
+### Integration Tests
+
+Located in `tests/integration/`
+
+- **Sequential**: Use `@pytest.mark.order()` for predictable execution order
+- **Real database**: Require running TypeDB 3.x server
+- **End-to-end**: Test complete workflows from schema to queries
+- **Explicit execution**: Must use `pytest -m integration`
+
+Coverage:
+- Schema creation, migration, conflict detection
+- CRUD operations (insert, fetch, update, delete)
+- Complex queries with real data
+- Transaction management
+- Database lifecycle (creation, cleanup)
+
+**Setup for integration tests:**
+```bash
+# 1. Start TypeDB server
+typedb server
+
+# 2. Run integration tests
+uv run pytest -m integration -v
+```
+
+**Test execution patterns:**
+```bash
+# Unit tests only (default, fast)
+uv run pytest                              # All 208 unit tests
+
+# Run specific unit test category
+uv run pytest tests/unit/core/             # Core tests (33 tests)
+uv run pytest tests/unit/attributes/       # Attribute tests (115 tests)
+uv run pytest tests/unit/flags/            # Flag tests (43 tests)
+uv run pytest tests/unit/crud/             # CRUD tests (6 tests)
+
+# Run specific attribute type test
+uv run pytest tests/unit/attributes/test_integer.py -v
+uv run pytest tests/unit/attributes/test_string.py -v
+uv run pytest tests/unit/attributes/test_boolean.py -v
+
+# Integration tests only (requires TypeDB)
+uv run pytest -m integration              # All 27 integration tests
+
+# All tests (unit + integration)
+uv run pytest -m ""                       # All 235 tests
+
+# Specific integration test
+uv run pytest tests/integration/test_schema_operations.py -v
 ```
 
 ## TypeDB ORM Design Considerations
@@ -217,13 +328,19 @@ TypeBridge provides built-in attribute types that map to TypeDB's value types:
 
 - `String` → `value string` in TypeDB
 - `Integer` → `value integer` in TypeDB (renamed from `Long` to match TypeDB 3.x)
-- `Double` → `value double` in TypeDB
+- `Double` → `value double` in TypeDB (floating-point)
+- `Decimal` → `value decimal` in TypeDB (fixed-point, 19 decimal digits precision)
 - `Boolean` → `value boolean` in TypeDB
-- `DateTime` → `value datetime` in TypeDB
+- `Date` → `value date` in TypeDB (date only, no time)
+- `DateTime` → `value datetime` in TypeDB (naive datetime, no timezone)
+- `DateTimeTZ` → `value datetime-tz` in TypeDB (timezone-aware datetime)
+- `Duration` → `value duration` in TypeDB (ISO 8601 duration, calendar-aware)
 
 Example:
 ```python
-from type_bridge import String, Integer, Double
+from datetime import date, datetime, timezone, timedelta
+from decimal import Decimal as DecimalType
+from type_bridge import String, Integer, Double, Decimal, Date, DateTime, DateTimeTZ, Duration
 
 class Name(String):
     pass
@@ -231,9 +348,241 @@ class Name(String):
 class Age(Integer):  # Note: Integer, not Long
     pass
 
-class Score(Double):
+class Score(Double):  # Floating-point number
+    pass
+
+class Price(Decimal):  # Fixed-point decimal with high precision
+    pass
+
+class BirthDate(Date):  # Date only (no time)
+    pass
+
+class CreatedAt(DateTime):  # Naive datetime (no timezone)
+    pass
+
+class UpdatedAt(DateTimeTZ):  # Timezone-aware datetime
+    pass
+
+class SessionDuration(Duration):  # ISO 8601 duration
     pass
 ```
+
+### Double vs Decimal
+
+TypeDB provides two numeric types for non-integer values:
+
+1. **Double** (`value double`): Floating-point number (standard IEEE 754)
+   - Use for: Scientific calculations, measurements, approximate values
+   - Example: `Score(95.5)`, `Temperature(37.2)`
+
+2. **Decimal** (`value decimal`): Fixed-point number with exact precision
+   - 64 bits for integer part, 19 decimal digits of precision after decimal point
+   - Range: −2^63 to 2^63 − 10^−19
+   - Use for: Financial calculations, monetary values, exact decimal representation
+   - TypeQL syntax: Values use `dec` suffix (e.g., `0.02dec`)
+   - Example:
+     ```python
+     from decimal import Decimal as DecimalType
+
+     class AccountBalance(Decimal):
+         pass
+
+     # Use string for exact precision (recommended)
+     balance = AccountBalance("1234.567890123456789")
+
+     # In TypeQL insert query: has AccountBalance 1234.567890123456789dec
+     ```
+
+**When to use Decimal:**
+- Financial applications (account balances, prices, tax calculations)
+- When exact decimal representation is required
+- When you need to avoid floating-point rounding errors
+
+**When to use Double:**
+- Scientific measurements
+- Statistical calculations
+- When approximate values are acceptable
+
+### Date, DateTime, and DateTimeTZ
+
+TypeDB provides three temporal types with distinct use cases:
+
+#### 1. Date (`value date`)
+Date-only values without time information.
+
+- **Use for**: Birth dates, publish dates, deadlines, anniversaries
+- **Format**: ISO 8601 date (YYYY-MM-DD)
+- **Range**: January 1, 262144 BCE to December 31, 262142 CE
+- **Example**:
+  ```python
+  from datetime import date
+
+  class PublishDate(Date):
+      pass
+
+  # Usage
+  book = Book(publish_date=PublishDate(date(2024, 3, 30)))
+  # In TypeQL: has PublishDate 2024-03-30
+  ```
+
+#### 2. DateTime (`value datetime`)
+Naive datetime without timezone information.
+
+- **Use for**: Timestamps where timezone context is implicit or unnecessary
+- **Format**: ISO 8601 datetime (YYYY-MM-DDTHH:MM:SS)
+- **Example**:
+  ```python
+  from datetime import datetime
+
+  class CreatedAt(DateTime):
+      pass
+
+  # Usage
+  event = Event(created_at=CreatedAt(datetime(2024, 3, 30, 10, 30, 45)))
+  # In TypeQL: has CreatedAt 2024-03-30T10:30:45
+  ```
+
+#### 3. DateTimeTZ (`value datetime-tz`)
+Timezone-aware datetime with explicit timezone information.
+
+- **Use for**: Distributed systems, events across timezones, UTC timestamps
+- **Format**: ISO 8601 with timezone (YYYY-MM-DDTHH:MM:SS±HH:MM or with IANA TZ identifier)
+- **Example**:
+  ```python
+  from datetime import datetime, timezone
+
+  class UpdatedAt(DateTimeTZ):
+      pass
+
+  # Usage
+  record = Record(updated_at=UpdatedAt(datetime(2024, 3, 30, 10, 30, 45, tzinfo=timezone.utc)))
+  # In TypeQL: has UpdatedAt 2024-03-30T10:30:45+00:00
+  ```
+
+**When to use each type:**
+- **Date**: When you only care about the calendar date (birthdays, publish dates, deadlines)
+- **DateTime**: When you need date + time but timezone is implicit (local events, single-timezone systems)
+- **DateTimeTZ**: When timezone matters (global events, distributed systems, UTC timestamps)
+
+### DateTime and DateTimeTZ Conversions
+
+TypeBridge provides conversion methods between DateTime and DateTimeTZ:
+
+**Add timezone to DateTime:**
+```python
+# Implicit: add system timezone
+naive_dt = DateTime(datetime(2024, 1, 15, 10, 30, 45))
+aware_dt = naive_dt.add_timezone()  # Uses system timezone
+
+# Explicit: add specific timezone
+from datetime import timezone, timedelta
+jst = timezone(timedelta(hours=9))
+aware_jst = naive_dt.add_timezone(jst)  # Add JST timezone
+aware_utc = naive_dt.add_timezone(timezone.utc)  # Add UTC timezone
+```
+
+**Strip timezone from DateTimeTZ:**
+```python
+# Implicit: just strip timezone
+aware_dt = DateTimeTZ(datetime(2024, 1, 15, 10, 30, 45, tzinfo=timezone.utc))
+naive_dt = aware_dt.strip_timezone()  # Strips timezone as-is
+
+# Explicit: convert to timezone first, then strip
+jst = timezone(timedelta(hours=9))
+naive_jst = aware_dt.strip_timezone(jst)  # Convert to JST, then strip
+```
+
+**Conversion semantics:**
+- `DateTime.add_timezone(tz=None)`: If tz is None, adds system timezone; otherwise adds specified timezone
+- `DateTimeTZ.strip_timezone(tz=None)`: If tz is None, strips timezone as-is; otherwise converts to tz first, then strips
+
+### Duration Type
+
+TypeDB's `duration` type represents calendar-aware time spans using ISO 8601 duration format.
+
+**Key characteristics:**
+- Storage: 32-bit months, 32-bit days, 64-bit nanoseconds
+- Format: ISO 8601 duration (e.g., `P1Y2M3DT4H5M6.789S`)
+- **Partially ordered**: `P1M` and `P30D` cannot be compared directly
+- **Calendar-aware**: `P1D` ≠ `PT24H`, `P1M` varies by month
+
+**ISO 8601 Duration Syntax:**
+```
+P[years]Y[months]M[days]DT[hours]H[minutes]M[seconds]S
+```
+
+Date components (before T):
+- `Y` = years
+- `M` = months
+- `W` = weeks (cannot combine with other units)
+- `D` = days
+
+Time components (after T):
+- `H` = hours
+- `M` = minutes
+- `S` = seconds (can have up to 9 decimal digits for nanoseconds)
+
+**Examples:**
+```python
+from datetime import timedelta
+from type_bridge import Duration, DateTime, Entity, EntityFlags
+
+class EventCadence(Duration):
+    pass
+
+# Simple durations
+hourly = EventCadence("PT1H")                      # 1 hour
+daily = EventCadence("P1D")                        # 1 day
+weekly = EventCadence("P7D")                       # 7 days (weeks converted to days)
+monthly = EventCadence("P1M")                      # 1 month
+
+# Complex duration
+complex = EventCadence("P1Y2M3DT4H5M6.789S")      # 1 year, 2 months, 3 days, 4:05:06.789
+
+# From Python timedelta (converted to Duration internally)
+from_td = EventCadence(timedelta(hours=2, minutes=30))  # PT2H30M
+
+# Ambiguous M disambiguation:
+one_month = EventCadence("P1M")   # 1 month (no T)
+one_minute = EventCadence("PT1M")  # 1 minute (with T)
+```
+
+**Arithmetic operations with DateTime/DateTimeTZ:**
+```python
+from datetime import datetime, timezone
+
+# Add duration to datetime
+start = DateTime(datetime(2024, 1, 31, 14, 0, 0))
+one_month = Duration("P1M")
+result = start + one_month  # Feb 29, 2024 (leap year, last day of month)
+
+# Add duration to timezone-aware datetime
+start_utc = DateTimeTZ(datetime(2024, 1, 31, 14, 0, 0, tzinfo=timezone.utc))
+result_utc = start_utc + one_month  # Respects timezone
+
+# Duration arithmetic
+d1 = Duration("P1M")
+d2 = Duration("P15D")
+total = d1 + d2  # P1M15D
+```
+
+**Important notes:**
+- Addition order matters: `P1M + P1D` ≠ `P1D + P1M` (calendar arithmetic)
+- Month addition respects calendar:
+  - Jan 31 + 1 month = Feb 29 (uses last day of month if invalid)
+- Duration with DateTimeTZ respects DST and timezone changes
+- Durations are partially ordered (can't compare `P1M` vs `P30D`)
+
+**When to use Duration:**
+- Recurring events (monthly meetings, weekly tasks)
+- Calendar-relative time spans (add 1 month, 3 days)
+- Time intervals that respect calendar boundaries
+- When months/years are needed (not just days/hours)
+
+**When NOT to use Duration:**
+- Simple time intervals → use `Integer` (seconds) or `Double` (hours)
+- Fixed-length periods → use `Integer` for seconds
+- When ordering/comparison is required → use fixed units
 
 ## Deprecated APIs
 

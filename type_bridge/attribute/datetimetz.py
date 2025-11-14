@@ -1,0 +1,179 @@
+"""DateTimeTZ attribute type for TypeDB."""
+
+from datetime import UTC
+from datetime import datetime as datetime_type
+from datetime import timezone as timezone_type
+from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
+
+from pydantic import GetCoreSchemaHandler
+from pydantic_core import core_schema
+
+from type_bridge.attribute.base import Attribute
+
+if TYPE_CHECKING:
+    from type_bridge.attribute.datetime import DateTime
+
+# TypeVar for proper type checking
+DateTimeTZValue = TypeVar("DateTimeTZValue", bound=datetime_type)
+
+
+class DateTimeTZ(Attribute):
+    """DateTimeTZ attribute type that accepts timezone-aware datetime values.
+
+    This maps to TypeDB's 'datetime-tz' type, which requires timezone information.
+    The datetime must have tzinfo set (e.g., using datetime.timezone.utc or zoneinfo).
+
+    Example:
+        from datetime import datetime, timezone
+
+        class CreatedAt(DateTimeTZ):
+            pass
+
+        # Usage with timezone
+        event = Event(created_at=CreatedAt(datetime(2024, 1, 15, 10, 30, 45, tzinfo=timezone.utc)))
+
+        # Convert to DateTime
+        naive_dt = created_at.strip_timezone()  # Implicit: just strip tz
+        naive_dt_jst = created_at.strip_timezone(timezone(timedelta(hours=9)))  # Explicit: convert to JST, then strip
+    """
+
+    value_type: ClassVar[str] = "datetime-tz"
+
+    def __init__(self, value: datetime_type):
+        """Initialize DateTimeTZ attribute with a timezone-aware datetime value.
+
+        Args:
+            value: The timezone-aware datetime value to store
+
+        Raises:
+            ValueError: If the datetime does not have timezone information
+        """
+        if value.tzinfo is None:
+            raise ValueError(
+                "DateTimeTZ requires timezone-aware datetime. "
+                "Use DateTime for naive datetime or add tzinfo (e.g., datetime.timezone.utc)"
+            )
+        super().__init__(value)
+
+    @property
+    def value(self) -> datetime_type:
+        """Get the stored datetime value."""
+        if self._value is None:
+            return datetime_type.now(UTC)
+        return self._value
+
+    def strip_timezone(self, tz: timezone_type | None = None) -> "DateTime":
+        """Convert DateTimeTZ to DateTime by stripping timezone information.
+
+        Implicit conversion (tz=None): Just strip timezone as-is
+        Explicit conversion (tz provided): Convert to specified timezone first, then strip
+
+        Args:
+            tz: Optional timezone to convert to before stripping.
+                If None, strips timezone without conversion.
+                If provided, converts to that timezone first.
+
+        Returns:
+            DateTime instance with naive datetime
+
+        Example:
+            # Implicit: strip timezone as-is
+            naive = dt_tz.strip_timezone()
+
+            # Explicit: convert to JST (+9), then strip
+            from datetime import timezone, timedelta
+            jst = timezone(timedelta(hours=9))
+            naive_jst = dt_tz.strip_timezone(jst)
+        """
+        from type_bridge.attribute.datetime import DateTime
+
+        dt_value = self.value
+        if tz is not None:
+            # Explicit: convert to specified timezone first
+            dt_value = dt_value.astimezone(tz)
+
+        # Strip timezone info
+        naive_dt = dt_value.replace(tzinfo=None)
+        return DateTime(naive_dt)
+
+    def __add__(self, other: Any) -> "DateTimeTZ":
+        """Add a Duration to this DateTimeTZ.
+
+        Args:
+            other: A Duration to add to this timezone-aware datetime
+
+        Returns:
+            New DateTimeTZ with the duration added
+
+        Note:
+            Duration addition respects timezone changes (DST, etc.)
+
+        Example:
+            from type_bridge import Duration
+            from datetime import datetime, timezone
+            dt = DateTimeTZ(datetime(2024, 1, 31, 14, 0, 0, tzinfo=timezone.utc))
+            duration = Duration("P1M")
+            result = dt + duration  # DateTimeTZ(2024-02-28 14:00:00+00:00)
+        """
+        from type_bridge.attribute.duration import Duration
+
+        if isinstance(other, Duration):
+            # Add duration to timezone-aware datetime
+            # isodate handles timezone-aware datetime + duration correctly
+            new_dt = self.value + other.value
+            return DateTimeTZ(new_dt)
+        return NotImplemented
+
+    def __radd__(self, other: Any) -> "DateTimeTZ":
+        """Reverse addition for Duration + DateTimeTZ."""
+        return self.__add__(other)
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: type[DateTimeTZValue], handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        """Pydantic validation: accept timezone-aware datetime values or attribute instances."""
+
+        # Serializer to extract value from attribute instances
+        def serialize_datetimetz(value: Any) -> datetime_type:
+            if isinstance(value, cls):
+                if value._value is None:
+                    return datetime_type.now(UTC)
+                return value._value
+            if isinstance(value, datetime_type):
+                if value.tzinfo is None:
+                    raise ValueError("DateTimeTZ requires timezone-aware datetime")
+                return value
+            # Try to parse ISO string with timezone
+            dt = datetime_type.fromisoformat(str(value))
+            if dt.tzinfo is None:
+                raise ValueError("DateTimeTZ requires timezone-aware datetime")
+            return dt
+
+        # Validator: accept timezone-aware datetime or attribute instance
+        def validate_datetimetz(value: Any) -> DateTimeTZ:
+            if isinstance(value, cls):
+                return value  # Return attribute instance as-is
+            # Wrap timezone-aware datetime in attribute instance
+            if isinstance(value, datetime_type):
+                if value.tzinfo is None:
+                    raise ValueError("DateTimeTZ requires timezone-aware datetime")
+                return cls(value)
+            # Try to parse ISO string with timezone
+            dt = datetime_type.fromisoformat(str(value))
+            if dt.tzinfo is None:
+                raise ValueError("DateTimeTZ requires timezone-aware datetime")
+            return cls(dt)
+
+        return core_schema.with_info_plain_validator_function(
+            lambda v, _: validate_datetimetz(v),
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                serialize_datetimetz,
+                return_schema=core_schema.datetime_schema(),
+            ),
+        )
+
+    @classmethod
+    def __class_getitem__(cls, item: object) -> type["DateTimeTZ"]:
+        """Allow generic subscription for type checking (e.g., DateTimeTZ[datetime])."""
+        return cls

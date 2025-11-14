@@ -1,0 +1,246 @@
+"""Duration attribute type for TypeDB."""
+
+from datetime import timedelta
+from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
+
+import isodate
+from isodate import Duration as IsodateDuration
+from pydantic import GetCoreSchemaHandler
+from pydantic_core import core_schema
+
+from type_bridge.attribute.base import Attribute
+
+if TYPE_CHECKING:
+    pass
+
+# TypeVar for proper type checking
+DurationValue = TypeVar("DurationValue", bound=timedelta | IsodateDuration)
+
+# Storage limits for TypeDB duration
+MAX_MONTHS = 2**31 - 1  # 32-bit signed integer
+MAX_DAYS = 2**31 - 1  # 32-bit signed integer
+MAX_NANOSECONDS = 2**63 - 1  # 64-bit signed integer
+
+
+def _validate_duration_limits(duration: IsodateDuration) -> None:
+    """Validate that duration components fit within TypeDB storage limits.
+
+    Args:
+        duration: The duration to validate
+
+    Raises:
+        ValueError: If any component exceeds storage limits
+    """
+    months = duration.months if hasattr(duration, "months") else 0
+    days = duration.days if hasattr(duration, "days") else 0
+
+    # Calculate total nanoseconds from timedelta
+    if hasattr(duration, "tdelta") and duration.tdelta:
+        total_seconds = duration.tdelta.total_seconds()
+        nanoseconds = int(total_seconds * 1_000_000_000)
+    else:
+        nanoseconds = 0
+
+    if abs(months) > MAX_MONTHS:
+        raise ValueError(
+            f"Duration months component ({months}) exceeds 32-bit limit ({MAX_MONTHS})"
+        )
+    if abs(days) > MAX_DAYS:
+        raise ValueError(f"Duration days component ({days}) exceeds 32-bit limit ({MAX_DAYS})")
+    if abs(nanoseconds) > MAX_NANOSECONDS:
+        raise ValueError(
+            f"Duration nanoseconds component ({nanoseconds}) exceeds 64-bit limit ({MAX_NANOSECONDS})"
+        )
+
+
+def _timedelta_to_duration(td: timedelta) -> IsodateDuration:
+    """Convert Python timedelta to isodate.Duration for consistent handling.
+
+    Args:
+        td: The timedelta to convert
+
+    Returns:
+        IsodateDuration with equivalent value
+    """
+    # timedelta only has days, seconds, microseconds
+    # Convert to Duration with 0 months and the timedelta component
+    return IsodateDuration(months=0, days=td.days, seconds=td.seconds, microseconds=td.microseconds)
+
+
+class Duration(Attribute):
+    """Duration attribute type that accepts ISO 8601 duration values.
+
+    This maps to TypeDB's 'duration' type, which represents calendar-aware time spans
+    using months, days, and nanoseconds.
+
+    TypeDB duration format: ISO 8601 duration (e.g., P1Y2M3DT4H5M6.789S)
+    Storage: 32-bit months, 32-bit days, 64-bit nanoseconds
+
+    Important notes:
+    - Durations are partially ordered (P1M and P30D cannot be compared)
+    - P1D ≠ PT24H (calendar day vs 24 hours)
+    - P1M ≠ P30D (months vary in length)
+    - Addition is not commutative with calendar components
+
+    Example:
+        from datetime import timedelta
+
+        class SessionDuration(Duration):
+            pass
+
+        class EventCadence(Duration):
+            pass
+
+        # From ISO 8601 string
+        cadence = EventCadence("P1M")  # 1 month
+        interval = SessionDuration("PT1H30M")  # 1 hour 30 minutes
+
+        # From timedelta (converted to Duration internally)
+        session = SessionDuration(timedelta(hours=2))
+
+        # Complex duration
+        complex = EventCadence("P1Y2M3DT4H5M6.789S")
+    """
+
+    value_type: ClassVar[str] = "duration"
+
+    def __init__(self, value: str | timedelta | IsodateDuration):
+        """Initialize Duration attribute with a duration value.
+
+        Args:
+            value: The duration value to store. Can be:
+                - str: ISO 8601 duration string (e.g., "P1Y2M3DT4H5M6S")
+                - timedelta: Python timedelta (converted to Duration)
+                - isodate.Duration: Direct Duration object
+
+        Raises:
+            ValueError: If duration components exceed storage limits
+
+        Example:
+            # From ISO string
+            duration1 = Duration("P1M")  # 1 month
+            duration2 = Duration("PT1H30M")  # 1 hour 30 minutes
+
+            # From timedelta
+            from datetime import timedelta
+            duration3 = Duration(timedelta(hours=2, minutes=30))
+
+            # Complex duration
+            duration4 = Duration("P1Y2M3DT4H5M6.789S")
+        """
+        if isinstance(value, str):
+            value = isodate.parse_duration(value)
+        elif isinstance(value, timedelta) and not isinstance(value, IsodateDuration):
+            # Convert plain timedelta to Duration for consistent handling
+            value = _timedelta_to_duration(value)
+
+        # Validate storage limits
+        if isinstance(value, IsodateDuration):
+            _validate_duration_limits(value)
+
+        super().__init__(value)
+
+    @property
+    def value(self) -> IsodateDuration:
+        """Get the stored duration value.
+
+        Returns:
+            isodate.Duration instance (zero duration if None)
+        """
+        return self._value if self._value is not None else IsodateDuration()
+
+    def to_iso8601(self) -> str:
+        """Convert duration to ISO 8601 string format.
+
+        Returns:
+            ISO 8601 duration string (e.g., "P1Y2M3DT4H5M6S")
+
+        Example:
+            duration = Duration("P1M")
+            assert duration.to_iso8601() == "P1M"
+        """
+        return isodate.duration_isoformat(self.value)
+
+    def __add__(self, other: Any) -> "Duration":
+        """Add two durations.
+
+        Args:
+            other: Another Duration to add
+
+        Returns:
+            New Duration with sum
+
+        Example:
+            d1 = Duration("P1M")
+            d2 = Duration("P15D")
+            result = d1 + d2  # P1M15D
+        """
+        if isinstance(other, Duration):
+            # Both are Durations, add their components
+            result = self.value + other.value
+            return Duration(result)
+        return NotImplemented
+
+    def __radd__(self, other: Any) -> "Duration":
+        """Reverse addition for Duration."""
+        return self.__add__(other)
+
+    def __sub__(self, other: Any) -> "Duration":
+        """Subtract two durations.
+
+        Args:
+            other: Another Duration to subtract
+
+        Returns:
+            New Duration with difference
+
+        Example:
+            d1 = Duration("P1M")
+            d2 = Duration("P15D")
+            result = d1 - d2  # P1M-15D
+        """
+        if isinstance(other, Duration):
+            # Both are Durations, subtract their components
+            result = self.value - other.value
+            return Duration(result)
+        return NotImplemented
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: type[DurationValue], handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        """Pydantic validation: accept duration values or attribute instances."""
+
+        # Serializer to extract value from attribute instances
+        def serialize_duration(value: Any) -> IsodateDuration:
+            if isinstance(value, cls):
+                return value._value if value._value is not None else IsodateDuration()
+            if isinstance(value, IsodateDuration):
+                return value
+            if isinstance(value, timedelta):
+                return _timedelta_to_duration(value)
+            # Try to parse ISO string
+            return isodate.parse_duration(str(value))
+
+        # Validator: accept various duration formats, always return attribute instance
+        def validate_duration(value: Any) -> "Duration":
+            if isinstance(value, cls):
+                return value  # Return attribute instance as-is
+            # Wrap duration value in attribute instance
+            if isinstance(value, (IsodateDuration, timedelta)):
+                return cls(value)
+            # Try to parse ISO string
+            return cls(isodate.parse_duration(str(value)))
+
+        return core_schema.with_info_plain_validator_function(
+            lambda v, _: validate_duration(v),
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                serialize_duration,
+                return_schema=core_schema.timedelta_schema(),
+            ),
+        )
+
+    @classmethod
+    def __class_getitem__(cls, item: object) -> type["Duration"]:
+        """Allow generic subscription for type checking (e.g., Duration[timedelta])."""
+        return cls

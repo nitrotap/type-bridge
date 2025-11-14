@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
+from datetime import date as date_type
 from datetime import datetime as datetime_type
+from datetime import timedelta
 from typing import Any, ClassVar, dataclass_transform
 
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -64,7 +66,20 @@ class TypeDBType(BaseModel, ABC):
         )
         if not cls._flags.base and not is_base_entity_or_relation:
             type_name = cls._flags.name or format_type_name(cls.__name__, cls._flags.case)
-            validate_type_name(type_name, cls.__name__)
+
+            # Determine context based on class hierarchy
+            from type_bridge.models.entity import Entity
+            from type_bridge.models.relation import Relation
+
+            if issubclass(cls, Relation):
+                context = "relation"
+            elif issubclass(cls, Entity):
+                context = "entity"
+            else:
+                # Default for TypeDBType subclasses
+                context = "entity"
+
+            validate_type_name(type_name, cls.__name__, context)
 
     @model_validator(mode="wrap")
     @classmethod
@@ -209,6 +224,11 @@ class TypeDBType(BaseModel, ABC):
     @staticmethod
     def _format_value(value: Any) -> str:
         """Format a Python value for TypeQL."""
+        from decimal import Decimal as DecimalType
+
+        import isodate
+        from isodate import Duration as IsodateDuration
+
         # Extract value from Attribute instances
         if isinstance(value, Attribute):
             value = value.value
@@ -217,10 +237,19 @@ class TypeDBType(BaseModel, ABC):
             return f'"{value}"'
         elif isinstance(value, bool):
             return "true" if value else "false"
+        elif isinstance(value, DecimalType):
+            # TypeDB decimal literals require 'dec' suffix
+            return f"{value}dec"
         elif isinstance(value, (int, float)):
             return str(value)
+        elif isinstance(value, (IsodateDuration, timedelta)):
+            # TypeDB duration literals are unquoted ISO 8601 duration strings
+            return isodate.duration_isoformat(value)
         elif isinstance(value, datetime_type):
             # TypeDB datetime literals are unquoted ISO 8601 strings
+            return value.isoformat()
+        elif isinstance(value, date_type):
+            # TypeDB date literals are unquoted ISO 8601 date strings (YYYY-MM-DD)
             return value.isoformat()
         else:
             return str(value)

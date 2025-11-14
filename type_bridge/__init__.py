@@ -5,8 +5,12 @@ from type_bridge.attribute import (
     AttributeFlags,
     Boolean,
     Card,
+    Date,
     DateTime,
+    DateTimeTZ,
+    Decimal,
     Double,
+    Duration,
     EntityFlags,
     Flag,
     Integer,
@@ -22,12 +26,17 @@ from type_bridge.models import Entity, Relation, Role, TypeDBType
 from type_bridge.query import Query, QueryBuilder
 from type_bridge.schema import MigrationManager, SchemaManager
 from type_bridge.session import Database
+from type_bridge.typedb_driver import Credentials, TransactionType, TypeDB
 
 __version__ = "0.1.0"
 
 __all__ = [
     # Database and session
     "Database",
+    # TypeDB driver (re-exported for convenience)
+    "Credentials",
+    "TransactionType",
+    "TypeDB",
     # Models
     "TypeDBType",
     "Entity",
@@ -39,7 +48,11 @@ __all__ = [
     "Integer",
     "Double",
     "Boolean",
+    "Date",
     "DateTime",
+    "DateTimeTZ",
+    "Decimal",
+    "Duration",
     # Attribute annotations
     "AttributeFlags",
     "Flag",

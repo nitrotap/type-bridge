@@ -15,6 +15,7 @@ from type_bridge.attribute import (
     Integer,
     String,
 )
+from type_bridge.validation import ReservedWordError, validate_type_name as validate_reserved_word
 
 
 @dataclass
@@ -183,19 +184,30 @@ def get_base_type_for_attribute(attr_cls: type[Attribute]) -> type | None:
 TYPEDB_BUILTIN_TYPES = {"thing", "entity", "relation", "attribute"}
 
 
-def validate_type_name(type_name: str, class_name: str) -> None:
-    """Validate that a type name doesn't conflict with TypeDB built-ins.
+def validate_type_name(
+    type_name: str,
+    class_name: str,
+    context: str = "entity"
+) -> None:
+    """Validate that a type name doesn't conflict with TypeDB built-ins or TypeQL keywords.
 
     Args:
         type_name: The type name to validate
         class_name: The Python class name (for error messages)
+        context: The type context ("entity", "relation", "attribute", "role")
 
     Raises:
         ValueError: If type name conflicts with a TypeDB built-in type
+        ReservedWordError: If type name is a TypeQL reserved word
     """
+    # First check TypeDB built-in types (thing, entity, relation, attribute)
     if type_name.lower() in TYPEDB_BUILTIN_TYPES:
         raise ValueError(
             f"Type name '{type_name}' for class '{class_name}' conflicts with TypeDB built-in type. "
             f"Built-in types are: {', '.join(sorted(TYPEDB_BUILTIN_TYPES))}. "
             f"Please use a different type_name in EntityFlags/RelationFlags or rename your class."
         )
+
+    # Then check TypeQL reserved words
+    # This will raise ReservedWordError if type_name is reserved
+    validate_reserved_word(type_name, context)

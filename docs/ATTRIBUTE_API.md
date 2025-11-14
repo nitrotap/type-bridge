@@ -60,6 +60,8 @@ class Attribute(ABC):
 
 ### 2. Concrete Attribute Types
 
+TypeBridge provides all TypeDB value types:
+
 ```python
 class String(Attribute):
     value_type = "string"
@@ -70,12 +72,31 @@ class Integer(Attribute):
 class Double(Attribute):
     value_type = "double"
 
+class Decimal(Attribute):
+    value_type = "decimal"  # High-precision fixed-point (19 decimal digits)
+
 class Boolean(Attribute):
     value_type = "boolean"
 
+class Date(Attribute):
+    value_type = "date"  # Date only (no time)
+
 class DateTime(Attribute):
-    value_type = "datetime"
+    value_type = "datetime"  # Naive datetime (no timezone)
+
+class DateTimeTZ(Attribute):
+    value_type = "datetime-tz"  # Timezone-aware datetime
+
+class Duration(Attribute):
+    value_type = "duration"  # ISO 8601 duration (calendar-aware)
 ```
+
+**Detailed Type Documentation:**
+
+See CLAUDE.md for comprehensive documentation on:
+- **Decimal vs Double**: When to use fixed-point vs floating-point
+- **Date, DateTime, DateTimeTZ**: Temporal type differences and conversions
+- **Duration**: ISO 8601 format, calendar-aware arithmetic
 
 **Tip**: Combine with `Literal` for type-safe enum-like values:
 ```python
@@ -840,19 +861,33 @@ migration_manager.apply_migrations()
 
 ## Implementation Status
 
-1. ✅ Implement core Attribute system
-2. ✅ Implement Entity/Relation ownership model with EntityFlags/RelationFlags
-3. ✅ Implement Card cardinality constraints
-4. ✅ Implement Flag annotation system (Key, Unique, Card)
-5. ✅ Support Python inheritance for supertypes
-6. ✅ Integrate Pydantic v2 for validation and serialization
-7. ✅ Add Literal type support for type-safe enum-like values
-8. ✅ Implement fetching API (get, filter, all) with EntityQuery
-9. ✅ Implement bulk operations (insert_many for entities and relations)
-10. ✅ Implement schema conflict detection with SchemaDiff
-11. ✅ Create comprehensive examples
-12. ✅ Write comprehensive tests
-13. ✅ Update documentation and README
+### Core Features
+1. ✅ Core Attribute system with all TypeDB value types
+2. ✅ Entity/Relation ownership model with EntityFlags/RelationFlags
+3. ✅ Card cardinality constraints with flexible API
+4. ✅ Flag annotation system (Key, Unique, Card)
+5. ✅ Python inheritance for TypeDB supertypes
+6. ✅ Pydantic v2 integration for validation and serialization
+
+### Attribute Types (Complete)
+7. ✅ Basic types: String, Integer, Double, Boolean
+8. ✅ Temporal types: Date, DateTime, DateTimeTZ with conversions
+9. ✅ Numeric precision: Decimal for fixed-point arithmetic
+10. ✅ Duration type with ISO 8601 format support
+
+### Advanced Features
+11. ✅ Literal type support for type-safe enum-like values
+12. ✅ Fetching API (get, filter, all, first, count) with EntityQuery
+13. ✅ Update API for single and multi-value attributes
+14. ✅ Bulk operations (insert_many for entities and relations)
+15. ✅ Schema conflict detection with SchemaDiff
+16. ✅ Keyword validation for reserved TypeDB/TypeQL words
+17. ✅ Type name case formatting options (snake_case, kebab-case, etc.)
+
+### Testing & Documentation
+18. ✅ 267+ comprehensive tests (240 unit, 27 integration)
+19. ✅ Organized examples (basic vs advanced)
+20. ✅ Complete documentation and README
 
 ## Conclusion
 

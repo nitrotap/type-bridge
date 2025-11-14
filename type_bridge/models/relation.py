@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, dataclass_transform, get_origin, get_type_hints
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    TypeVar,
+    dataclass_transform,
+    get_origin,
+    get_type_hints,
+)
 
 from pydantic import ConfigDict
 
