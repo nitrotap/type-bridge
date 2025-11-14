@@ -4,6 +4,8 @@ TypeDB best practice: Use distinct attribute types for each semantic field,
 even when they share the same underlying value type.
 """
 
+from unittest.mock import Mock
+
 import pytest
 
 from type_bridge import Entity, SchemaManager
@@ -11,6 +13,7 @@ from type_bridge.attribute.datetime import DateTime
 from type_bridge.attribute.flags import Flag, Key
 from type_bridge.attribute.string import String
 from type_bridge.schema import SchemaValidationError
+from type_bridge.session import Database
 
 
 class TestDuplicateAttributeValidation:
@@ -30,12 +33,9 @@ class TestDuplicateAttributeValidation:
             created: TimeStamp
             modified: TimeStamp
 
-        # Mock database for schema manager
-        class MockDatabase:
-            def database_exists(self):
-                return False
-
-        db = MockDatabase()
+        # Mock database for unit test
+        db = Mock(spec=Database)
+        db.database_exists.return_value = False
         schema_manager = SchemaManager(db)
         schema_manager.register(Issue)
 
@@ -60,11 +60,9 @@ class TestDuplicateAttributeValidation:
             last_name: Name
             middle_name: Name
 
-        class MockDatabase:
-            def database_exists(self):
-                return False
-
-        db = MockDatabase()
+        # Mock database for unit test
+        db = Mock(spec=Database)
+        db.database_exists.return_value = False
         schema_manager = SchemaManager(db)
         schema_manager.register(Person)
 
@@ -95,11 +93,9 @@ class TestDuplicateAttributeValidation:
             created: CreatedStamp
             modified: ModifiedStamp
 
-        class MockDatabase:
-            def database_exists(self):
-                return False
-
-        db = MockDatabase()
+        # Mock database for unit test
+        db = Mock(spec=Database)
+        db.database_exists.return_value = False
         schema_manager = SchemaManager(db)
         schema_manager.register(Issue)
 
@@ -119,11 +115,9 @@ class TestDuplicateAttributeValidation:
             current_status: Status
             previous_status: Status
 
-        class MockDatabase:
-            def database_exists(self):
-                return False
-
-        db = MockDatabase()
+        # Mock database for unit test
+        db = Mock(spec=Database)
+        db.database_exists.return_value = False
         schema_manager = SchemaManager(db)
         schema_manager.register(Task)
 
@@ -156,11 +150,9 @@ class TestDuplicateAttributeValidation:
         class Task(Entity):
             name: IssueKey  # Using IssueKey is OK here (different entity)
 
-        class MockDatabase:
-            def database_exists(self):
-                return False
-
-        db = MockDatabase()
+        # Mock database for unit test
+        db = Mock(spec=Database)
+        db.database_exists.return_value = False
         schema_manager = SchemaManager(db)
         schema_manager.register(Issue, Task)
 
@@ -182,11 +174,9 @@ class TestDuplicateAttributeValidation:
             start: Timestamp
             end: Timestamp
 
-        class MockDatabase:
-            def database_exists(self):
-                return False
-
-        db = MockDatabase()
+        # Mock database for unit test
+        db = Mock(spec=Database)
+        db.database_exists.return_value = False
         schema_manager = SchemaManager(db)
         schema_manager.register(Event)
 

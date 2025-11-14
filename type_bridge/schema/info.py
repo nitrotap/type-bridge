@@ -55,9 +55,7 @@ class SchemaInfo:
         """
         # Validate entities
         for entity_model in self.entities:
-            self._validate_no_duplicate_attribute_types(
-                entity_model, entity_model.get_type_name()
-            )
+            self._validate_no_duplicate_attribute_types(entity_model, entity_model.get_type_name())
 
         # Validate relations
         for relation_model in self.relations:
@@ -154,13 +152,17 @@ class SchemaInfo:
             lines.append("")
             lines.append("    # Use:")
             for field in first_fields:
-                field_class_name = field.capitalize() + "Stamp" if "time" in field.lower() else field.capitalize()
+                field_class_name = (
+                    field.capitalize() + "Stamp" if "time" in field.lower() else field.capitalize()
+                )
                 lines.append(f"    class {field_class_name}({value_type}):")
                 lines.append("        pass")
                 lines.append("")
             lines.append(f"    class {type_name}(Entity):")
             for field in first_fields:
-                field_class_name = field.capitalize() + "Stamp" if "time" in field.lower() else field.capitalize()
+                field_class_name = (
+                    field.capitalize() + "Stamp" if "time" in field.lower() else field.capitalize()
+                )
                 lines.append(f"        {field}: {field_class_name}  # ✓ Distinct types")
 
             raise SchemaValidationError("\n".join(lines))

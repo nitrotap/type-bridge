@@ -1,0 +1,18 @@
+services:
+  typedb:
+    image: typedb/typedb:3.5.5
+    container_name: typedb_test
+    ports:
+      - "1729:1729"
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/1729' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks:
+      - typedb_network
+
+networks:
+  typedb_network:
+    driver: bridge

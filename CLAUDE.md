@@ -33,6 +33,31 @@ uv sync --extra dev          # Install dependencies including dev tools
 uv pip install -e ".[dev]"   # Install in editable mode
 ```
 
+### Docker Setup for Integration Tests
+
+Integration tests require a TypeDB 3.5.5 server. The project includes Docker configuration for automated setup:
+
+**Requirements:**
+- Docker and Docker Compose installed
+- Ports: 1729 (TypeDB server)
+
+**Docker is managed automatically** by the test fixtures. Simply run:
+```bash
+./test-integration.sh          # Starts Docker, runs tests, stops Docker
+```
+
+**Manual Docker control:**
+```bash
+docker compose up -d           # Start TypeDB container
+docker compose down            # Stop TypeDB container
+docker compose logs typedb     # View TypeDB logs
+```
+
+**Skip Docker (use existing server):**
+```bash
+USE_DOCKER=false uv run pytest -m integration
+```
+
 ### Testing
 ```bash
 # Unit tests (fast, no external dependencies)
@@ -41,12 +66,17 @@ uv run pytest -v                           # Run unit tests with verbose output
 uv run pytest -k test_name                 # Run specific unit test
 
 # Integration tests (require running TypeDB)
+# Option 1: Use Docker (recommended - automatic management)
+./test-integration.sh                     # Run integration tests with Docker
+./test-integration.sh -v                  # Run integration tests with Docker (verbose)
+
+# Option 2: Use existing TypeDB server (set USE_DOCKER=false)
 # First, start TypeDB 3.x server: typedb server
-uv run pytest -m integration              # Run integration tests only
-uv run pytest -m integration -v           # Run integration tests with verbose output
+USE_DOCKER=false uv run pytest -m integration    # Run integration tests (no Docker)
+USE_DOCKER=false uv run pytest -m integration -v # Run integration tests (verbose)
 
 # Run all tests (unit + integration)
-uv run pytest -m ""                       # Run all tests
+uv run pytest -m ""                       # Run all tests (Docker managed automatically)
 ```
 
 ### Linting
@@ -193,11 +223,15 @@ Coverage:
 
 **Setup for integration tests:**
 ```bash
-# 1. Start TypeDB server
+# Option 1: Use Docker (recommended - automatic)
+./test-integration.sh -v
+
+# Option 2: Use existing TypeDB server
+# 1. Start TypeDB 3.x server
 typedb server
 
-# 2. Run integration tests
-uv run pytest -m integration -v
+# 2. Run integration tests (skip Docker)
+USE_DOCKER=false uv run pytest -m integration -v
 ```
 
 **Test execution patterns:**
