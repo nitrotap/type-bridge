@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from datetime import date as date_type
 from datetime import datetime as datetime_type
 from datetime import timedelta
+from decimal import Decimal as DecimalType
 from typing import Any, ClassVar, dataclass_transform
 
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -224,7 +225,6 @@ class TypeDBType(BaseModel, ABC):
     @staticmethod
     def _format_value(value: Any) -> str:
         """Format a Python value for TypeQL."""
-        from decimal import Decimal as DecimalType
 
         import isodate
         from isodate import Duration as IsodateDuration

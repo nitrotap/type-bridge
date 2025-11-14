@@ -329,8 +329,9 @@ class Relation(TypeDBType):
         else:
             relation_def = f"relation {type_name}"
 
+        # Add @abstract annotation if needed (TypeDB 3.x syntax)
         if cls.is_abstract():
-            relation_def += ", abstract"
+            relation_def += " @abstract"
 
         lines.append(relation_def)
 

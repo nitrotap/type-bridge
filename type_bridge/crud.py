@@ -1,7 +1,11 @@
 """CRUD operations for TypeDB entities and relations."""
 
-from datetime import datetime
+from datetime import date, datetime, timedelta
+from decimal import Decimal as DecimalType
 from typing import Any, TypeVar
+
+import isodate
+from isodate import Duration as IsodateDuration
 
 from type_bridge.attribute import AttributeFlags
 from type_bridge.models import Entity, Relation
@@ -150,9 +154,14 @@ class EntityManager[E: Entity]:
         query = Query()
         pattern_parts = [f"$e isa {self.model_class.get_type_name()}"]
 
-        for attr_name, attr_value in filters.items():
-            formatted_value = self._format_value(attr_value)
-            pattern_parts.append(f"has {attr_name} {formatted_value}")
+        # Get owned attributes to map field names to attribute type names
+        owned_attrs = self.model_class.get_owned_attributes()
+        for field_name, field_value in filters.items():
+            if field_name in owned_attrs:
+                attr_info = owned_attrs[field_name]
+                attr_name = attr_info.typ.get_attribute_name()
+                formatted_value = self._format_value(field_value)
+                pattern_parts.append(f"has {attr_name} {formatted_value}")
 
         pattern = ", ".join(pattern_parts)
         query.match(pattern)
@@ -359,11 +368,20 @@ class EntityManager[E: Entity]:
             return f'"{escaped}"'
         elif isinstance(value, bool):
             return "true" if value else "false"
+        elif isinstance(value, DecimalType):
+            # TypeDB decimal literals use 'dec' suffix
+            return f"{value}dec"
         elif isinstance(value, (int, float)):
             return str(value)
         elif isinstance(value, datetime):
-            # TypeDB datetime literals are unquoted ISO 8601 strings
+            # TypeDB datetime/datetimetz literals are unquoted ISO 8601 strings
             return value.isoformat()
+        elif isinstance(value, date):
+            # TypeDB date literals are unquoted ISO 8601 date strings
+            return value.isoformat()
+        elif isinstance(value, (IsodateDuration, timedelta)):
+            # TypeDB duration literals are unquoted ISO 8601 duration strings
+            return isodate.duration_isoformat(value)
         else:
             # For other types, convert to string and escape
             str_value = str(value)
@@ -732,11 +750,20 @@ class RelationManager[R: Relation]:
             return f'"{escaped}"'
         elif isinstance(value, bool):
             return "true" if value else "false"
+        elif isinstance(value, DecimalType):
+            # TypeDB decimal literals use 'dec' suffix
+            return f"{value}dec"
         elif isinstance(value, (int, float)):
             return str(value)
         elif isinstance(value, datetime):
-            # TypeDB datetime literals are unquoted ISO 8601 strings
+            # TypeDB datetime/datetimetz literals are unquoted ISO 8601 strings
             return value.isoformat()
+        elif isinstance(value, date):
+            # TypeDB date literals are unquoted ISO 8601 date strings
+            return value.isoformat()
+        elif isinstance(value, (IsodateDuration, timedelta)):
+            # TypeDB duration literals are unquoted ISO 8601 duration strings
+            return isodate.duration_isoformat(value)
         else:
             # For other types, convert to string and escape
             str_value = str(value)

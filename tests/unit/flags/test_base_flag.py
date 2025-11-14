@@ -121,7 +121,7 @@ class TestBaseFlag:
         # Abstract entities still generate schema (they appear in TypeDB)
         schema = AbstractEntity.to_schema_definition()
         assert schema is not None
-        assert "entity abstract_entity, abstract" in schema
+        assert "entity abstract_entity @abstract" in schema
         assert "owns Name" in schema  # Name uses default CLASS_NAME case
 
     def test_base_class_with_attributes(self):

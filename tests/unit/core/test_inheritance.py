@@ -65,7 +65,7 @@ class TestInheritanceEdgeCases:
         # Base entity should also have correct schema
         base_schema = BaseEntity.to_schema_definition()
         assert base_schema is not None
-        assert "entity base_entity, abstract" in base_schema
+        assert "entity base_entity @abstract" in base_schema
 
     def test_intermediate_base_class_name_default(self):
         """Test that intermediate class with default name gets validated."""
@@ -110,7 +110,7 @@ class TestInheritanceEdgeCases:
 
         animal_schema = Animal.to_schema_definition()
         assert animal_schema is not None
-        assert "entity animal, abstract" in animal_schema
+        assert "entity animal @abstract" in animal_schema
 
     def test_implicit_type_name_with_safe_class_name(self):
         """Test that implicit type names work when class name is safe."""

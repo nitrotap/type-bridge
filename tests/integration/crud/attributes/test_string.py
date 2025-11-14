@@ -258,5 +258,6 @@ def test_string_special_characters_escaping(clean_db):
     assert results[0].description.value == ""
 
     # Test 8: Verify all messages were inserted
+    # Note: We have 6 distinct messages because Test 4 updated Test 1's message
     all_messages = manager.all()
-    assert len(all_messages) == 7
+    assert len(all_messages) == 6

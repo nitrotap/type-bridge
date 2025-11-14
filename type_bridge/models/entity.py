@@ -244,8 +244,9 @@ class Entity(TypeDBType):
         else:
             entity_def = f"entity {type_name}"
 
+        # Add @abstract annotation if needed (TypeDB 3.x syntax)
         if cls.is_abstract():
-            entity_def += ", abstract"
+            entity_def += " @abstract"
 
         lines.append(entity_def)
 

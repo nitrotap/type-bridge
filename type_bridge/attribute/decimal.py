@@ -90,7 +90,11 @@ class Decimal(Attribute):
             if isinstance(value, DecimalType):
                 return cls(value)
             # Try to parse from string, int, or float
-            return cls(DecimalType(str(value)))
+            # Strip 'dec' suffix if present (TypeDB returns decimals with 'dec' suffix)
+            value_str = str(value)
+            if value_str.endswith("dec"):
+                value_str = value_str[:-3]  # Remove 'dec' suffix
+            return cls(DecimalType(value_str))
 
         return core_schema.with_info_plain_validator_function(
             lambda v, _: validate_decimal(v),
