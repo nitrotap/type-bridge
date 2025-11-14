@@ -3,6 +3,16 @@
 from type_bridge.schema.diff import SchemaDiff
 
 
+class SchemaValidationError(Exception):
+    """Raised when schema validation fails during schema generation.
+
+    This exception is raised when the Python model definitions violate
+    TypeDB constraints or best practices.
+    """
+
+    pass
+
+
 class SchemaConflictError(Exception):
     """Raised when there are conflicting schema changes during sync.
 

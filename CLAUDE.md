@@ -145,7 +145,7 @@ tests/
 
 ## Testing Strategy
 
-TypeBridge uses a two-tier testing approach with **100% test pass rate (341/341 tests)**:
+TypeBridge uses a two-tier testing approach with **100% test pass rate (347/347 tests)**:
 
 ### Unit Tests (Default)
 
@@ -161,7 +161,7 @@ Characteristics:
 - **Isolated**: Test individual components in isolation
 - **No TypeDB required**: Use mocks and in-memory validation
 - **Run by default**: `pytest` runs unit tests only
-- **243 tests total**: Organized by functionality
+- **249 tests total**: Organized by functionality
 
 Coverage:
 - Core API: Entity/Relation creation, schema generation, inheritance (33 tests)
@@ -170,7 +170,8 @@ Coverage:
   - Mixed formatting tests for query generation
 - Flag system: Base flags, cardinality, type name cases (54 tests)
 - CRUD operations: Update API for single/multi-value attributes (6 tests)
-- Validation: Pydantic integration, keyword validation, type checking (35 tests)
+- Validation: Pydantic integration, keyword validation, type checking, schema validation (41 tests)
+  - Duplicate attribute type detection (6 tests)
 
 ### Integration Tests
 
@@ -202,14 +203,14 @@ uv run pytest -m integration -v
 **Test execution patterns:**
 ```bash
 # Unit tests only (default, fast)
-uv run pytest                              # All 243 unit tests
+uv run pytest                              # All 249 unit tests
 
 # Run specific unit test category
 uv run pytest tests/unit/core/             # Core tests (33 tests)
 uv run pytest tests/unit/attributes/       # Attribute tests (115 tests)
 uv run pytest tests/unit/flags/            # Flag tests (54 tests)
 uv run pytest tests/unit/crud/             # CRUD tests (6 tests)
-uv run pytest tests/unit/validation/       # Validation tests (35 tests)
+uv run pytest tests/unit/validation/       # Validation tests (41 tests)
 
 # Run specific attribute type test
 uv run pytest tests/unit/attributes/test_integer.py -v
@@ -220,7 +221,7 @@ uv run pytest tests/unit/attributes/test_boolean.py -v
 uv run pytest -m integration              # All 98 integration tests
 
 # All tests (unit + integration)
-uv run pytest -m ""                       # All 341 tests
+uv run pytest -m ""                       # All 347 tests
 ./test.sh                                 # Full test suite with detailed output
 ./check.sh                                # Linting and type checking
 
@@ -291,6 +292,84 @@ TypeBridge follows TypeDB's type system closely:
    - `list[Type] = Flag(Card(min=N))` → N or more @card(N..)
    - `list[Type] = Flag(Card(max=N))` → zero to N @card(0..N)
    - `list[Type] = Flag(Card(min, max))` → min to max @card(min..max)
+
+## Schema Validation Rules
+
+TypeBridge enforces TypeDB best practices through automatic validation during schema generation.
+
+### Duplicate Attribute Type Detection
+
+**Rule**: Each semantic field in an entity or relation MUST use a distinct attribute type.
+
+**Why this matters**: TypeDB does not store Python field names - it only stores attribute types and their values. When you use the same attribute type for multiple fields (e.g., `created: TimeStamp` and `modified: TimeStamp`), TypeDB sees a single ownership relationship: `Issue owns TimeStamp`, not separate `created` and `modified` fields. This causes cardinality constraint violations.
+
+**Validation**: The schema manager will raise `SchemaValidationError` if duplicate attribute types are detected.
+
+**Example - Incorrect (will raise error)**:
+```python
+from type_bridge import Entity, SchemaManager
+from type_bridge.attribute.datetime import DateTime
+from type_bridge.attribute.string import String
+from type_bridge.attribute.flags import Flag, Key
+
+class TimeStamp(DateTime):
+    pass
+
+class IssueKey(String):
+    pass
+
+class Issue(Entity):
+    key: IssueKey = Flag(Key)
+    created: TimeStamp   # ❌ Error: duplicate attribute type
+    modified: TimeStamp  # ❌ Error: duplicate attribute type
+
+# Raises SchemaValidationError:
+# "TimeStamp used in fields: 'created', 'modified'"
+schema_manager = SchemaManager(db)
+schema_manager.register(Issue)
+schema_manager.generate_schema()  # ❌ Raises error
+```
+
+**Example - Correct (distinct attribute types)**:
+```python
+class CreatedStamp(DateTime):
+    """Timestamp for when entity was created"""
+    pass
+
+class ModifiedStamp(DateTime):
+    """Timestamp for when entity was last modified"""
+    pass
+
+class IssueKey(String):
+    pass
+
+class Issue(Entity):
+    key: IssueKey = Flag(Key)
+    created: CreatedStamp   # ✓ Distinct type
+    modified: ModifiedStamp # ✓ Distinct type
+
+# Generates correct TypeQL:
+# entity Issue,
+#     owns IssueKey @key,
+#     owns CreatedStamp @card(1..1),
+#     owns ModifiedStamp @card(1..1);
+#
+# Note: Each attribute type gets its own ownership line with cardinality annotation.
+# This is TypeDB's semantic model - ownership is per attribute type, not per field name.
+schema_manager = SchemaManager(db)
+schema_manager.register(Issue)
+schema_manager.generate_schema()  # ✓ Success
+```
+
+**Best practice**: Use distinct attribute types for each semantic field, even when they share the same underlying value type (string, datetime, etc.). This makes schemas more expressive and avoids ownership conflicts.
+
+**Benefits**:
+- Prevents cardinality constraint violations at runtime
+- Makes schema more self-documenting (attribute names reflect their purpose)
+- Allows different constraints per field in the future (e.g., unique created but not modified)
+- Catches design errors early during schema generation instead of during data insertion
+
+**Discussion**: Is this validation approach correct? Should TypeBridge enforce this rule, or provide it as an optional warning? Feedback welcome on the design decision to fail fast vs. allow users to handle edge cases manually.
 
 ## TypeQL Syntax Requirements
 

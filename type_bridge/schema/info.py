@@ -47,14 +47,140 @@ class SchemaInfo:
                 return relation
         return None
 
+    def validate(self) -> None:
+        """Validate schema definitions for TypeDB constraints.
+
+        Raises:
+            SchemaValidationError: If schema violates TypeDB constraints
+        """
+        # Validate entities
+        for entity_model in self.entities:
+            self._validate_no_duplicate_attribute_types(
+                entity_model, entity_model.get_type_name()
+            )
+
+        # Validate relations
+        for relation_model in self.relations:
+            self._validate_no_duplicate_attribute_types(
+                relation_model, relation_model.get_type_name()
+            )
+
+    def _validate_no_duplicate_attribute_types(
+        self, model: type[Entity | Relation], type_name: str
+    ) -> None:
+        """Validate that the same attribute type is not used for multiple fields.
+
+        TypeDB does not store field names - only attribute types. When the same
+        attribute type is used for multiple fields, TypeDB sees a single ownership
+        with incorrect cardinality.
+
+        Args:
+            model: Entity or Relation class to validate
+            type_name: Type name for error messages
+
+        Raises:
+            SchemaValidationError: If duplicate attribute types are detected
+        """
+        from type_bridge.schema.exceptions import SchemaValidationError
+
+        owned_attrs = model.get_owned_attributes()
+
+        # Track attribute types and their field names
+        attr_type_to_fields: dict[type[Attribute], list[str]] = {}
+
+        for field_name, attr_info in owned_attrs.items():
+            attr_type = attr_info.typ
+            if attr_type not in attr_type_to_fields:
+                attr_type_to_fields[attr_type] = []
+            attr_type_to_fields[attr_type].append(field_name)
+
+        # Check for duplicates
+        duplicates = {
+            attr_type: fields
+            for attr_type, fields in attr_type_to_fields.items()
+            if len(fields) > 1
+        }
+
+        if duplicates:
+            lines = []
+            lines.append(
+                f"Schema validation failed for '{type_name}': "
+                "The same attribute type is used for multiple fields."
+            )
+            lines.append("")
+            lines.append(
+                "TypeDB best practice: Use distinct attribute types for each semantic field, "
+                "even when they share the same underlying value type (string, datetime, etc.). "
+                "This makes schemas more expressive and avoids ownership conflicts."
+            )
+            lines.append("")
+            lines.append("Why this happens:")
+            lines.append(
+                "  TypeDB does not store field names - it only stores attribute types and their values."
+            )
+            lines.append(
+                "  When you use the same attribute type for multiple fields (e.g., 'created' and 'modified' "
+                "both using 'TimeStamp'),"
+            )
+            lines.append(
+                "  TypeDB sees a single ownership: 'Issue owns TimeStamp', not 'Issue owns created' and 'Issue owns modified'."
+            )
+            lines.append("")
+            lines.append("Duplicate attribute types found:")
+            for attr_type, fields in duplicates.items():
+                attr_name = attr_type.get_attribute_name()
+                fields_str = ", ".join(f"'{f}'" for f in fields)
+                lines.append(f"  - {attr_name} used in fields: {fields_str}")
+            lines.append("")
+            lines.append("Solution:")
+            lines.append(
+                "  Create separate attribute classes for each field, even if they use the same value type:"
+            )
+            lines.append("")
+
+            # Show example solution for the first duplicate
+            first_attr_type, first_fields = next(iter(duplicates.items()))
+            first_attr_name = first_attr_type.get_attribute_name()
+            value_type = first_attr_type.__bases__[0].__name__  # e.g., DateTime, String
+
+            lines.append("  Example:")
+            lines.append("    # Instead of:")
+            lines.append(f"    class {first_attr_name}({value_type}):")
+            lines.append("        pass")
+            lines.append("")
+            lines.append(f"    class {type_name}(Entity):")
+            for field in first_fields:
+                lines.append(f"        {field}: {first_attr_name}  # ❌ Reusing same type")
+            lines.append("")
+            lines.append("    # Use:")
+            for field in first_fields:
+                field_class_name = field.capitalize() + "Stamp" if "time" in field.lower() else field.capitalize()
+                lines.append(f"    class {field_class_name}({value_type}):")
+                lines.append("        pass")
+                lines.append("")
+            lines.append(f"    class {type_name}(Entity):")
+            for field in first_fields:
+                field_class_name = field.capitalize() + "Stamp" if "time" in field.lower() else field.capitalize()
+                lines.append(f"        {field}: {field_class_name}  # ✓ Distinct types")
+
+            raise SchemaValidationError("\n".join(lines))
+
     def to_typeql(self) -> str:
         """Generate TypeQL schema definition from collected schema information.
 
         Base classes (with base=True) are skipped as they don't appear in TypeDB schema.
 
+        Validates the schema before generation.
+
         Returns:
             TypeQL schema definition string
+
+        Raises:
+            SchemaValidationError: If schema validation fails
         """
+        # Validate schema before generation
+        self.validate()
+
         lines = []
 
         # Define attributes first
