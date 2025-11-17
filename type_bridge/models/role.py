@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, overload
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema
@@ -47,8 +47,22 @@ class Role[T: "Entity"]:
         """Called when role is assigned to a class."""
         self.attr_name = name
 
-    def __get__(self, obj: Any, objtype: type | None = None) -> T | Role[T]:
-        """Get role player from instance."""
+    @overload
+    def __get__(self, obj: None, objtype: type) -> Role[T]:
+        """Get role descriptor when accessed from class."""
+        ...
+
+    @overload
+    def __get__(self, obj: Any, objtype: type) -> T:
+        """Get role player entity when accessed from instance."""
+        ...
+
+    def __get__(self, obj: Any, objtype: type) -> T | Role[T]:
+        """Get role player from instance or descriptor from class.
+
+        When accessed from the class (obj is None), returns the Role descriptor.
+        When accessed from an instance, returns the entity playing the role.
+        """
         if obj is None:
             return self
         return obj.__dict__.get(self.attr_name)
