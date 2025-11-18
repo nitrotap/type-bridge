@@ -166,3 +166,66 @@ class TestListFieldDefaults:
                 created_at=CreatedAt(_now),
                 last_modified=ModifiedAt(_now),
             )
+
+
+class TestEntityConstructionFromDatabaseResults:
+    """Test entity construction simulating database fetch results."""
+
+    def test_entity_construction_with_empty_list_from_db(self):
+        """Simulate EntityManager.get() behavior - empty list for missing list attrs."""
+        _now = datetime.now(UTC)
+
+        # This simulates what EntityManager.get() does after the fix:
+        # When a list attribute is not in the database result,
+        # it passes [] instead of None
+        attrs = {
+            "key": "TEST-123",
+            "labels": [],  # Empty list instead of None
+            "created_at": _now,
+            "last_modified": _now,
+        }
+
+        # Should not raise any error
+        issue = Issue(**attrs)
+        assert issue.labels == []
+        assert issue.key.value == "TEST-123"
+
+    def test_entity_construction_with_list_values_from_db(self):
+        """Simulate EntityManager.get() behavior - list with values."""
+        _now = datetime.now(UTC)
+
+        # When the database returns values for list attributes
+        attrs = {
+            "key": "TEST-123",
+            "labels": ["bug", "critical"],  # Raw values from database
+            "created_at": _now,
+            "last_modified": _now,
+        }
+
+        # Should work and wrap values in attribute instances
+        issue = Issue(**attrs)
+        assert len(issue.labels) == 2
+        assert all(isinstance(label, IssueLabel) for label in issue.labels)
+
+    def test_entity_serialization_after_db_construction(self):
+        """Ensure entities constructed from DB results can be serialized."""
+        _now = datetime.now(UTC)
+
+        # Simulate EntityManager.get() result construction
+        attrs = {
+            "key": "TEST-123",
+            "labels": [],  # Empty from database
+            "created_at": _now,
+            "last_modified": _now,
+        }
+
+        issue = Issue(**attrs)
+
+        # Should serialize without errors
+        data = issue.model_dump(mode="json")
+        assert data["labels"] == []
+        assert data["key"] == "TEST-123"
+
+        # JSON string should work too
+        json_str = issue.model_dump_json()
+        assert '"labels":[]' in json_str

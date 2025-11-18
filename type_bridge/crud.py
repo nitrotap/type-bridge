@@ -487,8 +487,12 @@ class EntityQuery[E: Entity]:
                 if attr_name in result:
                     attrs[field_name] = result[attr_name]
                 else:
-                    # For optional fields, explicitly set to None if not present
-                    attrs[field_name] = None
+                    # For list fields (has_explicit_card), default to empty list
+                    # For other optional fields, explicitly set to None
+                    if attr_info.flags.has_explicit_card:
+                        attrs[field_name] = []
+                    else:
+                        attrs[field_name] = None
             entity = self.model_class(**attrs)
             entities.append(entity)
 
@@ -906,7 +910,12 @@ class RelationManager[R: Relation]:
                 if attr_name in result:
                     attrs[field_name] = result[attr_name]
                 else:
-                    attrs[field_name] = None
+                    # For list fields (has_explicit_card), default to empty list
+                    # For other optional fields, explicitly set to None
+                    if attr_info.flags.has_explicit_card:
+                        attrs[field_name] = []
+                    else:
+                        attrs[field_name] = None
 
             # Create relation instance
             relation = self.model_class(**attrs)
@@ -923,7 +932,12 @@ class RelationManager[R: Relation]:
                         if attr_name in player_data:
                             player_attrs[field_name] = player_data[attr_name]
                         else:
-                            player_attrs[field_name] = None
+                            # For list fields (has_explicit_card), default to empty list
+                            # For other optional fields, explicitly set to None
+                            if attr_info.flags.has_explicit_card:
+                                player_attrs[field_name] = []
+                            else:
+                                player_attrs[field_name] = None
 
                     # Create entity instance and assign to role
                     if any(v is not None for v in player_attrs.values()):
