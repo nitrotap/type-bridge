@@ -10,6 +10,9 @@ from type_bridge.attribute.base import Attribute
 # TypeVar for proper type checking
 StrValue = TypeVar("StrValue", bound=str)
 
+# Type alias for String subclasses
+StringType = TypeVar("StringType", bound="String")
+
 
 class String(Attribute):
     """String attribute type that accepts str values.
