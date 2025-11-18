@@ -100,10 +100,25 @@ class TypeDBType(BaseModel, ABC):
         owned_attrs = cls.get_owned_attributes()
         for field_name, attr_info in owned_attrs.items():
             value = getattr(instance, field_name, None)
+            flags = attr_info.flags
+            attr_class = attr_info.typ
+
+            # Check if the value is AttributeFlags (from Flag() default)
+            # This happens when list fields with Flag(Card(...)) are not provided
+            if isinstance(value, AttributeFlags):
+                # For list fields (has_explicit_card), default to empty list
+                if flags.has_explicit_card:
+                    object.__setattr__(instance, field_name, [])
+                    continue
+                else:
+                    # For single-value fields, this is an error
+                    raise ValueError(
+                        f"Field '{field_name}' received AttributeFlags as value. "
+                        f"This usually means the field was not provided a value."
+                    )
+
             if value is None:
                 continue
-
-            attr_class = attr_info.typ
 
             # Check if it's a list (multi-value attribute)
             if isinstance(value, list):
