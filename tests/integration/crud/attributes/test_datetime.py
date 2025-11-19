@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pytest
 
-from type_bridge import DateTime, Entity, EntityFlags, Flag, Key, SchemaManager, String
+from type_bridge import DateTime, Entity, Flag, Key, SchemaManager, String, TypeFlags
 
 
 @pytest.mark.integration
@@ -19,7 +19,7 @@ def test_datetime_insert(clean_db):
         pass
 
     class Event(Entity):
-        flags = EntityFlags(type_name="event_dt")
+        flags = TypeFlags(type_name="event_dt")
         name: EventName = Flag(Key)
         created_at: CreatedAt
 
@@ -55,7 +55,7 @@ def test_datetime_fetch(clean_db):
         pass
 
     class Event(Entity):
-        flags = EntityFlags(type_name="event_dt_fetch")
+        flags = TypeFlags(type_name="event_dt_fetch")
         name: EventName = Flag(Key)
         created_at: CreatedAt
 
@@ -97,7 +97,7 @@ def test_datetime_update(clean_db):
         pass
 
     class Event(Entity):
-        flags = EntityFlags(type_name="event_dt_update")
+        flags = TypeFlags(type_name="event_dt_update")
         name: EventName = Flag(Key)
         created_at: CreatedAt
 
@@ -138,7 +138,7 @@ def test_datetime_delete(clean_db):
         pass
 
     class Event(Entity):
-        flags = EntityFlags(type_name="event_dt_delete")
+        flags = TypeFlags(type_name="event_dt_delete")
         name: EventName = Flag(Key)
         created_at: CreatedAt
 

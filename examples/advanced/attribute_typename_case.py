@@ -15,11 +15,11 @@ from type_bridge import (
     DateTime,
     Double,
     Entity,
-    EntityFlags,
     Flag,
     Integer,
     Key,
     String,
+    TypeFlags,
     TypeNameCase,
 )
 
@@ -115,7 +115,7 @@ class IsActive(Boolean):
 class Person(Entity):
     """Entity using attributes with various case formats."""
 
-    flags = EntityFlags(case=TypeNameCase.SNAKE_CASE)
+    flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
 
     # Mix of different attribute case formats
     first_name: FirstName = Flag(Key)  # → firstname (LOWERCASE)

@@ -2,7 +2,7 @@
 
 import pytest
 
-from type_bridge import Entity, EntityFlags, Flag, Integer, Key, SchemaManager, String
+from type_bridge import Entity, Flag, Integer, Key, SchemaManager, String, TypeFlags
 
 
 @pytest.mark.integration
@@ -17,7 +17,7 @@ def test_integer_insert(clean_db):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person_int")
+        flags = TypeFlags(type_name="person_int")
         name: Name = Flag(Key)
         age: Age
 
@@ -50,7 +50,7 @@ def test_integer_fetch(clean_db):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person_int_fetch")
+        flags = TypeFlags(type_name="person_int_fetch")
         name: Name = Flag(Key)
         age: Age
 
@@ -88,7 +88,7 @@ def test_integer_update(clean_db):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person_int_update")
+        flags = TypeFlags(type_name="person_int_update")
         name: Name = Flag(Key)
         age: Age
 
@@ -126,7 +126,7 @@ def test_integer_delete(clean_db):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person_int_delete")
+        flags = TypeFlags(type_name="person_int_delete")
         name: Name = Flag(Key)
         age: Age
 

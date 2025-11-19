@@ -1,6 +1,6 @@
 """Test Double attribute type."""
 
-from type_bridge import Card, Double, Entity, EntityFlags, Flag, Key, String
+from type_bridge import Card, Double, Entity, Flag, Key, String, TypeFlags
 
 
 def test_double_creation():
@@ -33,7 +33,7 @@ def test_double_in_entity():
         pass
 
     class Student(Entity):
-        flags = EntityFlags(type_name="student")
+        flags = TypeFlags(type_name="student")
         name: Name = Flag(Key)
         score: Score
 
@@ -48,7 +48,7 @@ def test_double_insert_query():
         pass
 
     class TestResult(Entity):
-        flags = EntityFlags(type_name="test-result")
+        flags = TypeFlags(type_name="test-result")
         score: Score
 
     # Test with float value
@@ -68,7 +68,7 @@ def test_double_edge_cases():
         pass
 
     class Measurement(Entity):
-        flags = EntityFlags(type_name="measurement")
+        flags = TypeFlags(type_name="measurement")
         value: Reading
 
     # Test with zero
@@ -98,7 +98,7 @@ def test_double_optional_attribute():
         pass
 
     class Student(Entity):
-        flags = EntityFlags(type_name="student")
+        flags = TypeFlags(type_name="student")
         name: Name = Flag(Key)
         score: Score | None
 
@@ -121,7 +121,7 @@ def test_multi_value_double_insert_query():
         pass
 
     class Student(Entity):
-        flags = EntityFlags(type_name="student")
+        flags = TypeFlags(type_name="student")
         scores: list[Score] = Flag(Card(min=1))
 
     # Create entity with multiple scores

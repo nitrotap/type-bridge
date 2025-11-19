@@ -15,12 +15,12 @@ from type_bridge import (
     Double,
     Duration,
     Entity,
-    EntityFlags,
     Flag,
     Integer,
     Key,
     SchemaManager,
     String,
+    TypeFlags,
 )
 
 
@@ -57,7 +57,7 @@ def test_insert_entity_with_all_types(clean_db):
         pass
 
     class Record(Entity):
-        flags = EntityFlags(type_name="mixed_record")
+        flags = TypeFlags(type_name="mixed_record")
         name: Name = Flag(Key)
         age: Age
         is_active: IsActive
@@ -117,7 +117,7 @@ def test_fetch_entity_with_all_types(clean_db):
         pass
 
     class Record(Entity):
-        flags = EntityFlags(type_name="fetch_mixed")
+        flags = TypeFlags(type_name="fetch_mixed")
         name: Name = Flag(Key)
         age: Age
         is_active: IsActive
@@ -169,7 +169,7 @@ def test_update_multiple_types(clean_db):
         pass
 
     class Record(Entity):
-        flags = EntityFlags(type_name="update_mixed")
+        flags = TypeFlags(type_name="update_mixed")
         name: Name = Flag(Key)
         age: Age
         score: Score
@@ -218,7 +218,7 @@ def test_optional_types_mixed_with_required(clean_db):
         pass
 
     class Record(Entity):
-        flags = EntityFlags(type_name="optional_mixed")
+        flags = TypeFlags(type_name="optional_mixed")
         name: Name = Flag(Key)
         age: Age  # Required
         score: Score | None  # Optional
@@ -260,7 +260,7 @@ def test_multi_value_mixed_with_single_value(clean_db):
         pass
 
     class Record(Entity):
-        flags = EntityFlags(type_name="multi_mixed")
+        flags = TypeFlags(type_name="multi_mixed")
         name: Name = Flag(Key)
         age: Age  # Single-value
         tags: list[Tag] = Flag(Card(min=1))  # Multi-value
@@ -313,7 +313,7 @@ def test_verify_serialization_all_types(clean_db):
         pass
 
     class Record(Entity):
-        flags = EntityFlags(type_name="serialize_mixed")
+        flags = TypeFlags(type_name="serialize_mixed")
         name: Name = Flag(Key)
         age: Age
         is_active: IsActive

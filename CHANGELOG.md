@@ -2,6 +2,28 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [0.4.4] - 2025-11-19
+
+### 🐛 Bug Fixes
+
+- **Fixed inherited attributes not included in insert/get operations**
+  - Entity and Relation insert queries now include all inherited attributes
+  - Fetch operations properly extract inherited attribute values
+  - Added `get_all_attributes()` method to collect attributes from entire class hierarchy
+  - Location: `type_bridge/models/base.py`, `type_bridge/models/entity.py`, `type_bridge/crud.py`
+
+### 🔄 API Changes
+
+- **Removed deprecated `EntityFlags` and `RelationFlags` aliases**
+  - Use `TypeFlags` for both entities and relations
+  - All example files updated to use `TypeFlags`
+  - Documentation updated to reflect unified API
+
+### 📚 Documentation
+
+- **Updated CLAUDE.md**: Replaced all EntityFlags/RelationFlags references with TypeFlags
+- **Updated examples**: All 17 example files now use the unified TypeFlags API
+
 ## [0.4.0] - 2025-11-15
 
 ### 🚀 New Features

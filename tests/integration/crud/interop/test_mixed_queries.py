@@ -14,12 +14,12 @@ from type_bridge import (
     Double,
     Duration,
     Entity,
-    EntityFlags,
     Flag,
     Integer,
     Key,
     SchemaManager,
     String,
+    TypeFlags,
 )
 
 
@@ -35,7 +35,7 @@ def test_query_with_two_types_string_integer(clean_db):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person_two_types")
+        flags = TypeFlags(type_name="person_two_types")
         name: Name = Flag(Key)
         age: Age
 
@@ -77,7 +77,7 @@ def test_query_with_three_types(clean_db):
         pass
 
     class User(Entity):
-        flags = EntityFlags(type_name="user_three_types")
+        flags = TypeFlags(type_name="user_three_types")
         name: Name = Flag(Key)
         is_active: IsActive
         score: Score
@@ -121,7 +121,7 @@ def test_query_with_temporal_types(clean_db):
         pass
 
     class Record(Entity):
-        flags = EntityFlags(type_name="record_temporal")
+        flags = TypeFlags(type_name="record_temporal")
         name: Name = Flag(Key)
         birth_date: BirthDate
         created_at: CreatedAt
@@ -190,7 +190,7 @@ def test_query_with_all_nine_types(clean_db):
         pass
 
     class CompleteRecord(Entity):
-        flags = EntityFlags(type_name="complete_query")
+        flags = TypeFlags(type_name="complete_query")
         name: Name = Flag(Key)
         age: Age
         is_active: IsActive
@@ -252,7 +252,7 @@ def test_range_queries_on_numeric_types(clean_db):
         pass
 
     class Student(Entity):
-        flags = EntityFlags(type_name="student_range")
+        flags = TypeFlags(type_name="student_range")
         name: Name = Flag(Key)
         age: Age
         score: Score
@@ -294,7 +294,7 @@ def test_range_queries_on_temporal_types(clean_db):
         pass
 
     class Event(Entity):
-        flags = EntityFlags(type_name="event_range")
+        flags = TypeFlags(type_name="event_range")
         name: Name = Flag(Key)
         event_date: EventDate
         timestamp: Timestamp
@@ -343,7 +343,7 @@ def test_complex_query_with_multiple_filters(clean_db):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person_complex")
+        flags = TypeFlags(type_name="person_complex")
         name: Name = Flag(Key)
         age: Age
         is_active: IsActive
@@ -387,7 +387,7 @@ def test_type_coercion_in_queries(clean_db):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person_coerce")
+        flags = TypeFlags(type_name="person_coerce")
         name: Name = Flag(Key)
         age: Age
         score: Score

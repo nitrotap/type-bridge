@@ -2,14 +2,13 @@
 
 from type_bridge import (
     Entity,
-    EntityFlags,
     Flag,
     Integer,
     Key,
     Relation,
-    RelationFlags,
     Role,
     String,
+    TypeFlags,
 )
 
 
@@ -34,7 +33,7 @@ class Salary(Integer):
 class Person(Entity):
     """Person entity with Pydantic validation."""
 
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
     name: Name = Flag(Key)  # Required key field
     email: Email | None = None  # Optional with default
     age: Age = Age(0)  # Default value (still required unless explicitly Optional)
@@ -43,14 +42,14 @@ class Person(Entity):
 class Company(Entity):
     """Company entity."""
 
-    flags = EntityFlags(type_name="company")
+    flags = TypeFlags(type_name="company")
     name: Name = Flag(Key)  # Required key field
 
 
 class Employment(Relation):
     """Employment relation."""
 
-    flags = RelationFlags(type_name="employment")
+    flags = TypeFlags(type_name="employment")
 
     employee: Role[Person] = Role("employee", Person)
     employer: Role[Company] = Role("employer", Company)

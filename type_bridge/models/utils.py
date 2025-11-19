@@ -205,7 +205,7 @@ def validate_type_name(
         raise ValueError(
             f"Type name '{type_name}' for class '{class_name}' conflicts with TypeDB built-in type. "
             f"Built-in types are: {', '.join(sorted(TYPEDB_BUILTIN_TYPES))}. "
-            f"Please use a different type_name in EntityFlags/RelationFlags or rename your class."
+            f"Please use a different type_name in TypeFlags or rename your class."
         )
 
     # Then check TypeQL reserved words

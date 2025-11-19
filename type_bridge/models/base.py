@@ -12,7 +12,7 @@ from typing import Any, ClassVar, dataclass_transform
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from type_bridge.attribute import Attribute, AttributeFlags, EntityFlags, RelationFlags, TypeFlags
+from type_bridge.attribute import Attribute, AttributeFlags, TypeFlags
 from type_bridge.attribute.flags import format_type_name
 from type_bridge.models.utils import ModelAttrInfo, validate_type_name
 
@@ -49,9 +49,7 @@ class TypeDBType(BaseModel, ABC):
 
         # Get TypeFlags if defined, otherwise create new default flags
         # Check if flags is defined directly on this class (not inherited)
-        if "flags" in cls.__dict__ and isinstance(
-            cls.__dict__["flags"], (TypeFlags, EntityFlags, RelationFlags)
-        ):
+        if "flags" in cls.__dict__ and isinstance(cls.__dict__["flags"], TypeFlags):
             # Explicitly set flags on this class
             cls._flags = cls.__dict__["flags"]
         else:
@@ -211,12 +209,32 @@ class TypeDBType(BaseModel, ABC):
 
     @classmethod
     def get_owned_attributes(cls) -> dict[str, ModelAttrInfo]:
-        """Get attributes owned by this type.
+        """Get attributes owned directly by this type (not inherited).
 
         Returns:
             Dictionary mapping field names to ModelAttrInfo (typ + flags)
         """
         return cls._owned_attrs.copy()
+
+    @classmethod
+    def get_all_attributes(cls) -> dict[str, ModelAttrInfo]:
+        """Get all attributes including inherited ones.
+
+        Traverses the class hierarchy to collect all owned attributes,
+        including those from parent Entity/Relation classes.
+
+        Returns:
+            Dictionary mapping field names to ModelAttrInfo (typ + flags)
+        """
+        all_attrs: dict[str, ModelAttrInfo] = {}
+
+        # Traverse MRO in reverse to get parent attributes first
+        # Child attributes will override parent attributes with same name
+        for base in reversed(cls.__mro__):
+            if hasattr(base, "_owned_attrs") and isinstance(base._owned_attrs, dict):
+                all_attrs.update(base._owned_attrs)
+
+        return all_attrs
 
     @classmethod
     @abstractmethod

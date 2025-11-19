@@ -1,6 +1,6 @@
 """Test Integer attribute type."""
 
-from type_bridge import Entity, EntityFlags, Flag, Integer, Key, String
+from type_bridge import Entity, Flag, Integer, Key, String, TypeFlags
 
 
 def test_integer_creation():
@@ -33,7 +33,7 @@ def test_integer_in_entity():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
         age: Age
 
@@ -48,7 +48,7 @@ def test_integer_insert_query():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         age: Age
 
     person = Person(age=Age(30))
@@ -67,7 +67,7 @@ def test_integer_edge_cases():
         pass
 
     class Counter(Entity):
-        flags = EntityFlags(type_name="counter")
+        flags = TypeFlags(type_name="counter")
         count: Total
 
     # Test with zero
@@ -96,7 +96,7 @@ def test_integer_optional_attribute():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
         age: Age | None
 

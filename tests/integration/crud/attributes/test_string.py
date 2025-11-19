@@ -2,7 +2,7 @@
 
 import pytest
 
-from type_bridge import Entity, EntityFlags, Flag, Key, SchemaManager, String
+from type_bridge import Entity, Flag, Key, SchemaManager, String, TypeFlags
 
 
 @pytest.mark.integration
@@ -17,7 +17,7 @@ def test_string_insert(clean_db):
         pass
 
     class User(Entity):
-        flags = EntityFlags(type_name="user_str")
+        flags = TypeFlags(type_name="user_str")
         username: Username = Flag(Key)
         bio: Bio
 
@@ -50,7 +50,7 @@ def test_string_fetch(clean_db):
         pass
 
     class User(Entity):
-        flags = EntityFlags(type_name="user_str_fetch")
+        flags = TypeFlags(type_name="user_str_fetch")
         username: Username = Flag(Key)
         bio: Bio
 
@@ -86,7 +86,7 @@ def test_string_update(clean_db):
         pass
 
     class User(Entity):
-        flags = EntityFlags(type_name="user_str_update")
+        flags = TypeFlags(type_name="user_str_update")
         username: Username = Flag(Key)
         bio: Bio
 
@@ -124,7 +124,7 @@ def test_string_delete(clean_db):
         pass
 
     class User(Entity):
-        flags = EntityFlags(type_name="user_str_delete")
+        flags = TypeFlags(type_name="user_str_delete")
         username: Username = Flag(Key)
         bio: Bio
 
@@ -160,7 +160,7 @@ def test_string_special_characters_escaping(clean_db):
         pass
 
     class Message(Entity):
-        flags = EntityFlags(type_name="message_escaping")
+        flags = TypeFlags(type_name="message_escaping")
         name: Name = Flag(Key)
         description: Description | None
 

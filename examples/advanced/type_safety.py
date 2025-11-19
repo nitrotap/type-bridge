@@ -7,14 +7,13 @@ provide full type safety and IDE autocomplete support.
 from type_bridge import (
     Database,
     Entity,
-    EntityFlags,
     Flag,
     Integer,
     Key,
     Relation,
-    RelationFlags,
     Role,
     String,
+    TypeFlags,
 )
 
 
@@ -41,7 +40,7 @@ class Salary(Integer):
 
 # Define entity types
 class Person(Entity):
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
 
     name: Name = Flag(Key)
     age: Age
@@ -49,14 +48,14 @@ class Person(Entity):
 
 
 class Company(Entity):
-    flags = EntityFlags(type_name="company")
+    flags = TypeFlags(type_name="company")
 
     name: Name = Flag(Key)
 
 
 # Define relation type
 class Employment(Relation):
-    flags = RelationFlags(type_name="employment")
+    flags = TypeFlags(type_name="employment")
 
     employee: Role[Person] = Role("employee", Person)
     employer: Role[Company] = Role("employer", Company)

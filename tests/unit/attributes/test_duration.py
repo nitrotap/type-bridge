@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from isodate import Duration as IsodateDuration
 
-from type_bridge import DateTime, DateTimeTZ, Duration, Entity, EntityFlags, Flag, Key, String
+from type_bridge import DateTime, DateTimeTZ, Duration, Entity, Flag, Key, String, TypeFlags
 
 
 def test_duration_creation_from_iso_string():
@@ -65,7 +65,7 @@ def test_duration_in_entity():
         pass
 
     class Event(Entity):
-        flags = EntityFlags(type_name="event")
+        flags = TypeFlags(type_name="event")
         name: EventName = Flag(Key)
         cadence: EventCadence
 
@@ -87,7 +87,7 @@ def test_duration_iso8601_formatting():
         pass
 
     class Task(Entity):
-        flags = EntityFlags(type_name="task")
+        flags = TypeFlags(type_name="task")
         interval: Interval
 
     # Test various durations
@@ -323,7 +323,7 @@ def test_duration_optional_attribute():
         pass
 
     class Job(Entity):
-        flags = EntityFlags(type_name="job")
+        flags = TypeFlags(type_name="job")
         name: JobName = Flag(Key)
         timeout: Timeout | None
 
@@ -347,7 +347,7 @@ def test_duration_multi_value_attribute():
         pass
 
     class Schedule(Entity):
-        flags = EntityFlags(type_name="schedule")
+        flags = TypeFlags(type_name="schedule")
         intervals: list[Interval] = Flag(Card(min=1))
 
     # Create with multiple durations
@@ -367,7 +367,7 @@ def test_duration_pydantic_validation():
         pass
 
     class Event(Entity):
-        flags = EntityFlags(type_name="event")
+        flags = TypeFlags(type_name="event")
         cadence: Cadence
 
     # Test with Duration instance (with months)

@@ -11,12 +11,12 @@ from type_bridge import (
     Double,
     Duration,
     Entity,
-    EntityFlags,
     Flag,
     Integer,
     Key,
     SchemaManager,
     String,
+    TypeFlags,
 )
 
 
@@ -55,7 +55,7 @@ def test_schema_with_all_attribute_types(clean_db):
 
     # Create entity with all types
     class CompleteRecord(Entity):
-        flags = EntityFlags(type_name="complete_record")
+        flags = TypeFlags(type_name="complete_record")
         name: Name = Flag(Key)
         age: Age | None
         is_active: IsActive | None

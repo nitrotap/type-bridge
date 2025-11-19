@@ -1,11 +1,12 @@
 """Example: TypeFlags - Unified flags for Entities and Relations.
 
-This example demonstrates the new TypeFlags class that replaces both
-EntityFlags and RelationFlags with a single, unified API.
+This example demonstrates the TypeFlags class for configuring
+Entity and Relation types.
 
-Key changes:
-- Use TypeFlags instead of EntityFlags or RelationFlags
-- Use 'name' parameter instead of 'type_name'
+Key features:
+- Use TypeFlags for both entities and relations
+- Use 'name' parameter to set type name
+- Use 'abstract' and 'base' flags for type configuration
 """
 
 from type_bridge import Entity, Flag, Integer, Key, Relation, Role, String, TypeFlags, TypeNameCase
@@ -109,43 +110,17 @@ print(
 )  # → None (base classes don't generate schema)
 print()
 
-# Example 5: Backward compatibility
-print("Example 5: Backward Compatibility")
-print("-" * 80)
-print("Old code using EntityFlags still works:")
-
-
-from type_bridge import EntityFlags, RelationFlags
-
-
-class OldPerson(Entity):
-    flags = EntityFlags(type_name="old_person")  # Old API still works!
-    name: Name = Flag(Key)
-
-
-class OldEmployment(Relation):
-    flags = RelationFlags(type_name="old_employment")  # Old API still works!
-    employee: Role[OldPerson] = Role("employee", OldPerson)
-    employer: Role[Company] = Role("employer", Company)
-
-
-print(f"✓ EntityFlags with type_name: {OldPerson.get_type_name()}")
-print(f"✓ RelationFlags with type_name: {OldEmployment.get_type_name()}")
-print()
-
 # Summary
 print("=" * 80)
 print("Summary")
 print("=" * 80)
 print()
-print("NEW API (Recommended):")
+print("TypeFlags API:")
 print("  • Use TypeFlags for both entities and relations")
-print("  • Use 'name' parameter instead of 'type_name'")
+print("  • Use 'name' parameter to set type name")
+print("  • Use 'case' parameter for automatic name formatting")
+print("  • Use 'abstract=True' for abstract types")
+print("  • Use 'base=True' for Python-only base classes")
 print("  • Example: flags = TypeFlags(name='person')")
-print()
-print("OLD API (Still Works):")
-print("  • EntityFlags and RelationFlags are aliases to TypeFlags")
-print("  • 'type_name' parameter still works for backward compatibility")
-print("  • Example: flags = EntityFlags(type_name='person')")
 print()
 print("=" * 80)

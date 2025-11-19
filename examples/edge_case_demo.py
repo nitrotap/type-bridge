@@ -5,7 +5,7 @@ that conflict with TypeDB's built-in types.
 """
 
 import type_bridge as tbg
-from type_bridge import EntityFlags, String
+from type_bridge import String, TypeFlags
 
 # ❌ EDGE CASE 1: Trying to create a custom Entity base class without proper naming
 # This would fail because the class name "Entity" defaults to type_name="entity"
@@ -28,7 +28,7 @@ except ValueError as e:
 class BaseEntity(tbg.Entity):
     """Custom entity base class - WORKS!"""
 
-    flags = EntityFlags(abstract=True, type_name="base_entity")
+    flags = TypeFlags(abstract=True, type_name="base_entity")
 
 
 print("✅ Successfully created BaseEntity with type_name='base_entity'")
@@ -57,20 +57,20 @@ class Name(String):
 class Animal(tbg.Entity):
     """Abstract base - safe name"""
 
-    flags = EntityFlags(abstract=True, type_name="animal")
+    flags = TypeFlags(abstract=True, type_name="animal")
     name: Name
 
 
 class Mammal(Animal):
     """Another level of inheritance - still safe"""
 
-    flags = EntityFlags(abstract=True, type_name="mammal")
+    flags = TypeFlags(abstract=True, type_name="mammal")
 
 
 class Dog(Mammal):
     """Concrete entity - works perfectly"""
 
-    flags = EntityFlags(type_name="dog")
+    flags = TypeFlags(type_name="dog")
 
 
 print("✅ Successfully created multi-level inheritance chain:")
@@ -105,7 +105,7 @@ print("TypeDB has built-in types: 'thing', 'entity', 'relation', 'attribute'")
 print()
 print("When creating custom classes:")
 print("1. Avoid class names that match these built-ins")
-print("2. Use explicit type_name in EntityFlags/RelationFlags")
+print("2. Use explicit type_name in TypeFlags")
 print("3. For intermediate base classes, use abstract=True")
 print()
 print("The library now automatically validates and prevents conflicts!")

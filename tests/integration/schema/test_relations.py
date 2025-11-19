@@ -4,14 +4,13 @@ import pytest
 
 from type_bridge import (
     Entity,
-    EntityFlags,
     Flag,
     Key,
     Relation,
-    RelationFlags,
     Role,
     SchemaManager,
     String,
+    TypeFlags,
 )
 
 
@@ -24,18 +23,18 @@ def test_schema_with_relations(clean_db):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = EntityFlags(type_name="company")
+        flags = TypeFlags(type_name="company")
         name: Name = Flag(Key)
 
     class Position(String):
         pass
 
     class Employment(Relation):
-        flags = RelationFlags(type_name="employment")
+        flags = TypeFlags(type_name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
         position: Position

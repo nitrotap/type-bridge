@@ -1,13 +1,13 @@
 """Example: Implicit Flags - No need to explicitly set empty flags.
 
-This example demonstrates that you don't need to write `flags = EntityFlags()`
+This example demonstrates that you don't need to write `flags = TypeFlags()`
 for every entity/relation. TypeBridge automatically creates default flags for
 each class that doesn't explicitly set them.
 
 This makes the code cleaner and more concise!
 """
 
-from type_bridge import Entity, EntityFlags, Flag, Integer, Key, Relation, Role, String
+from type_bridge import Entity, Flag, Integer, Key, Relation, Role, String, TypeFlags
 
 
 # Define attributes
@@ -31,7 +31,7 @@ print()
 
 
 class Person(Entity):
-    # No flags needed! Automatically gets EntityFlags() with CLASS_NAME default
+    # No flags needed! Automatically gets TypeFlags() with CLASS_NAME default
     name: Name = Flag(Key)
     age: Age
 
@@ -61,17 +61,17 @@ print()
 
 # Python base class (won't appear in TypeDB schema)
 class BaseEntity(Entity):
-    flags = EntityFlags(base=True)  # This one needs explicit base=True
+    flags = TypeFlags(base=True)  # This one needs explicit base=True
 
 
 class Employee(BaseEntity):
-    # No flags needed! Gets fresh EntityFlags() automatically
+    # No flags needed! Gets fresh TypeFlags() automatically
     name: Name = Flag(Key)
     age: Age
 
 
 class Manager(Employee):
-    # No flags needed! Gets fresh EntityFlags() automatically
+    # No flags needed! Gets fresh TypeFlags() automatically
     pass
 
 
@@ -116,12 +116,12 @@ print()
 
 
 class AbstractPerson(Entity):
-    flags = EntityFlags(abstract=True)  # Need explicit flag for abstract
+    flags = TypeFlags(abstract=True)  # Need explicit flag for abstract
     name: Name
 
 
 class SpecialPerson(Entity):
-    flags = EntityFlags(type_name="special_person")  # Need explicit type_name override
+    flags = TypeFlags(type_name="special_person")  # Need explicit type_name override
     name: Name
 
 

@@ -1,6 +1,6 @@
 """Tests for the Card API with Flag system."""
 
-from type_bridge import Card, Entity, EntityFlags, Flag, Integer, String
+from type_bridge import Card, Entity, Flag, Integer, String, TypeFlags
 
 
 def test_cardinal_with_min_only():
@@ -10,7 +10,7 @@ def test_cardinal_with_min_only():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         tags: list[Tag] = Flag(Card(min=2))  # @card(2..) - at least 2
 
     owned = Person.get_owned_attributes()
@@ -26,7 +26,7 @@ def test_cardinal_with_max_only():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         languages: list[Lang] = Flag(Card(max=5))  # @card(0..5) - up to 5 (min defaults to 0)
 
     owned = Person.get_owned_attributes()
@@ -42,7 +42,7 @@ def test_cardinal_with_min_and_max():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         jobs: list[Job] = Flag(Card(1, 3))  # @card(1..3) - 1 to 3 jobs
 
     owned = Person.get_owned_attributes()
@@ -64,7 +64,7 @@ def test_cardinal_schema_generation():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         tags: list[Tag] = Flag(Card(min=2))
         languages: list[Lang] = Flag(Card(max=5))
         jobs: list[Job] = Flag(Card(1, 3))
@@ -84,7 +84,7 @@ def test_cardinal_with_long_attribute():
         pass
 
     class Task(Entity):
-        flags = EntityFlags(type_name="task")
+        flags = TypeFlags(type_name="task")
         priorities: list[Priority] = Flag(Card(1, 5))
 
     owned = Task.get_owned_attributes()
@@ -101,7 +101,7 @@ def test_cardinal_instance_creation():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         tags: list[Tag] = Flag(Card(2, 5))
 
     # Should accept lists (values will be wrapped in Tag instances)
@@ -122,7 +122,7 @@ def test_cardinal_insert_query():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         tags: list[Tag] = Flag(Card(min=2))
 
     person = Person(tags=["python", "rust"])  # pyright: ignore
@@ -141,7 +141,7 @@ def test_cardinal_pyright_compliance():
 
     # This should not cause pyright errors with proper usage
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         tags: list[Tag] = Flag(Card(2, 5))  # No pyright error!
 
     # Verify it works at runtime

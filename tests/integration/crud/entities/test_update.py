@@ -2,7 +2,7 @@
 
 import pytest
 
-from type_bridge import Card, Entity, EntityFlags, Flag, Integer, Key, SchemaManager, String
+from type_bridge import Card, Entity, Flag, Integer, Key, SchemaManager, String, TypeFlags
 
 
 @pytest.mark.integration
@@ -17,7 +17,7 @@ def test_update_single_value_attribute(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
         age: Age | None
 
@@ -54,7 +54,7 @@ def test_update_multi_value_attribute(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person2")
+        flags = TypeFlags(type_name="person2")
         name: Name = Flag(Key)
         tags: list[Tag] = Flag(Card(min=1))
 

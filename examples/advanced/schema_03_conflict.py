@@ -6,10 +6,10 @@ and prevents accidental overwrites that could cause data loss.
 
 from type_bridge import (
     Entity,
-    EntityFlags,
     Flag,
     Key,
     String,
+    TypeFlags,
 )
 from type_bridge.schema import SchemaConflictError, SchemaManager
 from type_bridge.session import Database
@@ -25,7 +25,7 @@ class Email(String):
 
 
 class PersonV1(Entity):
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
 
     name: Name = Flag(Key)
     email: Email
@@ -33,7 +33,7 @@ class PersonV1(Entity):
 
 # Modified schema V2 - removed email field
 class PersonV2(Entity):
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
 
     name: Name = Flag(Key)
     # email removed - breaking change!

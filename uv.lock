@@ -229,7 +229,7 @@ wheels = [
 
 [[package]]
 name = "type-bridge"
-version = "0.4.3"
+version = "0.4.5"
 source = { editable = "." }
 dependencies = [
     { name = "isodate" },

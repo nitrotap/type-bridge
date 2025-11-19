@@ -14,12 +14,12 @@ from type_bridge import (
     Double,
     Duration,
     Entity,
-    EntityFlags,
     Flag,
     Integer,
     Key,
     SchemaManager,
     String,
+    TypeFlags,
 )
 
 
@@ -38,7 +38,7 @@ def test_person_entity_string_integer_date(clean_db):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person_combo")
+        flags = TypeFlags(type_name="person_combo")
         name: Name = Flag(Key)
         age: Age
         birth_date: BirthDate
@@ -78,7 +78,7 @@ def test_product_entity_string_decimal_integer_boolean(clean_db):
         pass
 
     class Product(Entity):
-        flags = EntityFlags(type_name="product_combo")
+        flags = TypeFlags(type_name="product_combo")
         name: ProductName = Flag(Key)
         price: Price
         stock: Stock
@@ -122,7 +122,7 @@ def test_event_entity_string_datetime_duration(clean_db):
         pass
 
     class Event(Entity):
-        flags = EntityFlags(type_name="event_combo")
+        flags = TypeFlags(type_name="event_combo")
         name: EventName = Flag(Key)
         start_time: StartTime
         duration: EventDuration
@@ -163,7 +163,7 @@ def test_measurement_entity_string_double_datetimetz(clean_db):
         pass
 
     class Measurement(Entity):
-        flags = EntityFlags(type_name="measurement_combo")
+        flags = TypeFlags(type_name="measurement_combo")
         sensor: SensorName = Flag(Key)
         temperature: Temperature
         measured_at: MeasuredAt
@@ -204,7 +204,7 @@ def test_account_entity_string_boolean_datetime(clean_db):
         pass
 
     class Account(Entity):
-        flags = EntityFlags(type_name="account_combo")
+        flags = TypeFlags(type_name="account_combo")
         username: Username = Flag(Key)
         is_verified: IsVerified
         created_at: CreatedAt
@@ -248,7 +248,7 @@ def test_order_entity_integer_decimal_date_string(clean_db):
         pass
 
     class Order(Entity):
-        flags = EntityFlags(type_name="order_combo")
+        flags = TypeFlags(type_name="order_combo")
         order_number: OrderNumber = Flag(Key)
         quantity: Quantity
         total_price: TotalPrice
@@ -295,7 +295,7 @@ def test_session_entity_string_datetime_datetimetz_duration(clean_db):
         pass
 
     class Session(Entity):
-        flags = EntityFlags(type_name="session_combo")
+        flags = TypeFlags(type_name="session_combo")
         session_id: SessionId = Flag(Key)
         started_at: StartedAt
         last_active: LastActive
@@ -341,7 +341,7 @@ def test_score_entity_string_integer_double_boolean(clean_db):
         pass
 
     class Score(Entity):
-        flags = EntityFlags(type_name="score_combo")
+        flags = TypeFlags(type_name="score_combo")
         player: PlayerName = Flag(Key)
         level: Level
         points: Points
@@ -403,7 +403,7 @@ def test_audit_entity_all_nine_types(clean_db):
         pass
 
     class Audit(Entity):
-        flags = EntityFlags(type_name="audit_all")
+        flags = TypeFlags(type_name="audit_all")
         audit_id: AuditId = Flag(Key)
         user_id: UserId
         is_successful: IsSuccessful

@@ -2,7 +2,7 @@
 
 import pytest
 
-from type_bridge import Card, Entity, EntityFlags, Flag, Integer, Key, SchemaManager, String
+from type_bridge import Card, Entity, Flag, Integer, Key, SchemaManager, String, TypeFlags
 
 
 @pytest.mark.integration
@@ -20,7 +20,7 @@ def test_query_with_multiple_filters(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person3")
+        flags = TypeFlags(type_name="person3")
         name: Name = Flag(Key)
         age: Age | None
         city: City | None
@@ -59,7 +59,7 @@ def test_query_with_multi_value_attributes(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person4")
+        flags = TypeFlags(type_name="person4")
         name: Name = Flag(Key)
         tags: list[Tag] = Flag(Card(min=1))
 
