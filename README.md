@@ -1,6 +1,7 @@
 # TypeBridge
 
-[![CI](https://github.com/ds1sqe/type_bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/ds1sqe/type_bridge/actions/workflows/ci.yml)
+[![CI](https://github.com/ds1sqe/type-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/ds1sqe/type-bridge/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/type-bridge.svg)](https://pypi.org/project/type-bridge/)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![TypeDB 3.x](https://img.shields.io/badge/TypeDB-3.x-orange.svg)](https://github.com/typedb/typedb)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -27,7 +28,7 @@ A modern, Pythonic ORM for [TypeDB](https://github.com/typedb/typedb) with an At
 
 ```bash
 # Clone the repository
-git clone https://github.com/ds1sqe/type_bridge.git
+git clone https://github.com/ds1sqe/type-bridge.git
 cd type_bridge
 
 # Install with uv
