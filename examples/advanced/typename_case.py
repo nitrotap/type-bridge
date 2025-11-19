@@ -10,14 +10,13 @@ You can also explicitly set type_name, which takes precedence over case formatti
 
 from type_bridge import (
     Entity,
-    EntityFlags,
     Flag,
     Integer,
     Key,
     Relation,
-    RelationFlags,
     Role,
     String,
+    TypeFlags,
     TypeNameCase,
 )
 
@@ -56,7 +55,7 @@ class FirstPerson(Entity):
     """
 
     # No case parameter specified - defaults to LOWERCASE
-    flags = EntityFlags()
+    flags = TypeFlags()
     name: PersonName = Flag(Key)
     age: Age | None
 
@@ -69,7 +68,7 @@ class SecondPerson(Entity):
     TypeDB type: SecondPerson (unchanged)
     """
 
-    flags = EntityFlags(case=TypeNameCase.CLASS_NAME)
+    flags = TypeFlags(case=TypeNameCase.CLASS_NAME)
     name: PersonName = Flag(Key)
     age: Age | None
 
@@ -82,7 +81,7 @@ class ThirdPerson(Entity):
     TypeDB type: third_person
     """
 
-    flags = EntityFlags(case=TypeNameCase.SNAKE_CASE)
+    flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
     name: PersonName = Flag(Key)
     age: Age | None
 
@@ -95,7 +94,7 @@ class TechnologyCompany(Entity):
     TypeDB type: technology_company
     """
 
-    flags = EntityFlags(case=TypeNameCase.SNAKE_CASE)
+    flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
     name: CompanyName = Flag(Key)
 
 
@@ -108,7 +107,7 @@ class FourthPerson(Entity):
     TypeDB type: person (explicit type_name)
     """
 
-    flags = EntityFlags(type_name="person", case=TypeNameCase.SNAKE_CASE)
+    flags = TypeFlags(type_name="person", case=TypeNameCase.SNAKE_CASE)
     name: PersonName = Flag(Key)
     age: Age | None
 
@@ -121,7 +120,7 @@ class PersonCompanyEmployment(Relation):
     TypeDB type: person_company_employment
     """
 
-    flags = RelationFlags(case=TypeNameCase.SNAKE_CASE)
+    flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
     employee: Role[FourthPerson] = Role("employee", FourthPerson)
     employer: Role[TechnologyCompany] = Role("employer", TechnologyCompany)
     title: JobTitle

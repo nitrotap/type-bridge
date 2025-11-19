@@ -1,7 +1,7 @@
 """Tests for base flag functionality."""
 
 import type_bridge as tbg
-from type_bridge import EntityFlags, RelationFlags, Role, String
+from type_bridge import Role, String, TypeFlags
 
 
 class TestBaseFlag:
@@ -12,7 +12,7 @@ class TestBaseFlag:
 
         # This should work now with base=True
         class Entity(tbg.Entity):
-            flags = EntityFlags(base=True)
+            flags = TypeFlags(base=True)
 
         # Verify it's marked as base
         assert Entity.is_base() is True
@@ -26,7 +26,7 @@ class TestBaseFlag:
 
         # This should work now with base=True
         class Relation(tbg.Relation):
-            flags = RelationFlags(base=True)
+            flags = TypeFlags(base=True)
 
         # Verify it's marked as base
         assert Relation.is_base() is True
@@ -43,15 +43,15 @@ class TestBaseFlag:
 
         # Create a Python base class
         class Entity(tbg.Entity):
-            flags = EntityFlags(base=True)
+            flags = TypeFlags(base=True)
 
         # Create concrete entities
         class XX(Entity):
-            flags = EntityFlags(type_name="xx")
+            flags = TypeFlags(type_name="xx")
             name: Name
 
         class YY(XX):
-            flags = EntityFlags(type_name="yy")
+            flags = TypeFlags(type_name="yy")
 
         # XX should not have Entity as supertype (Entity is base class)
         assert XX.get_supertype() is None  # Skips base class, no other parents
@@ -67,7 +67,7 @@ class TestBaseFlag:
 
         yy_schema = YY.to_schema_definition()
         assert yy_schema is not None
-        assert "entity yy sub xx" in yy_schema
+        assert "entity yy, sub xx" in yy_schema
 
     def test_multi_level_base_classes(self):
         """Test inheritance chain with multiple base classes."""
@@ -77,15 +77,15 @@ class TestBaseFlag:
 
         # Python-only base class 1
         class BaseEntity(tbg.Entity):
-            flags = EntityFlags(base=True)
+            flags = TypeFlags(base=True)
 
         # Python-only base class 2
         class AnotherBase(BaseEntity):
-            flags = EntityFlags(base=True)
+            flags = TypeFlags(base=True)
 
         # Concrete entity
         class ConcreteEntity(AnotherBase):
-            flags = EntityFlags(type_name="concrete")
+            flags = TypeFlags(type_name="concrete")
             name: Name
 
         # Should skip all base classes
@@ -102,7 +102,7 @@ class TestBaseFlag:
 
         # Base + abstract is valid (though redundant)
         class AbstractBase(tbg.Entity):
-            flags = EntityFlags(base=True, abstract=True)
+            flags = TypeFlags(base=True, abstract=True)
 
         assert AbstractBase.is_base() is True
         assert AbstractBase.is_abstract() is True
@@ -115,7 +115,7 @@ class TestBaseFlag:
             pass
 
         class AbstractEntity(tbg.Entity):
-            flags = EntityFlags(type_name="abstract_entity", abstract=True)
+            flags = TypeFlags(type_name="abstract_entity", abstract=True)
             name: Name
 
         # Abstract entities still generate schema (they appear in TypeDB)
@@ -131,11 +131,11 @@ class TestBaseFlag:
             pass
 
         class BaseWithAttrs(tbg.Entity):
-            flags = EntityFlags(base=True)
+            flags = TypeFlags(base=True)
             name: Name
 
         class Child(BaseWithAttrs):
-            flags = EntityFlags(type_name="child")
+            flags = TypeFlags(type_name="child")
 
         # Base class doesn't generate schema
         assert BaseWithAttrs.to_schema_definition() is None
@@ -157,16 +157,16 @@ class TestBaseFlag:
             pass
 
         class Person(tbg.Entity):
-            flags = EntityFlags(type_name="person")
+            flags = TypeFlags(type_name="person")
             name: Name
 
         # Base relation
         class Relation(tbg.Relation):
-            flags = RelationFlags(base=True)
+            flags = TypeFlags(base=True)
 
         # Concrete relation
         class Friendship(Relation):
-            flags = RelationFlags(type_name="friendship")
+            flags = TypeFlags(type_name="friendship")
             friend1: Role[Person] = Role("friend1", Person)
             friend2: Role[Person] = Role("friend2", Person)
 
@@ -190,15 +190,15 @@ class TestBaseFlag:
 
         # Base class
         class Entity(tbg.Entity):
-            flags = EntityFlags(base=True)
+            flags = TypeFlags(base=True)
 
         # Concrete entities
         class Person(Entity):
-            flags = EntityFlags(type_name="person")
+            flags = TypeFlags(type_name="person")
             name: Name
 
         class Company(Person):
-            flags = EntityFlags(type_name="company")
+            flags = TypeFlags(type_name="company")
 
         # Create schema manager
         schema_manager = SchemaManager(Database("localhost:1729", "test"))
@@ -212,7 +212,7 @@ class TestBaseFlag:
 
         # Concrete entities should appear
         assert "entity person" in schema
-        assert "entity company sub person" in schema
+        assert "entity company, sub person" in schema
 
     def test_is_base_default_false(self):
         """Test that base defaults to False for normal entities."""
@@ -221,7 +221,7 @@ class TestBaseFlag:
             pass
 
         class NormalEntity(tbg.Entity):
-            flags = EntityFlags(type_name="normal")
+            flags = TypeFlags(type_name="normal")
             name: Name
 
         assert NormalEntity.is_base() is False
@@ -235,20 +235,20 @@ class TestBaseFlag:
 
         # Base class
         class Entity(tbg.Entity):
-            flags = EntityFlags(base=True)
+            flags = TypeFlags(base=True)
 
         # Non-base abstract
         class LivingThing(Entity):
-            flags = EntityFlags(type_name="living_thing", abstract=True)
+            flags = TypeFlags(type_name="living_thing", abstract=True)
             name: Name
 
         # Another base
         class AnotherBase(LivingThing):
-            flags = EntityFlags(base=True)
+            flags = TypeFlags(base=True)
 
         # Concrete
         class Animal(AnotherBase):
-            flags = EntityFlags(type_name="animal")
+            flags = TypeFlags(type_name="animal")
 
         # Animal should skip base classes and find living_thing
         assert Animal.get_supertype() == "living_thing"
@@ -256,7 +256,7 @@ class TestBaseFlag:
         # Schema should show proper hierarchy
         schema = Animal.to_schema_definition()
         assert schema is not None
-        assert "entity animal sub living_thing" in schema
+        assert "entity animal, sub living_thing" in schema
 
     def test_inheritance_with_default_classname_case(self):
         """Test that inheritance works with default CLASS_NAME formatting."""
@@ -266,7 +266,7 @@ class TestBaseFlag:
 
         # Create a Python base class
         class Entity(tbg.Entity):
-            flags = EntityFlags(base=True)
+            flags = TypeFlags(base=True)
 
         # Create concrete entities WITHOUT explicit flags
         # They should automatically get default flags with CLASS_NAME: XX → "XX", YY → "YY"
@@ -295,6 +295,6 @@ class TestBaseFlag:
 
         yy_schema = YY.to_schema_definition()
         assert yy_schema is not None
-        assert "entity YY sub XX" in yy_schema  # Both use CLASS_NAME default
+        assert "entity YY, sub XX" in yy_schema  # Both use CLASS_NAME default
         assert "owns Name" in yy_schema  # Inherited from XX
         assert "owns Name" in yy_schema  # YY's other_name field (same attribute type)

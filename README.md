@@ -1,6 +1,11 @@
 # TypeBridge
 
-A modern, Pythonic ORM for TypeDB with an Attribute-based API that aligns with TypeDB's type system.
+[![CI](https://github.com/ds1sqe/type_bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/ds1sqe/type_bridge/actions/workflows/ci.yml)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![TypeDB 3.x](https://img.shields.io/badge/TypeDB-3.x-orange.svg)](https://github.com/typedb/typedb)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+A modern, Pythonic ORM for [TypeDB](https://github.com/typedb/typedb) with an Attribute-based API that aligns with TypeDB's type system.
 
 ## Features
 
@@ -63,10 +68,10 @@ class UpdatedAt(DateTimeTZ):  # Timezone-aware datetime
 ### 2. Define Entities
 
 ```python
-from type_bridge import Entity, EntityFlags, Flag, Key, Card
+from type_bridge import Entity, TypeFlags, Flag, Key, Card
 
 class Person(Entity):
-    flags = EntityFlags(type_name="person")  # Optional, defaults to lowercase class name
+    flags = TypeFlags(type_name="person")  # Optional, defaults to lowercase class name
 
     # Use Flag() for key/unique markers and Card for cardinality
     name: Name = Flag(Key)                   # @key (implies @card(1..1))
@@ -128,7 +133,7 @@ Employment.manager(db).insert(employment)
 from type_bridge import Card, Flag
 
 class Person(Entity):
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
 
     # Cardinality options:
     name: Name                              # @card(1..1) - exactly one (default)
@@ -141,10 +146,10 @@ class Person(Entity):
 ### 6. Define Relations
 
 ```python
-from type_bridge import Relation, RelationFlags, Role
+from type_bridge import Relation, TypeFlags, Role
 
 class Employment(Relation):
-    flags = RelationFlags(type_name="employment")
+    flags = TypeFlags(type_name="employment")
 
     # Define roles with type-safe Role[T] syntax
     employee: Role[Person] = Role("employee", Person)
@@ -159,7 +164,7 @@ class Employment(Relation):
 
 ```python
 class Animal(Entity):
-    flags = EntityFlags(abstract=True)  # Abstract entity
+    flags = TypeFlags(abstract=True)  # Abstract entity
     name: Name
 
 class Dog(Animal):  # Automatically: dog sub animal in TypeDB
@@ -177,7 +182,7 @@ TypeBridge is built on Pydantic v2, giving you powerful features:
 
 ```python
 class Person(Entity):
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
     name: Name = Flag(Key)
     age: Age
 
@@ -220,17 +225,20 @@ TypeBridge uses a two-tier testing approach with **100% test pass rate**:
 
 ```bash
 # Unit tests (fast, no external dependencies) - DEFAULT
-uv run pytest                              # Run 243 unit tests (0.3s)
+uv run pytest                              # Run 264 unit tests (0.3s)
 uv run pytest tests/unit/attributes/ -v   # Test all 9 attribute types
 uv run pytest tests/unit/core/ -v         # Test core functionality
 uv run pytest tests/unit/flags/ -v        # Test flag system
 
 # Integration tests (requires running TypeDB server)
-# First: typedb server
-uv run pytest -m integration -v           # Run 98 integration tests (~18s)
+# Option 1: Use Docker (recommended)
+./test-integration.sh                     # Starts Docker, runs tests, stops Docker
 
-# All tests (use ./test.sh for full output)
-uv run pytest -m "" -v                    # Run all 341 tests
+# Option 2: Use existing TypeDB server
+USE_DOCKER=false uv run pytest -m integration -v  # Run 102 integration tests (~18s)
+
+# All tests
+uv run pytest -m "" -v                    # Run all 366 tests
 ./test.sh                                 # Run full test suite with detailed output
 ./check.sh                                # Run linting and type checking
 ```
@@ -243,37 +251,31 @@ uv run pytest -m "" -v                    # Run all 341 tests
 - pydantic>=2.0.0
 - isodate==0.7.2 (for Duration type support)
 
-## What's New in v0.3.0
+## What's New in v0.4.4
 
-### TypeDB 3.x Full Compatibility
-- ✅ **100% Test Coverage**: All 341 tests passing (243 unit, 98 integration)
-- ✅ Query pagination with automatic sorting
-- ✅ Schema conflict detection using TypeDB 3.x `isa` syntax
-- ✅ Proper TypeQL clause ordering (offset before limit)
+### Bug Fixes
+- ✅ **Fixed inherited attributes in CRUD operations**: Insert and fetch now properly include inherited attributes from parent Entity/Relation classes
+- ✅ Added `get_all_attributes()` method to collect attributes from entire class hierarchy
+
+### API Improvements
+- ✅ **Unified TypeFlags API**: Removed deprecated `EntityFlags` and `RelationFlags` aliases - use `TypeFlags` for both
+- ✅ All examples updated to use unified TypeFlags API
+
+### Testing & Quality
+- ✅ **366 comprehensive tests** (264 unit, 102 integration) - 100% pass rate
+- ✅ Docker integration for automated test setup
+- ✅ Zero errors from Ruff and Pyright
 
 ### Complete Type System
 - ✅ All 9 TypeDB value types: String, Integer, Double, Decimal, Boolean, Date, DateTime, DateTimeTZ, Duration
 - ✅ Temporal type conversions (DateTime ↔ DateTimeTZ with timezone handling)
 - ✅ ISO 8601 Duration support with calendar-aware arithmetic
-- ✅ All attribute types fully tested with CRUD operations
 
-### Enhanced Validation & Safety
-- ✅ Comprehensive keyword validation for reserved TypeDB/TypeQL words
-- ✅ Schema conflict detection prevents data loss
-- ✅ Type name case formatting options (CLASS_NAME, snake_case, lowercase)
-- ✅ String escaping for quotes and backslashes
-
-### Robust Testing Infrastructure
-- ✅ **341 comprehensive tests** (243 unit, 98 integration)
-- ✅ Organized test structure by functionality (core, attributes, flags, crud, queries)
-- ✅ Full integration test suite with TypeDB server
-- ✅ Zero errors from Ruff and Pyright
-
-### Production-Ready API
-- ✅ Type-safe update API for single and multi-value attributes
+### Production-Ready Features
+- ✅ Type-safe CRUD operations with inheritance support
 - ✅ Chainable query builder with limit/offset/sort
-- ✅ Entity and Relation managers with full CRUD support
-- ✅ Well-organized examples (basic vs advanced)
+- ✅ Schema conflict detection and validation
+- ✅ Duplicate attribute type detection
 
 ## License
 

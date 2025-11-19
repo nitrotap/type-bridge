@@ -2,7 +2,7 @@
 
 import pytest
 
-from type_bridge import Entity, EntityFlags, Flag, Integer, Key, String
+from type_bridge import Entity, Flag, Integer, Key, String, TypeFlags
 
 
 @pytest.mark.integration
@@ -17,7 +17,7 @@ def test_insert_single_entity(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
         age: Age | None
 
@@ -48,7 +48,7 @@ def test_insert_many(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
         age: Age | None
 
@@ -81,7 +81,7 @@ def test_insert_with_optional_attributes(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
         age: Age | None
 

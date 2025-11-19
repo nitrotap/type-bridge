@@ -1,6 +1,6 @@
 """Test Boolean attribute type."""
 
-from type_bridge import Boolean, Card, Entity, EntityFlags, Flag, Key, String
+from type_bridge import Boolean, Card, Entity, Flag, Key, String, TypeFlags
 
 
 def test_boolean_creation():
@@ -36,7 +36,7 @@ def test_boolean_in_entity():
         pass
 
     class User(Entity):
-        flags = EntityFlags(type_name="user")
+        flags = TypeFlags(type_name="user")
         name: Name = Flag(Key)
         is_active: IsActive
 
@@ -51,7 +51,7 @@ def test_boolean_insert_query():
         pass
 
     class User(Entity):
-        flags = EntityFlags(type_name="user")
+        flags = TypeFlags(type_name="user")
         is_active: IsActive
 
     # Test with True value
@@ -85,7 +85,7 @@ def test_boolean_optional_attribute():
         pass
 
     class User(Entity):
-        flags = EntityFlags(type_name="user")
+        flags = TypeFlags(type_name="user")
         name: Name = Flag(Key)
         is_active: IsActive | None
 
@@ -108,7 +108,7 @@ def test_multi_value_boolean_insert_query():
         pass
 
     class Config(Entity):
-        flags = EntityFlags(type_name="config")
+        flags = TypeFlags(type_name="config")
         feature_flags: list[FeatureFlag] = Flag(Card(min=1))
 
     # Create entity with multiple boolean values

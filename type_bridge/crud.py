@@ -346,9 +346,9 @@ class EntityManager[E: Entity]:
             Dictionary of attributes
         """
         attrs = {}
-        # Extract attributes from owned attribute classes
-        owned_attrs = self.model_class.get_owned_attributes()
-        for field_name, attr_info in owned_attrs.items():
+        # Extract attributes from all attribute classes (including inherited)
+        all_attrs = self.model_class.get_all_attributes()
+        for field_name, attr_info in all_attrs.items():
             attr_class = attr_info.typ
             attr_name = attr_class.get_attribute_name()
             if attr_name in result:
@@ -588,9 +588,9 @@ class RelationManager[R: Relation]:
         ]
         relation_pattern = f"({', '.join(role_parts)}) isa {relation_type_name}"
 
-        # Add attributes
+        # Add attributes (including inherited)
         attr_parts = []
-        for field_name, attr_info in self.model_class.get_owned_attributes().items():
+        for field_name, attr_info in self.model_class.get_all_attributes().items():
             value = getattr(relation, field_name, None)
             if value is not None:
                 attr_class = attr_info.typ
@@ -735,9 +735,10 @@ class RelationManager[R: Relation]:
             )
             insert_pattern = f"({role_players_str}) isa {self.model_class.get_type_name()}"
 
-            # Extract and add attributes from relation instance
+            # Extract and add attributes from relation instance (including inherited)
             attr_parts = []
-            for field_name in self.model_class._owned_attrs:
+            all_attrs = self.model_class.get_all_attributes()
+            for field_name, attr_info in all_attrs.items():
                 if hasattr(relation, field_name):
                     attr_value = getattr(relation, field_name)
                     if attr_value is None:
@@ -747,12 +748,9 @@ class RelationManager[R: Relation]:
                     if hasattr(attr_value, "value"):
                         attr_value = attr_value.value
 
-                    owned_attrs = self.model_class.get_owned_attributes()
-                    if field_name in owned_attrs:
-                        attr_info = owned_attrs[field_name]
-                        typeql_attr_name = attr_info.typ.get_attribute_name()
-                        formatted_value = self._format_value(attr_value)
-                        attr_parts.append(f"has {typeql_attr_name} {formatted_value}")
+                    typeql_attr_name = attr_info.typ.get_attribute_name()
+                    formatted_value = self._format_value(attr_value)
+                    attr_parts.append(f"has {typeql_attr_name} {formatted_value}")
 
             if attr_parts:
                 insert_pattern += ", " + ", ".join(attr_parts)
@@ -823,7 +821,8 @@ class RelationManager[R: Relation]:
             Employment.manager(db).get(position="Manager", employer=tech_corp)
         """
         # Build TypeQL 3.x query with correct syntax for fetching relations with role players
-        owned_attrs = self.model_class.get_owned_attributes()
+        # Use get_all_attributes to include inherited attributes for filtering
+        all_attrs = self.model_class.get_all_attributes()
 
         # Separate attribute filters from role player filters
         attr_filters = {}
@@ -833,7 +832,7 @@ class RelationManager[R: Relation]:
             if key in self.model_class._roles:
                 # This is a role player filter
                 role_player_filters[key] = value
-            elif key in owned_attrs:
+            elif key in all_attrs:
                 # This is an attribute filter
                 attr_filters[key] = value
             else:
@@ -852,7 +851,7 @@ class RelationManager[R: Relation]:
 
         # Add attribute filter clauses
         for field_name, value in attr_filters.items():
-            attr_info = owned_attrs[field_name]
+            attr_info = all_attrs[field_name]
             attr_name = attr_info.typ.get_attribute_name()
             formatted_value = self._format_value(value)
             match_clauses.append(f"$r has {attr_name} {formatted_value}")
@@ -881,8 +880,8 @@ class RelationManager[R: Relation]:
         # Build fetch clause with nested structure for role players
         fetch_items = []
 
-        # Add relation attributes
-        for field_name, attr_info in owned_attrs.items():
+        # Add relation attributes (including inherited)
+        for field_name, attr_info in all_attrs.items():
             attr_name = attr_info.typ.get_attribute_name()
             fetch_items.append(f'"{attr_name}": $r.{attr_name}')
 
@@ -902,9 +901,9 @@ class RelationManager[R: Relation]:
         relations = []
 
         for result in results:
-            # Extract relation attributes
+            # Extract relation attributes (including inherited)
             attrs = {}
-            for field_name, attr_info in owned_attrs.items():
+            for field_name, attr_info in all_attrs.items():
                 attr_class = attr_info.typ
                 attr_name = attr_class.get_attribute_name()
                 if attr_name in result:

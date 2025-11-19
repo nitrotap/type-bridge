@@ -2,7 +2,7 @@
 
 from decimal import Decimal as DecimalType
 
-from type_bridge import Decimal, Entity, EntityFlags, Flag, Key, String
+from type_bridge import Decimal, Entity, Flag, Key, String, TypeFlags
 
 
 def test_decimal_creation():
@@ -58,7 +58,7 @@ def test_decimal_in_entity():
         pass
 
     class BankAccount(Entity):
-        flags = EntityFlags(type_name="bank-account")
+        flags = TypeFlags(type_name="bank-account")
         account_number: AccountNumber = Flag(Key)
         balance: AccountBalance
 
@@ -81,7 +81,7 @@ def test_decimal_insert_query_formatting():
         pass
 
     class Product(Entity):
-        flags = EntityFlags(type_name="product")
+        flags = TypeFlags(type_name="product")
         price: Price
 
     # Test with various decimal values
@@ -106,7 +106,7 @@ def test_decimal_negative_values():
         pass
 
     class Account(Entity):
-        flags = EntityFlags(type_name="account")
+        flags = TypeFlags(type_name="account")
         balance: Balance
 
     # Test with negative balance
@@ -122,7 +122,7 @@ def test_decimal_large_values():
         pass
 
     class Record(Entity):
-        flags = EntityFlags(type_name="record")
+        flags = TypeFlags(type_name="record")
         value: LargeValue
 
     # Test with large integer part
@@ -139,7 +139,7 @@ def test_decimal_zero_values():
         pass
 
     class Transaction(Entity):
-        flags = EntityFlags(type_name="transaction")
+        flags = TypeFlags(type_name="transaction")
         amount: Amount
 
     # Test with zero
@@ -160,7 +160,7 @@ def test_decimal_scientific_notation():
         pass
 
     class Measurement(Entity):
-        flags = EntityFlags(type_name="measurement")
+        flags = TypeFlags(type_name="measurement")
         value: SmallValue
 
     # Test with very small value
@@ -180,7 +180,7 @@ def test_decimal_optional_attribute():
         pass
 
     class Product(Entity):
-        flags = EntityFlags(type_name="product")
+        flags = TypeFlags(type_name="product")
         name: ProductName = Flag(Key)
         discount: Discount | None
 
@@ -204,7 +204,7 @@ def test_decimal_multi_value_attribute():
         pass
 
     class Invoice(Entity):
-        flags = EntityFlags(type_name="invoice")
+        flags = TypeFlags(type_name="invoice")
         payments: list[Payment] = Flag(Card(min=1))
 
     # Create entity with multiple decimal values
@@ -224,7 +224,7 @@ def test_decimal_pydantic_validation():
         pass
 
     class Product(Entity):
-        flags = EntityFlags(type_name="product")
+        flags = TypeFlags(type_name="product")
         price: Price
 
     # Test with Decimal instance

@@ -8,11 +8,11 @@ from type_bridge import (
     DateTime,
     Double,
     Entity,
-    EntityFlags,
     Flag,
     Integer,
     Key,
     String,
+    TypeFlags,
 )
 
 
@@ -35,7 +35,7 @@ def test_all_attribute_types_insert_query():
         pass
 
     class Employee(Entity):
-        flags = EntityFlags(type_name="employee")
+        flags = TypeFlags(type_name="employee")
         name: Name = Flag(Key)
         age: Age
         salary: Salary
@@ -83,7 +83,7 @@ def test_optional_attribute_insert_query():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
         email: Email | None
 
@@ -113,7 +113,7 @@ def test_mixed_optional_and_required_attributes():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
         age: Age
         email: Email | None
@@ -140,7 +140,7 @@ def test_datetime_insert_query():
         pass
 
     class Event(Entity):
-        flags = EntityFlags(type_name="event")
+        flags = TypeFlags(type_name="event")
         created_at: CreatedAt
 
     # Test with naive datetime
@@ -171,7 +171,7 @@ def test_multi_value_datetime_insert_query():
         pass
 
     class Schedule(Entity):
-        flags = EntityFlags(type_name="schedule")
+        flags = TypeFlags(type_name="schedule")
         event_dates: list[EventDate] = Flag(Card(min=1))
 
     # Create entity with multiple datetime values

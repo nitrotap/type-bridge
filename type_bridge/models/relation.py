@@ -14,7 +14,7 @@ from typing import (
 
 from pydantic import ConfigDict
 
-from type_bridge.attribute import AttributeFlags, RelationFlags, TypeFlags
+from type_bridge.attribute import AttributeFlags, TypeFlags
 from type_bridge.models.base import TypeDBType
 from type_bridge.models.role import Role
 from type_bridge.models.utils import ModelAttrInfo, extract_metadata
@@ -27,12 +27,12 @@ if TYPE_CHECKING:
 R = TypeVar("R", bound="Relation")
 
 
-@dataclass_transform(kw_only_default=False, field_specifiers=(AttributeFlags, RelationFlags))
+@dataclass_transform(kw_only_default=False, field_specifiers=(AttributeFlags, TypeFlags))
 class Relation(TypeDBType):
     """Base class for TypeDB relations with Pydantic validation.
 
     Relations can own attributes and have role players.
-    Use RelationFlags (or TypeFlags) to configure type name and abstract status.
+    Use TypeFlags to configure type name and abstract status.
     Supertype is determined automatically from Python inheritance.
 
     This class inherits from TypeDBType and Pydantic's BaseModel, providing:
@@ -49,7 +49,7 @@ class Relation(TypeDBType):
             pass
 
         class Employment(Relation):
-            flags = RelationFlags(name="employment")
+            flags = TypeFlags(name="employment")
 
             employee: Role[Person] = Role("employee", Person)
             employer: Role[Company] = Role("employer", Company)
@@ -63,7 +63,7 @@ class Relation(TypeDBType):
         arbitrary_types_allowed=True,
         validate_assignment=True,
         extra="allow",
-        ignored_types=(RelationFlags, TypeFlags, Role),
+        ignored_types=(TypeFlags, Role),
         revalidate_instances="always",
     )
 
@@ -93,11 +93,34 @@ class Relation(TypeDBType):
 
         # Extract owned attributes from type hints
         owned_attrs = {}
+
+        # Get direct annotations from this class
+        direct_annotations = set(getattr(cls, "__annotations__", {}).keys())
+
+        # Also include annotations from base=True parent classes
+        # (they don't appear in TypeDB schema, so child must own their attributes)
+        # Stop when we hit a non-base Relation class (it already handles its base=True parents)
+        for base in cls.__mro__[1:]:  # Skip cls itself
+            if base is Relation or not issubclass(base, Relation):
+                continue
+            if hasattr(base, "_flags") and base._flags.base:
+                base_annotations = getattr(base, "__annotations__", {})
+                direct_annotations.update(base_annotations.keys())
+            else:
+                # Stop at first non-base Relation class
+                break
+
         try:
             # Use include_extras=True to preserve Annotated metadata
-            hints = get_type_hints(cls, include_extras=True)
+            all_hints = get_type_hints(cls, include_extras=True)
+            # Filter to only include direct annotations and base=True parent annotations
+            hints = {k: v for k, v in all_hints.items() if k in direct_annotations}
         except Exception:
-            hints = getattr(cls, "__annotations__", {})
+            hints = {
+                k: v
+                for k, v in getattr(cls, "__annotations__", {}).items()
+                if k in direct_annotations
+            }
 
         # Rewrite annotations to add base types for type checker support
         new_annotations = {}
@@ -323,15 +346,15 @@ class Relation(TypeDBType):
         lines = []
 
         # Define relation type with supertype from Python inheritance
+        # TypeDB 3.x syntax: relation name @abstract, sub parent,
         supertype = cls.get_supertype()
-        if supertype:
-            relation_def = f"relation {type_name} sub {supertype}"
-        else:
-            relation_def = f"relation {type_name}"
+        is_abstract = cls.is_abstract()
 
-        # Add @abstract annotation if needed (TypeDB 3.x syntax)
-        if cls.is_abstract():
+        relation_def = f"relation {type_name}"
+        if is_abstract:
             relation_def += " @abstract"
+        if supertype:
+            relation_def += f", sub {supertype}"
 
         lines.append(relation_def)
 

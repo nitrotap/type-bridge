@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from type_bridge import Date, Entity, EntityFlags, Flag, Key, SchemaManager, String
+from type_bridge import Date, Entity, Flag, Key, SchemaManager, String, TypeFlags
 
 
 @pytest.mark.integration
@@ -19,7 +19,7 @@ def test_date_insert(clean_db):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person_date")
+        flags = TypeFlags(type_name="person_date")
         name: Name = Flag(Key)
         birth_date: BirthDate
 
@@ -52,7 +52,7 @@ def test_date_fetch(clean_db):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person_date_fetch")
+        flags = TypeFlags(type_name="person_date_fetch")
         name: Name = Flag(Key)
         birth_date: BirthDate
 
@@ -88,7 +88,7 @@ def test_date_update(clean_db):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person_date_update")
+        flags = TypeFlags(type_name="person_date_update")
         name: Name = Flag(Key)
         birth_date: BirthDate
 
@@ -126,7 +126,7 @@ def test_date_delete(clean_db):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person_date_delete")
+        flags = TypeFlags(type_name="person_date_delete")
         name: Name = Flag(Key)
         birth_date: BirthDate
 

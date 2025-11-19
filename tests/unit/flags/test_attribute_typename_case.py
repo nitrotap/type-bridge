@@ -5,11 +5,11 @@ from type_bridge import (
     DateTime,
     Double,
     Entity,
-    EntityFlags,
     Flag,
     Integer,
     Key,
     String,
+    TypeFlags,
     TypeNameCase,
 )
 
@@ -159,7 +159,7 @@ def test_entity_owns_attribute_with_formatted_name():
         case = TypeNameCase.SNAKE_CASE
 
     class Person(Entity):
-        flags = EntityFlags(case=TypeNameCase.SNAKE_CASE)
+        flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
         name: PersonName = Flag(Key)
         age: PersonAge
 

@@ -115,7 +115,7 @@ type_bridge/
 │   ├── double.py         # Double attribute
 │   ├── boolean.py        # Boolean attribute
 │   ├── datetime.py       # DateTime attribute
-│   └── flags.py          # Flag system (Key, Unique, Card, EntityFlags, RelationFlags)
+│   └── flags.py          # Flag system (Key, Unique, Card, TypeFlags)
 ├── models.py             # Base Entity and Relation classes using attribute ownership model
 ├── query.py              # TypeQL query builder
 ├── session.py            # Database connection and transaction management
@@ -175,7 +175,7 @@ tests/
 
 ## Testing Strategy
 
-TypeBridge uses a two-tier testing approach with **100% test pass rate (347/347 tests)**:
+TypeBridge uses a two-tier testing approach with **100% test pass rate (349/349 tests)**:
 
 ### Unit Tests (Default)
 
@@ -211,10 +211,10 @@ Located in `tests/integration/`
 - **Real database**: Require running TypeDB 3.x server
 - **End-to-end**: Test complete workflows from schema to queries
 - **Explicit execution**: Must use `pytest -m integration`
-- **98 tests total**: Full CRUD, schema, and query coverage
+- **100 tests total**: Full CRUD, schema, and query coverage
 
 Coverage:
-- Schema creation, conflict detection, inheritance (8 tests)
+- Schema creation, conflict detection, inheritance (10 tests)
 - CRUD operations for all 9 attribute types (insert, fetch, update, delete)
 - Multi-value attribute operations (9 tests)
 - Complex queries with real data (pagination, filtering, role players)
@@ -252,10 +252,10 @@ uv run pytest tests/unit/attributes/test_string.py -v
 uv run pytest tests/unit/attributes/test_boolean.py -v
 
 # Integration tests only (requires TypeDB)
-uv run pytest -m integration              # All 98 integration tests
+uv run pytest -m integration              # All 100 integration tests
 
 # All tests (unit + integration)
-uv run pytest -m ""                       # All 347 tests
+uv run pytest -m ""                       # All 349 tests
 ./test.sh                                 # Full test suite with detailed output
 ./check.sh                                # Linting and type checking
 
@@ -290,10 +290,10 @@ TypeBridge follows TypeDB's type system closely:
        name: Name  # Company also owns 'name'
    ```
 
-2. **Use EntityFlags/RelationFlags, not dunder attributes**:
+2. **Use TypeFlags, not dunder attributes**:
    ```python
    class Person(Entity):
-       flags = EntityFlags(type_name="person")  # Clean API
+       flags = TypeFlags(type_name="person")  # Clean API
        # NOT: __type_name__ = "person"  # Deprecated
    ```
 
@@ -314,10 +314,25 @@ TypeBridge follows TypeDB's type system closely:
 4. **Python inheritance maps to TypeDB supertypes**:
    ```python
    class Animal(Entity):
-       flags = EntityFlags(abstract=True)
+       flags = TypeFlags(abstract=True)
 
-   class Dog(Animal):  # Automatically: dog sub animal
+   class Dog(Animal):  # Generates: entity dog, sub animal
        pass
+   ```
+
+   Multi-level inheritance example:
+   ```python
+   class Content(Entity):
+       flags = TypeFlags(type_name="content", abstract=True)
+       # Generates: entity content @abstract,
+
+   class Page(Content):
+       flags = TypeFlags(type_name="page", abstract=True)
+       # Generates: entity page @abstract, sub content,
+
+   class Person(Page):
+       flags = TypeFlags(type_name="person")
+       # Generates: entity person, sub page,
    ```
 
 5. **Cardinality semantics**:
@@ -423,7 +438,24 @@ When generating TypeQL schema definitions, always use the following correct synt
    ```
    ❌ NOT: `person sub entity,`
 
-3. **Relation definitions**:
+3. **Entity inheritance with abstract**:
+   ```typeql
+   # Abstract entity without parent
+   entity content @abstract,
+       owns id @key;
+
+   # Abstract entity with inheritance
+   entity page @abstract, sub content,
+       owns page-id,
+       owns bio;
+
+   # Concrete entity with inheritance
+   entity person sub profile,
+       owns email;
+   ```
+   Note: `@abstract` comes before `sub`, separated by comma.
+
+4. **Relation definitions**:
    ```typeql
    relation employment,
        relates employee,
@@ -432,12 +464,23 @@ When generating TypeQL schema definitions, always use the following correct synt
    ```
    ❌ NOT: `employment sub relation,`
 
-4. **Cardinality annotations**:
+5. **Relation inheritance with abstract**:
+   ```typeql
+   # Abstract relation
+   relation social-relation @abstract,
+       relates related @card(2);
+
+   # Concrete relation with inheritance
+   relation friendship sub social-relation,
+       relates friend as related @card(2);
+   ```
+
+6. **Cardinality annotations**:
    - Use `..` (double dot) syntax: `@card(1..5)` ✓
    - ❌ NOT comma syntax: `@card(1,5)`
    - Unbounded max: `@card(2..)` ✓
 
-5. **Key and Unique annotations**:
+7. **Key and Unique annotations**:
    - `@key` implies `@card(1..1)`, never output both
    - `@unique` with default `@card(1..1)`, omit `@card` annotation
    - Only output explicit `@card` when it differs from the implied cardinality
@@ -645,7 +688,7 @@ Time components (after T):
 **Examples:**
 ```python
 from datetime import timedelta
-from type_bridge import Duration, DateTime, Entity, EntityFlags
+from type_bridge import Duration, DateTime, Entity, TypeFlags
 
 class EventCadence(Duration):
     pass
@@ -815,7 +858,7 @@ TypeBridge provides type-safe CRUD managers with a modern fetching API for entit
 Each Entity class can create a type-safe manager:
 
 ```python
-from type_bridge import Database, Entity, EntityFlags, String, Integer, Flag, Key
+from type_bridge import Database, Entity, TypeFlags, String, Integer, Flag, Key
 
 class Name(String):
     pass
@@ -824,7 +867,7 @@ class Age(Integer):
     pass
 
 class Person(Entity):
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
     name: Name = Flag(Key)
     age: Age | None
 
@@ -926,13 +969,13 @@ $e has age 31;
 Relations support similar operations with role player filtering:
 
 ```python
-from type_bridge import Relation, RelationFlags, Role
+from type_bridge import Relation, TypeFlags, Role
 
 class Position(String):
     pass
 
 class Employment(Relation):
-    flags = RelationFlags(type_name="employment")
+    flags = TypeFlags(type_name="employment")
     employee: Role[Person] = Role("employee", Person)
     employer: Role[Company] = Role("employer", Company)
     position: Position
@@ -1014,7 +1057,7 @@ schema_manager.sync_schema()  # ✓ Success
 
 # Modify your models (e.g., remove an attribute, change cardinality)
 class Person(Entity):
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
     name: Name = Flag(Key)
     # age attribute removed!
 
@@ -1045,7 +1088,7 @@ old_schema = schema_manager.collect_schema_info()
 
 # Make changes to your models
 class Person(Entity):
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
     name: Name = Flag(Key)
     age: Age | None
     email: Email = Flag(Unique)  # New attribute!

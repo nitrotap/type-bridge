@@ -8,7 +8,7 @@ The type: ignore comments are expected and indicate we're testing runtime valida
 import pytest
 from pydantic import ValidationError
 
-from type_bridge import Entity, EntityFlags, Integer, String
+from type_bridge import Entity, Integer, String, TypeFlags
 
 
 def test_pydantic_validation():
@@ -21,7 +21,7 @@ def test_pydantic_validation():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name
         age: Age
 
@@ -53,7 +53,7 @@ def test_pydantic_validation_on_assignment():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name
         age: Age
 
@@ -84,7 +84,7 @@ def test_pydantic_json_serialization():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name
         age: Age
 
@@ -110,7 +110,7 @@ def test_pydantic_json_deserialization():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name
         age: Age
 
@@ -146,7 +146,7 @@ def test_pydantic_model_copy():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name
         age: Age
 
@@ -170,7 +170,7 @@ def test_pydantic_with_optional_fields():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name
         email: Email = None  # type: ignore[assignment]  # Optional field with default
 
@@ -195,7 +195,7 @@ def test_pydantic_with_default_values():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name
         age: Age = 0  # type: ignore[assignment]  # Default value
 
@@ -221,7 +221,7 @@ def test_pydantic_type_coercion():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name
         age: Age
 
@@ -254,7 +254,7 @@ def test_pydantic_validation_errors():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name
         age: Age
 

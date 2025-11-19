@@ -2,7 +2,7 @@
 
 import pytest
 
-from type_bridge import Card, Entity, EntityFlags, Flag, Integer, Key, SchemaManager, String
+from type_bridge import Card, Entity, Flag, Integer, Key, SchemaManager, String, TypeFlags
 
 
 @pytest.mark.integration
@@ -20,7 +20,7 @@ def test_schema_with_cardinality(clean_db):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         email: Email = Flag(Key)
         tags: list[Tag] = Flag(Card(min=1))  # At least 1 tag
         scores: list[Score] = Flag(Card(max=5))  # At most 5 scores

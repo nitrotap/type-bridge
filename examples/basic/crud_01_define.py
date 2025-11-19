@@ -17,15 +17,14 @@ from type_bridge import (
     Database,
     Double,
     Entity,
-    EntityFlags,
     Flag,
     Integer,
     Key,
     Relation,
-    RelationFlags,
     Role,
     SchemaManager,
     String,
+    TypeFlags,
 )
 
 
@@ -82,7 +81,7 @@ class IsActive(Boolean):
 class Person(Entity):
     """Person entity with cardinality and key annotations."""
 
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
 
     name: Name = Flag(Key)  # @key (implies @card(1..1)) - exactly one, marked as key
     age: Age | None  # @card(0..1) - zero or one (optional)
@@ -93,7 +92,7 @@ class Person(Entity):
 class Company(Entity):
     """Company entity with cardinality annotations."""
 
-    flags = EntityFlags(type_name="company")
+    flags = TypeFlags(type_name="company")
 
     name: Name = Flag(Key)  # @key (implies @card(1..1)) - exactly one, marked as key
     industry: list[Industry] = Flag(Card(1, 5))  # @card(1..5) - one to five industries
@@ -103,7 +102,7 @@ class Company(Entity):
 class Employment(Relation):
     """Employment relation between person and company."""
 
-    flags = RelationFlags(type_name="employment")
+    flags = TypeFlags(type_name="employment")
 
     # Roles - using generic Role[T] for type safety
     employee: Role[Person] = Role("employee", Person)
@@ -168,7 +167,7 @@ def demonstrate_step2_entities():
     print("-" * 80)
     print("""
 class Person(Entity):
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
 
     name: Name = Flag(Key)  # @key - exactly one, marked as key
     age: Age | None         # @card(0..1) - zero or one (optional)
@@ -176,7 +175,7 @@ class Person(Entity):
     score: Score            # @card(1..1) - exactly one (default)
 
 class Company(Entity):
-    flags = EntityFlags(type_name="company")
+    flags = TypeFlags(type_name="company")
 
     name: Name = Flag(Key)                      # @key
     industry: list[Industry] = Flag(Card(1, 5)) # @card(1..5)
@@ -208,7 +207,7 @@ def demonstrate_step3_relations():
     print("-" * 80)
     print("""
 class Employment(Relation):
-    flags = RelationFlags(type_name="employment")
+    flags = TypeFlags(type_name="employment")
 
     # Roles - using generic Role[T] for type safety
     employee: Role[Person] = Role("employee", Person)

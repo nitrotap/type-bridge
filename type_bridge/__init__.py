@@ -11,11 +11,9 @@ from type_bridge.attribute import (
     Decimal,
     Double,
     Duration,
-    EntityFlags,
     Flag,
     Integer,
     Key,
-    RelationFlags,
     String,
     TypeFlags,
     TypeNameCase,
@@ -62,8 +60,6 @@ __all__ = [
     "Card",
     # Entity/Relation flags
     "TypeFlags",
-    "EntityFlags",  # Backward compatibility
-    "RelationFlags",  # Backward compatibility
     "TypeNameCase",
     # Query
     "Query",

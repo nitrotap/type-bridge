@@ -2,7 +2,7 @@
 
 import pytest
 
-from type_bridge import Entity, EntityFlags, Integer, Relation, RelationFlags, Role, String
+from type_bridge import Entity, Integer, Relation, Role, String, TypeFlags
 from type_bridge.reserved_words import get_reserved_words, is_reserved_word
 from type_bridge.validation import ReservedWordError, ValidationError, validate_type_name
 
@@ -129,7 +129,7 @@ class TestEntityValidation:
         with pytest.raises(ReservedWordError, match="match.*entity"):
 
             class Match(Entity):
-                flags = EntityFlags(name="match")
+                flags = TypeFlags(name="match")
 
     def test_entity_with_reserved_class_name_formatted_fails(self):
         """Entity class with reserved name (formatted) should fail."""
@@ -143,13 +143,13 @@ class TestEntityValidation:
         with pytest.raises(ReservedWordError, match="insert"):
 
             class MyEntity(Entity):
-                flags = EntityFlags(name="insert")
+                flags = TypeFlags(name="insert")
 
     def test_entity_with_valid_name_succeeds(self):
         """Entity with valid name should succeed."""
 
         class Person(Entity):
-            flags = EntityFlags(name="person")
+            flags = TypeFlags(name="person")
 
         assert Person.get_type_name() == "person"
 
@@ -167,20 +167,20 @@ class TestRelationValidation:
         with pytest.raises(ReservedWordError, match="delete.*relation"):
 
             class Delete(Relation):
-                flags = RelationFlags(name="delete")
+                flags = TypeFlags(name="delete")
 
     def test_relation_with_typeql_keyword_fails(self):
         """Relation with TypeQL keyword as name should fail."""
         with pytest.raises(ReservedWordError):
 
             class MyRelation(Relation):
-                flags = RelationFlags(name="update")
+                flags = TypeFlags(name="update")
 
     def test_relation_with_valid_name_succeeds(self):
         """Relation with valid name should succeed."""
 
         class Employment(Relation):
-            flags = RelationFlags(name="employment")
+            flags = TypeFlags(name="employment")
 
         assert Employment.get_type_name() == "employment"
 
@@ -327,7 +327,7 @@ class TestIntegrationScenarios:
         try:
 
             class Insert(Entity):
-                flags = EntityFlags(name="insert")
+                flags = TypeFlags(name="insert")
         except ReservedWordError as e:
             errors.append(("Insert entity", e))
 
@@ -348,7 +348,7 @@ class TestIntegrationScenarios:
 
         # Base class with valid name
         class Animal(Entity):
-            flags = EntityFlags(abstract=True)
+            flags = TypeFlags(abstract=True)
 
         # This should work
         class Dog(Animal):
@@ -358,7 +358,7 @@ class TestIntegrationScenarios:
         with pytest.raises(ReservedWordError):
 
             class Update(Animal):
-                flags = EntityFlags(name="update")
+                flags = TypeFlags(name="update")
 
 
 class TestBaseClassEscapeHatch:
@@ -369,14 +369,14 @@ class TestBaseClassEscapeHatch:
 
         # This should succeed even though 'match' is reserved
         class Match(Entity):
-            flags = EntityFlags(base=True, name="match")
+            flags = TypeFlags(base=True, name="match")
 
         assert Match.get_type_name() == "match"
         assert Match.is_base() is True
 
         # Another example with a different reserved word
         class Define(Entity):
-            flags = EntityFlags(base=True)
+            flags = TypeFlags(base=True)
 
         assert Define.is_base() is True
 
@@ -385,7 +385,7 @@ class TestBaseClassEscapeHatch:
 
         # This should succeed even though 'insert' is reserved
         class Insert(Relation):
-            flags = RelationFlags(base=True, name="insert")
+            flags = TypeFlags(base=True, name="insert")
 
         assert Insert.get_type_name() == "insert"
         assert Insert.is_base() is True
@@ -394,7 +394,7 @@ class TestBaseClassEscapeHatch:
         """Base classes should return None for schema definition."""
 
         class Update(Entity):
-            flags = EntityFlags(base=True, name="update")
+            flags = TypeFlags(base=True, name="update")
 
         # Base classes don't appear in schema
         assert Update.to_schema_definition() is None
@@ -404,11 +404,11 @@ class TestBaseClassEscapeHatch:
 
         # Base class with reserved name (allowed)
         class Match(Entity):
-            flags = EntityFlags(base=True, name="match")
+            flags = TypeFlags(base=True, name="match")
 
         # Inheriting class with valid name (should work)
         class Person(Match):
-            flags = EntityFlags(name="person")
+            flags = TypeFlags(name="person")
 
         assert Person.get_type_name() == "person"
 
@@ -416,7 +416,7 @@ class TestBaseClassEscapeHatch:
         with pytest.raises(ReservedWordError):
 
             class Delete(Match):
-                flags = EntityFlags(name="delete")
+                flags = TypeFlags(name="delete")
 
     def test_base_entity_and_relation_classes_bypass_validation(self):
         """The abstract base Entity and Relation classes themselves should bypass validation."""

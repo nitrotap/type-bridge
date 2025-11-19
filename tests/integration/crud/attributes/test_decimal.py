@@ -4,7 +4,7 @@ from decimal import Decimal as PyDecimal
 
 import pytest
 
-from type_bridge import Decimal, Entity, EntityFlags, Flag, Key, SchemaManager, String
+from type_bridge import Decimal, Entity, Flag, Key, SchemaManager, String, TypeFlags
 
 
 @pytest.mark.integration
@@ -19,7 +19,7 @@ def test_decimal_insert(clean_db):
         pass
 
     class Account(Entity):
-        flags = EntityFlags(type_name="account_dec")
+        flags = TypeFlags(type_name="account_dec")
         name: AccountName = Flag(Key)
         balance: Balance
 
@@ -52,7 +52,7 @@ def test_decimal_fetch(clean_db):
         pass
 
     class Account(Entity):
-        flags = EntityFlags(type_name="account_dec_fetch")
+        flags = TypeFlags(type_name="account_dec_fetch")
         name: AccountName = Flag(Key)
         balance: Balance
 
@@ -88,7 +88,7 @@ def test_decimal_update(clean_db):
         pass
 
     class Account(Entity):
-        flags = EntityFlags(type_name="account_dec_update")
+        flags = TypeFlags(type_name="account_dec_update")
         name: AccountName = Flag(Key)
         balance: Balance
 
@@ -126,7 +126,7 @@ def test_decimal_delete(clean_db):
         pass
 
     class Account(Entity):
-        flags = EntityFlags(type_name="account_dec_delete")
+        flags = TypeFlags(type_name="account_dec_delete")
         name: AccountName = Flag(Key)
         balance: Balance
 

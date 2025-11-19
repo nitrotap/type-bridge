@@ -2,7 +2,7 @@
 
 import pytest
 
-from type_bridge import Entity, EntityFlags, Flag, Key, SchemaManager, String, Unique
+from type_bridge import Entity, Flag, Key, SchemaManager, String, TypeFlags, Unique
 
 
 @pytest.mark.integration
@@ -17,7 +17,7 @@ def test_schema_with_unique_attributes(clean_db):
         pass
 
     class User(Entity):
-        flags = EntityFlags(type_name="user")
+        flags = TypeFlags(type_name="user")
         email: Email = Flag(Key)
         username: Username = Flag(Unique)
 

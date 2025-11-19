@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, TypeVar, dataclass_transform, get_origin,
 
 from pydantic import ConfigDict
 
-from type_bridge.attribute import AttributeFlags, EntityFlags, TypeFlags
+from type_bridge.attribute import AttributeFlags, TypeFlags
 from type_bridge.models.base import TypeDBType
 from type_bridge.models.utils import ModelAttrInfo, extract_metadata
 
@@ -18,12 +18,12 @@ if TYPE_CHECKING:
 E = TypeVar("E", bound="Entity")
 
 
-@dataclass_transform(kw_only_default=False, field_specifiers=(AttributeFlags, EntityFlags))
+@dataclass_transform(kw_only_default=False, field_specifiers=(AttributeFlags, TypeFlags))
 class Entity(TypeDBType):
     """Base class for TypeDB entities with Pydantic validation.
 
     Entities own attributes defined as Attribute subclasses.
-    Use EntityFlags (or TypeFlags) to configure type name and abstract status.
+    Use TypeFlags to configure type name and abstract status.
     Supertype is determined automatically from Python inheritance.
 
     This class inherits from TypeDBType and Pydantic's BaseModel, providing:
@@ -40,7 +40,7 @@ class Entity(TypeDBType):
             pass
 
         class Person(Entity):
-            flags = EntityFlags(name="person")
+            flags = TypeFlags(name="person")
             name: Name = Flag(Key)
             age: Age
 
@@ -59,7 +59,7 @@ class Entity(TypeDBType):
         arbitrary_types_allowed=True,
         validate_assignment=True,
         extra="allow",
-        ignored_types=(EntityFlags, TypeFlags),
+        ignored_types=(TypeFlags,),
         revalidate_instances="always",
     )
 
@@ -69,11 +69,34 @@ class Entity(TypeDBType):
 
         # Extract owned attributes from type hints
         owned_attrs: dict[str, ModelAttrInfo] = {}
+
+        # Get direct annotations from this class
+        direct_annotations = set(getattr(cls, "__annotations__", {}).keys())
+
+        # Also include annotations from base=True parent classes
+        # (they don't appear in TypeDB schema, so child must own their attributes)
+        # Stop when we hit a non-base Entity class (it already handles its base=True parents)
+        for base in cls.__mro__[1:]:  # Skip cls itself
+            if base is Entity or not issubclass(base, Entity):
+                continue
+            if hasattr(base, "_flags") and base._flags.base:
+                base_annotations = getattr(base, "__annotations__", {})
+                direct_annotations.update(base_annotations.keys())
+            else:
+                # Stop at first non-base Entity class
+                break
+
         try:
             # Use include_extras=True to preserve Annotated metadata
-            hints = get_type_hints(cls, include_extras=True)
+            all_hints = get_type_hints(cls, include_extras=True)
+            # Filter to only include direct annotations and base=True parent annotations
+            hints = {k: v for k, v in all_hints.items() if k in direct_annotations}
         except Exception:
-            hints: dict[str, Any] = getattr(cls, "__annotations__", {})
+            hints: dict[str, Any] = {
+                k: v
+                for k, v in getattr(cls, "__annotations__", {}).items()
+                if k in direct_annotations
+            }
 
         # Rewrite annotations to add base types for type checker support
         new_annotations = {}
@@ -238,15 +261,15 @@ class Entity(TypeDBType):
         lines = []
 
         # Define entity type with supertype from Python inheritance
+        # TypeDB 3.x syntax: entity name @abstract, sub parent,
         supertype = cls.get_supertype()
-        if supertype:
-            entity_def = f"entity {type_name} sub {supertype}"
-        else:
-            entity_def = f"entity {type_name}"
+        is_abstract = cls.is_abstract()
 
-        # Add @abstract annotation if needed (TypeDB 3.x syntax)
-        if cls.is_abstract():
+        entity_def = f"entity {type_name}"
+        if is_abstract:
             entity_def += " @abstract"
+        if supertype:
+            entity_def += f", sub {supertype}"
 
         lines.append(entity_def)
 
@@ -277,7 +300,8 @@ class Entity(TypeDBType):
         type_name = self.get_type_name()
         parts = [f"{var} isa {type_name}"]
 
-        for field_name, attr_info in self._owned_attrs.items():
+        # Use get_all_attributes to include inherited attributes
+        for field_name, attr_info in self.get_all_attributes().items():
             # Use Pydantic's getattr to get field value
             value = getattr(self, field_name, None)
             if value is not None:

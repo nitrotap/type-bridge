@@ -7,14 +7,13 @@ This example shows the difference between:
 
 from type_bridge import (
     Entity,
-    EntityFlags,
     Flag,
     Integer,
     Key,
     Relation,
-    RelationFlags,
     Role,
     String,
+    TypeFlags,
 )
 
 
@@ -41,7 +40,7 @@ class Salary(Integer):
 
 # Define entities
 class Person(Entity):
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
 
     name: Name = Flag(Key)
     email: Email
@@ -49,14 +48,14 @@ class Person(Entity):
 
 
 class Company(Entity):
-    flags = EntityFlags(type_name="company")
+    flags = TypeFlags(type_name="company")
 
     name: Name = Flag(Key)
 
 
 # Define relation
 class Employment(Relation):
-    flags = RelationFlags(type_name="employment")
+    flags = TypeFlags(type_name="employment")
 
     employee: Role[Person] = Role("employee", Person)
     employer: Role[Company] = Role("employer", Company)

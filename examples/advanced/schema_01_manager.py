@@ -13,14 +13,13 @@ from type_bridge import (
     Card,
     DateTime,
     Entity,
-    EntityFlags,
     Flag,
     Integer,
     Key,
     Relation,
-    RelationFlags,
     Role,
     String,
+    TypeFlags,
     Unique,
 )
 from type_bridge.schema import SchemaManager
@@ -68,7 +67,7 @@ class Active(Boolean):
 class Person(Entity):
     """Person entity with various attribute types."""
 
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
 
     name: Name = Flag(Key)  # Required, unique identifier
     email: Email = Flag(Unique)  # Required, must be unique
@@ -79,7 +78,7 @@ class Person(Entity):
 class Company(Entity):
     """Company entity with multi-value attributes."""
 
-    flags = EntityFlags(type_name="company")
+    flags = TypeFlags(type_name="company")
 
     name: Name = Flag(Key)  # Required, unique identifier
     founded: Founded  # Required
@@ -90,7 +89,7 @@ class Company(Entity):
 class Employment(Relation):
     """Employment relation connecting persons and companies."""
 
-    flags = RelationFlags(type_name="employment")
+    flags = TypeFlags(type_name="employment")
 
     # Define roles (not ClassVar, so they can be instance attributes)
     employee: Role[Person] = Role("employee", Person)

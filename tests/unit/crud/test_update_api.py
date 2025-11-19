@@ -5,7 +5,7 @@ wrapped Attribute instances to verify Pydantic's type coercion works correctly.
 The type: ignore comments are expected and indicate we're testing runtime validation.
 """
 
-from type_bridge import Card, Entity, EntityFlags, Flag, Integer, Key, String
+from type_bridge import Card, Entity, Flag, Integer, Key, String, TypeFlags
 
 
 class Name(String):
@@ -27,7 +27,7 @@ class Status(String):
 class Person(Entity):
     """Person entity with single and multi-value attributes."""
 
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
     name: Name = Flag(Key)
     age: Age | None
     status: Status

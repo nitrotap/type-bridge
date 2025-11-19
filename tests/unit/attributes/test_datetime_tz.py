@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
-from type_bridge import DateTime, DateTimeTZ, Entity, EntityFlags
+from type_bridge import DateTime, DateTimeTZ, Entity, TypeFlags
 
 
 def test_datetimetz_creation():
@@ -48,7 +48,7 @@ def test_datetimetz_in_entity():
         pass
 
     class Event(Entity):
-        flags = EntityFlags(type_name="event")
+        flags = TypeFlags(type_name="event")
         created_at: CreatedAt
 
     # Create entity with timezone-aware datetime
@@ -201,7 +201,7 @@ def test_datetimetz_pydantic_validation():
         pass
 
     class Event(Entity):
-        flags = EntityFlags(type_name="event")
+        flags = TypeFlags(type_name="event")
         updated_at: UpdatedAt
 
     # Test with timezone-aware datetime
@@ -234,7 +234,7 @@ def test_mixed_datetime_types_in_entity():
         pass
 
     class Event(Entity):
-        flags = EntityFlags(type_name="event")
+        flags = TypeFlags(type_name="event")
         created_at: CreatedAt
         updated_at: UpdatedAt
 

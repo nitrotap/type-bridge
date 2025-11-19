@@ -147,11 +147,6 @@ class TypeFlags:
         self.case = case
 
 
-# Backward compatibility aliases
-EntityFlags = TypeFlags
-RelationFlags = TypeFlags
-
-
 class Card:
     """Cardinality marker for multi-value attribute ownership.
 
@@ -282,7 +277,7 @@ def Flag(*annotations: Any) -> Annotated[Any, AttributeFlags]:
 
     Example:
         class Person(Entity):
-            flags = EntityFlags(type_name="person")
+            flags = TypeFlags(type_name="person")
             name: Name = Flag(Key)                    # @key (implies @card(1..1))
             email: Email = Flag(Key, Unique)          # @key @unique
             age: Optional[Age]                        # @card(0..1)

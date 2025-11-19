@@ -1,6 +1,6 @@
 """Test String attribute type."""
 
-from type_bridge import Entity, EntityFlags, Flag, Key, String
+from type_bridge import Entity, Flag, Key, String, TypeFlags
 
 
 def test_string_creation():
@@ -30,7 +30,7 @@ def test_string_in_entity():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
 
     person = Person(name=Name("Alice"))
@@ -44,7 +44,7 @@ def test_string_insert_query():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name
 
     person = Person(name=Name("Alice"))
@@ -63,7 +63,7 @@ def test_string_with_special_characters():
         pass
 
     class Item(Entity):
-        flags = EntityFlags(type_name="item")
+        flags = TypeFlags(type_name="item")
         description: Description
 
     # Test with quotes in string - quotes should be escaped
@@ -83,7 +83,7 @@ def test_string_quote_escaping():
         pass
 
     class Message(Entity):
-        flags = EntityFlags(type_name="message")
+        flags = TypeFlags(type_name="message")
         text: Text
 
     # Test double quote escaping
@@ -103,7 +103,7 @@ def test_string_backslash_escaping():
         pass
 
     class File(Entity):
-        flags = EntityFlags(type_name="file")
+        flags = TypeFlags(type_name="file")
         path: Path
 
     # Test backslash escaping
@@ -121,7 +121,7 @@ def test_string_mixed_escaping():
         pass
 
     class Item(Entity):
-        flags = EntityFlags(type_name="item")
+        flags = TypeFlags(type_name="item")
         description: Description
 
     # Test complex escaping with both quotes and backslashes
@@ -139,7 +139,7 @@ def test_empty_string_insert_query():
         pass
 
     class Tag(Entity):
-        flags = EntityFlags(type_name="tag")
+        flags = TypeFlags(type_name="tag")
         name: Name
 
     # Test with empty string
@@ -160,7 +160,7 @@ def test_string_optional_attribute():
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
         email: Email | None
 
@@ -229,7 +229,7 @@ def test_string_with_newlines():
         pass
 
     class Doc(Entity):
-        flags = EntityFlags(type_name="doc")
+        flags = TypeFlags(type_name="doc")
         description: Description
 
     # Test with newlines

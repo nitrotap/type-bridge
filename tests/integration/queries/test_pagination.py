@@ -2,7 +2,7 @@
 
 import pytest
 
-from type_bridge import Entity, EntityFlags, Flag, Integer, Key, String
+from type_bridge import Entity, Flag, Integer, Key, String, TypeFlags
 
 
 @pytest.mark.integration
@@ -17,7 +17,7 @@ def test_query_with_limit_and_offset(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
         age: Age | None
 
@@ -53,7 +53,7 @@ def test_query_first_method(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
         age: Age | None
 
@@ -88,7 +88,7 @@ def test_query_count_method(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
         age: Age | None
 

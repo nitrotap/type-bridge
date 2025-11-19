@@ -2,12 +2,11 @@
 
 from type_bridge import (
     Entity,
-    EntityFlags,
     Integer,
     Relation,
-    RelationFlags,
     Role,
     String,
+    TypeFlags,
     TypeNameCase,
 )
 
@@ -38,7 +37,7 @@ def test_typename_case_lowercase_explicit():
     """Test explicit LOWERCASE case formatting."""
 
     class PersonName(Entity):
-        flags = EntityFlags(case=TypeNameCase.LOWERCASE)
+        flags = TypeFlags(case=TypeNameCase.LOWERCASE)
         name: Name
 
     assert PersonName.get_type_name() == "personname"
@@ -48,7 +47,7 @@ def test_typename_case_classname():
     """Test CLASS_NAME case formatting (keeps as-is)."""
 
     class PersonName(Entity):
-        flags = EntityFlags(case=TypeNameCase.CLASS_NAME)
+        flags = TypeFlags(case=TypeNameCase.CLASS_NAME)
         name: Name
 
     assert PersonName.get_type_name() == "PersonName"
@@ -58,7 +57,7 @@ def test_typename_case_snake_case():
     """Test SNAKE_CASE formatting."""
 
     class PersonName(Entity):
-        flags = EntityFlags(case=TypeNameCase.SNAKE_CASE)
+        flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
         name: Name
 
     assert PersonName.get_type_name() == "person_name"
@@ -68,7 +67,7 @@ def test_typename_case_snake_case_complex():
     """Test SNAKE_CASE with complex class names."""
 
     class HTTPResponseData(Entity):
-        flags = EntityFlags(case=TypeNameCase.SNAKE_CASE)
+        flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
         name: Name
 
     assert HTTPResponseData.get_type_name() == "http_response_data"
@@ -78,7 +77,7 @@ def test_typename_explicit_takes_precedence():
     """Test that explicit type_name takes precedence over case formatting."""
 
     class PersonName(Entity):
-        flags = EntityFlags(type_name="custom_name", case=TypeNameCase.SNAKE_CASE)
+        flags = TypeFlags(type_name="custom_name", case=TypeNameCase.SNAKE_CASE)
         name: Name
 
     # Should use explicit type_name, not apply case formatting
@@ -89,7 +88,7 @@ def test_relation_typename_case_lowercase():
     """Test LOWERCASE case formatting for relations."""
 
     class PersonEmployment(Relation):
-        flags = RelationFlags(case=TypeNameCase.LOWERCASE)
+        flags = TypeFlags(case=TypeNameCase.LOWERCASE)
         employee: Role[Entity] = Role("employee", Entity)
 
     assert PersonEmployment.get_type_name() == "personemployment"
@@ -99,7 +98,7 @@ def test_relation_typename_case_classname():
     """Test CLASS_NAME case formatting for relations."""
 
     class PersonEmployment(Relation):
-        flags = RelationFlags(case=TypeNameCase.CLASS_NAME)
+        flags = TypeFlags(case=TypeNameCase.CLASS_NAME)
         employee: Role[Entity] = Role("employee", Entity)
 
     assert PersonEmployment.get_type_name() == "PersonEmployment"
@@ -109,7 +108,7 @@ def test_relation_typename_case_snake_case():
     """Test SNAKE_CASE formatting for relations."""
 
     class PersonEmployment(Relation):
-        flags = RelationFlags(case=TypeNameCase.SNAKE_CASE)
+        flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
         employee: Role[Entity] = Role("employee", Entity)
 
     assert PersonEmployment.get_type_name() == "person_employment"
@@ -119,7 +118,7 @@ def test_relation_typename_explicit_takes_precedence():
     """Test that explicit type_name takes precedence for relations."""
 
     class PersonEmployment(Relation):
-        flags = RelationFlags(type_name="employment", case=TypeNameCase.SNAKE_CASE)
+        flags = TypeFlags(type_name="employment", case=TypeNameCase.SNAKE_CASE)
         employee: Role[Entity] = Role("employee", Entity)
 
     assert PersonEmployment.get_type_name() == "employment"
@@ -129,7 +128,7 @@ def test_schema_generation_with_snake_case():
     """Test that schema generation uses the formatted type name."""
 
     class PersonName(Entity):
-        flags = EntityFlags(case=TypeNameCase.SNAKE_CASE)
+        flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
         name: Name
 
     schema = PersonName.to_schema_definition()
@@ -141,7 +140,7 @@ def test_schema_generation_with_classname():
     """Test that schema generation uses CLASS_NAME correctly."""
 
     class PersonName(Entity):
-        flags = EntityFlags(case=TypeNameCase.CLASS_NAME)
+        flags = TypeFlags(case=TypeNameCase.CLASS_NAME)
         name: Name
 
     schema = PersonName.to_schema_definition()
@@ -153,15 +152,15 @@ def test_single_word_class_all_cases():
     """Test that single-word class names work correctly with all case options."""
 
     class Person(Entity):
-        flags = EntityFlags(case=TypeNameCase.LOWERCASE)
+        flags = TypeFlags(case=TypeNameCase.LOWERCASE)
         name: Name
 
     class Person2(Entity):
-        flags = EntityFlags(case=TypeNameCase.CLASS_NAME)
+        flags = TypeFlags(case=TypeNameCase.CLASS_NAME)
         name: Name
 
     class Person3(Entity):
-        flags = EntityFlags(case=TypeNameCase.SNAKE_CASE)
+        flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
         name: Name
 
     assert Person.get_type_name() == "person"
@@ -173,7 +172,7 @@ def test_acronym_handling():
     """Test handling of acronyms in class names."""
 
     class APIKey(Entity):
-        flags = EntityFlags(case=TypeNameCase.SNAKE_CASE)
+        flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
         name: Name
 
     # Should handle acronyms gracefully
@@ -184,7 +183,7 @@ def test_multiple_consecutive_caps():
     """Test handling of multiple consecutive capital letters."""
 
     class XMLParser(Entity):
-        flags = EntityFlags(case=TypeNameCase.SNAKE_CASE)
+        flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
         name: Name
 
     assert XMLParser.get_type_name() == "xml_parser"
@@ -194,11 +193,11 @@ def test_typename_case_in_inheritance():
     """Test that child classes can have different case formatting than parents."""
 
     class BaseEntity(Entity):
-        flags = EntityFlags(case=TypeNameCase.LOWERCASE, base=True)
+        flags = TypeFlags(case=TypeNameCase.LOWERCASE, base=True)
         name: Name
 
     class PersonName(BaseEntity):
-        flags = EntityFlags(case=TypeNameCase.SNAKE_CASE)
+        flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
         age: Age
 
     assert PersonName.get_type_name() == "person_name"
@@ -208,7 +207,7 @@ def test_to_insert_query_uses_formatted_name():
     """Test that insert queries use the formatted type name."""
 
     class PersonName(Entity):
-        flags = EntityFlags(case=TypeNameCase.SNAKE_CASE)
+        flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
         name: Name
 
     person = PersonName(name=Name("Alice"))

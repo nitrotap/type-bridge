@@ -9,14 +9,13 @@ This example shows how to:
 from type_bridge import (
     Boolean,
     Entity,
-    EntityFlags,
     Flag,
     Integer,
     Key,
     Relation,
-    RelationFlags,
     Role,
     String,
+    TypeFlags,
 )
 from type_bridge.schema import SchemaManager
 
@@ -35,7 +34,7 @@ class Age(Integer):
 
 
 class PersonV1(Entity):
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
 
     name: Name = Flag(Key)
     email: Email
@@ -51,7 +50,7 @@ class Phone(String):
 
 
 class PersonV2(Entity):
-    flags = EntityFlags(type_name="person")
+    flags = TypeFlags(type_name="person")
 
     name: Name = Flag(Key)
     email: Email
@@ -62,7 +61,7 @@ class PersonV2(Entity):
 class CompanyV2(Entity):
     """New entity in V2."""
 
-    flags = EntityFlags(type_name="company")
+    flags = TypeFlags(type_name="company")
 
     name: Name = Flag(Key)
 
@@ -70,7 +69,7 @@ class CompanyV2(Entity):
 class EmploymentV2(Relation):
     """New relation in V2."""
 
-    flags = RelationFlags(type_name="employment")
+    flags = TypeFlags(type_name="employment")
 
     employee: Role[PersonV2] = Role("employee", PersonV2)
     employer: Role[CompanyV2] = Role("employer", CompanyV2)

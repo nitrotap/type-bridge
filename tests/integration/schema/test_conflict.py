@@ -2,7 +2,7 @@
 
 import pytest
 
-from type_bridge import Entity, EntityFlags, Flag, Integer, Key, SchemaManager, String
+from type_bridge import Entity, Flag, Integer, Key, SchemaManager, String, TypeFlags
 from type_bridge.schema import SchemaConflictError
 
 
@@ -18,7 +18,7 @@ def test_schema_conflict_detection(clean_db):
         pass
 
     class Person(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
         age: Age
 
@@ -29,7 +29,7 @@ def test_schema_conflict_detection(clean_db):
 
     # Modify schema - remove age attribute
     class PersonModified(Entity):
-        flags = EntityFlags(type_name="person")
+        flags = TypeFlags(type_name="person")
         name: Name = Flag(Key)
         # age attribute removed!
 

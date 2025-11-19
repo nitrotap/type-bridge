@@ -17,10 +17,8 @@ from type_bridge.attribute.duration import Duration
 from type_bridge.attribute.flags import (
     AttributeFlags,
     Card,
-    EntityFlags,
     Flag,
     Key,
-    RelationFlags,
     TypeFlags,
     TypeNameCase,
     Unique,
@@ -48,7 +46,5 @@ __all__ = [
     "Card",
     "AttributeFlags",
     "TypeFlags",
-    "EntityFlags",  # Backward compatibility
-    "RelationFlags",  # Backward compatibility
     "TypeNameCase",
 ]

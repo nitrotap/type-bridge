@@ -8,7 +8,7 @@ Run this example:
     uv run python examples/advanced/reserved_words_validation.py
 """
 
-from type_bridge import Entity, EntityFlags, Integer, Relation, RelationFlags, Role, String
+from type_bridge import Entity, Integer, Relation, Role, String, TypeFlags
 from type_bridge.validation import ReservedWordError
 
 
@@ -22,7 +22,7 @@ def demonstrate_entity_validation():
     try:
 
         class Person(Entity):
-            flags = EntityFlags(name="person")
+            flags = TypeFlags(name="person")
 
         print("✓ Valid: 'person' is not a reserved word")
     except ReservedWordError as e:
@@ -32,7 +32,7 @@ def demonstrate_entity_validation():
     try:
 
         class Match(Entity):
-            flags = EntityFlags(name="match")
+            flags = TypeFlags(name="match")
 
         print("✓ Created entity with name 'match'")
     except ReservedWordError as e:
@@ -44,7 +44,7 @@ def demonstrate_entity_validation():
     try:
 
         class Define(Entity):
-            flags = EntityFlags(base=True, name="define")
+            flags = TypeFlags(base=True, name="define")
 
         print("✓ Created base entity with reserved name 'define' (base=True bypasses validation)")
     except ReservedWordError as e:
@@ -106,7 +106,7 @@ def demonstrate_relation_validation():
     try:
 
         class Employment(Relation):
-            flags = RelationFlags(name="employment")
+            flags = TypeFlags(name="employment")
 
         print("✓ Valid: 'employment' is not a reserved word")
     except ReservedWordError as e:
@@ -116,7 +116,7 @@ def demonstrate_relation_validation():
     try:
 
         class Update(Relation):
-            flags = RelationFlags(name="update")
+            flags = TypeFlags(name="update")
 
         print("✓ Created relation with name 'update'")
     except ReservedWordError as e:
