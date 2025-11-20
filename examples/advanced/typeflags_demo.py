@@ -36,9 +36,9 @@ print("-" * 80)
 
 
 class Person(Entity):
-    flags = TypeFlags(name="person")  # Use 'name' instead of 'type_name'
-    name: Name = Flag(Key)
+    flags: TypeFlags = TypeFlags(name="person")  # Use 'name' instead of 'type_name'
     age: Age
+    name: Name = Flag(Key)
 
 
 print(f"Person type name: {Person.get_type_name()}")  # → "person"
@@ -53,12 +53,12 @@ print("-" * 80)
 
 
 class Company(Entity):
-    flags = TypeFlags(name="company")
+    flags: TypeFlags = TypeFlags(name="company")
     name: Name = Flag(Key)
 
 
 class Employment(Relation):
-    flags = TypeFlags(name="employment")  # Same TypeFlags class!
+    flags: TypeFlags = TypeFlags(name="employment")  # Same TypeFlags class!
     employee: Role[Person] = Role("employee", Person)
     employer: Role[Company] = Role("employer", Company)
     position: Position
@@ -76,12 +76,14 @@ print("-" * 80)
 
 
 class PersonData(Entity):
-    flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)  # No 'name', uses CLASS_NAME → snake_case
+    flags: TypeFlags = TypeFlags(
+        case=TypeNameCase.SNAKE_CASE
+    )  # No 'name', uses CLASS_NAME → snake_case
     name: Name = Flag(Key)
 
 
 class CompanyData(Entity):
-    flags = TypeFlags()  # No 'name', uses CLASS_NAME default
+    flags: TypeFlags = TypeFlags()  # No 'name', uses CLASS_NAME default
     name: Name = Flag(Key)
 
 
@@ -95,12 +97,12 @@ print("-" * 80)
 
 
 class AbstractEntity(Entity):
-    flags = TypeFlags(abstract=True, name="abstract_entity")
+    flags: TypeFlags = TypeFlags(abstract=True, name="abstract_entity")
     name: Name
 
 
 class BaseEntity(Entity):
-    flags = TypeFlags(base=True)  # Python-only base class
+    flags: TypeFlags = TypeFlags(base=True)  # Python-only base class
 
 
 print(f"AbstractEntity is abstract: {AbstractEntity.is_abstract()}")

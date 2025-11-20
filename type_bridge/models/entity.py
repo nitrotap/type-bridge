@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, TypeVar, dataclass_transform, get_origin, get_type_hints
 
 from pydantic import ConfigDict
+from pydantic._internal._model_construction import ModelMetaclass
 
 from type_bridge.attribute import AttributeFlags, TypeFlags
 from type_bridge.models.base import TypeDBType
@@ -18,8 +19,67 @@ if TYPE_CHECKING:
 E = TypeVar("E", bound="Entity")
 
 
-@dataclass_transform(kw_only_default=False, field_specifiers=(AttributeFlags, TypeFlags))
-class Entity(TypeDBType):
+class EntityMeta(ModelMetaclass):
+    """
+    Metaclass for Entity that enables class-level field access for query building.
+
+    Intercepts class-level attribute access to return FieldRef instances
+    for defined fields, enabling syntax like Person.age.gt(Age(30)).
+    """
+
+    def __new__(
+        mcs, name: str, bases: tuple[type, ...], namespace: dict[str, Any], **kwargs: Any
+    ) -> type:
+        """
+        Create a new Entity class.
+
+        Removes any non-default field values from namespace before Pydantic processes it.
+        This prevents Pydantic from capturing spurious defaults.
+        """
+        import warnings
+
+        # Now call parent __new__ (ModelMetaclass)
+        # The smart __getattribute__ below will prevent FieldRef from being
+        # captured as defaults during Pydantic's field collection
+        # Suppress Pydantic's field shadowing warnings - field shadowing is intentional
+        # in TypeBridge when child entities override parent attributes
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message=".*shadows an attribute.*", category=UserWarning
+            )
+            return super().__new__(mcs, name, bases, namespace, **kwargs)
+
+    def __getattribute__(cls, name: str) -> Any:
+        """
+        Intercept class-level attribute access.
+
+        For owned attributes AFTER initialization is complete, return FieldRef instances.
+        During Pydantic initialization, return the actual descriptor.
+        """
+        # Check if this is a field and if we should return FieldRef
+        try:
+            owned_attrs = super().__getattribute__("_owned_attrs")
+            pydantic_complete = super().__getattribute__("__pydantic_complete__")
+
+            # Only return FieldRef if:
+            # 1. Field is in owned_attrs (it's one of our fields)
+            # 2. Pydantic setup is complete (__pydantic_complete__ is True)
+            if name in owned_attrs and pydantic_complete:
+                from type_bridge.fields import FieldDescriptor
+
+                attr_info = owned_attrs[name]
+                descriptor = FieldDescriptor(field_name=name, attr_type=attr_info.typ)
+                return descriptor.__get__(None, cls)
+        except AttributeError:
+            # _owned_attrs or __pydantic_complete__ not defined yet
+            pass
+
+        # For all other cases, use normal access
+        return super().__getattribute__(name)
+
+
+@dataclass_transform(kw_only_default=True, field_specifiers=(AttributeFlags,))
+class Entity(TypeDBType, metaclass=EntityMeta):
     """Base class for TypeDB entities with Pydantic validation.
 
     Entities own attributes defined as Attribute subclasses.
@@ -180,6 +240,25 @@ class Entity(TypeDBType):
         # Update class annotations for Pydantic's benefit
         cls.__annotations__ = new_annotations
         cls._owned_attrs = owned_attrs
+
+        # Set explicit None defaults for optional fields (with | None in annotation)
+        # Pydantic doesn't auto-default these in our metaclass setup
+        from pydantic import Field
+
+        from type_bridge.attribute import Attribute
+
+        for field_name, attr_info in owned_attrs.items():
+            # Check if there's already an explicit default value in __dict__
+            # (avoid triggering __getattribute__ which might return FieldRef)
+            existing_default = cls.__dict__.get(field_name, None)
+
+            # Check if this is an optional field (card_min=0) without an explicit default
+            if attr_info.flags.card_min == 0 and not attr_info.flags.has_explicit_card:
+                # Only set Field(default=None) if there's no explicit Attribute instance default
+                if not isinstance(existing_default, Attribute):
+                    # This is an optional single-value field (Type | None) without explicit default
+                    # Set explicit None default using Pydantic Field
+                    type.__setattr__(cls, field_name, Field(default=None))
 
     @classmethod
     def get_supertype(cls) -> str | None:

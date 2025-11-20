@@ -34,10 +34,10 @@ class Age(Integer):
 
 
 class PersonV1(Entity):
-    flags = TypeFlags(type_name="person")
+    flags: TypeFlags = TypeFlags(type_name="person")
 
-    name: Name = Flag(Key)
     email: Email
+    name: Name = Flag(Key)
 
 
 # Version 2: Updated schema with new fields
@@ -50,18 +50,18 @@ class Phone(String):
 
 
 class PersonV2(Entity):
-    flags = TypeFlags(type_name="person")
+    flags: TypeFlags = TypeFlags(type_name="person")
 
-    name: Name = Flag(Key)
     email: Email
     age: Age | None  # Added optional age
     active: Active  # Added active status
+    name: Name = Flag(Key)
 
 
 class CompanyV2(Entity):
     """New entity in V2."""
 
-    flags = TypeFlags(type_name="company")
+    flags: TypeFlags = TypeFlags(type_name="company")
 
     name: Name = Flag(Key)
 
@@ -69,7 +69,7 @@ class CompanyV2(Entity):
 class EmploymentV2(Relation):
     """New relation in V2."""
 
-    flags = TypeFlags(type_name="employment")
+    flags: TypeFlags = TypeFlags(type_name="employment")
 
     employee: Role[PersonV2] = Role("employee", PersonV2)
     employer: Role[CompanyV2] = Role("employer", CompanyV2)

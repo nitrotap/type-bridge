@@ -33,23 +33,23 @@ class Salary(Integer):
 class Person(Entity):
     """Person entity with Pydantic validation."""
 
-    flags = TypeFlags(type_name="person")
-    name: Name = Flag(Key)  # Required key field
+    flags: TypeFlags = TypeFlags(type_name="person")
     email: Email | None = None  # Optional with default
     age: Age = Age(0)  # Default value (still required unless explicitly Optional)
+    name: Name = Flag(Key)  # Required key field
 
 
 class Company(Entity):
     """Company entity."""
 
-    flags = TypeFlags(type_name="company")
+    flags: TypeFlags = TypeFlags(type_name="company")
     name: Name = Flag(Key)  # Required key field
 
 
 class Employment(Relation):
     """Employment relation."""
 
-    flags = TypeFlags(type_name="employment")
+    flags: TypeFlags = TypeFlags(type_name="employment")
 
     employee: Role[Person] = Role("employee", Person)
     employer: Role[Company] = Role("employer", Company)

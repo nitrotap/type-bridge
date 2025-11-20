@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 R = TypeVar("R", bound="Relation")
 
 
-@dataclass_transform(kw_only_default=False, field_specifiers=(AttributeFlags, TypeFlags))
+@dataclass_transform(kw_only_default=True, field_specifiers=(AttributeFlags,))
 class Relation(TypeDBType):
     """Base class for TypeDB relations with Pydantic validation.
 

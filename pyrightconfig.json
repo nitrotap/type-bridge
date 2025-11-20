@@ -1,0 +1,12 @@
+{
+  "include": [
+    "type_bridge",
+    "tests",
+    "examples"
+  ],
+  "exclude": [
+    "tests/unit/type-check-except"
+  ],
+  "pythonVersion": "3.13",
+  "typeCheckingMode": "standard"
+}

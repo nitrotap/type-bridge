@@ -37,8 +37,8 @@ def test_boolean_in_entity():
 
     class User(Entity):
         flags = TypeFlags(type_name="user")
-        name: Name = Flag(Key)
         is_active: IsActive
+        name: Name = Flag(Key)
 
     user = User(name=Name("Alice"), is_active=IsActive(True))
     assert user.is_active.value is True
@@ -85,7 +85,6 @@ def test_boolean_optional_attribute():
         pass
 
     class User(Entity):
-        flags = TypeFlags(type_name="user")
         name: Name = Flag(Key)
         is_active: IsActive | None
 

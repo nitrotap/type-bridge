@@ -60,7 +60,7 @@ class Industry(String):
 
 # Define entities (must match crud_01_define.py schema)
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags: TypeFlags = TypeFlags(type_name="person")
 
     name: Name = Flag(Key)
     age: Age | None
@@ -69,7 +69,7 @@ class Person(Entity):
 
 
 class Company(Entity):
-    flags = TypeFlags(type_name="company")
+    flags: TypeFlags = TypeFlags(type_name="company")
 
     name: Name = Flag(Key)
     industry: list[Industry] = Flag(Card(1, 5))
@@ -77,7 +77,7 @@ class Company(Entity):
 
 # Define relation (must match crud_01_define.py schema)
 class Employment(Relation):
-    flags = TypeFlags(type_name="employment")
+    flags: TypeFlags = TypeFlags(type_name="employment")
 
     employee: Role[Person] = Role("employee", Person)
     employer: Role[Company] = Role("employer", Company)
@@ -226,8 +226,8 @@ def demonstrate_relation_queries(db: Database):
     all_employments = employment_manager.all()
     print(f"  Total: {len(all_employments)}")
     for emp in all_employments:
-        employee_name = emp.employee.name.value  # type: ignore[attr-defined]
-        employer_name = emp.employer.name.value  # type: ignore[attr-defined]
+        employee_name = emp.employee.name.value
+        employer_name = emp.employer.name.value
         position = emp.position.value
         salary = emp.salary.value if emp.salary else "N/A"
         print(f"  • {employee_name} @ {employer_name} ({position}, ${salary})")
@@ -238,7 +238,7 @@ def demonstrate_relation_queries(db: Database):
     alice = person_manager.get(name="Alice Johnson")[0]
     alice_jobs = employment_manager.get(employee=alice)
     for job in alice_jobs:
-        print(f"  ✓ {job.employer.name.value} - {job.position.value}")  # type: ignore[attr-defined]
+        print(f"  ✓ {job.employer.name.value} - {job.position.value}")
     print()
 
     # Get employments at a specific company
@@ -247,7 +247,7 @@ def demonstrate_relation_queries(db: Database):
     techcorp_employees = employment_manager.get(employer=techcorp)
     print(f"  TechCorp has {len(techcorp_employees)} employees:")
     for job in techcorp_employees:
-        print(f"    • {job.employee.name.value} ({job.position.value})")  # type: ignore[attr-defined]
+        print(f"    • {job.employee.name.value} ({job.position.value})")
     print()
 
 
@@ -289,9 +289,9 @@ def demonstrate_complex_queries(db: Database):
     print("High-paying positions (salary >= $110,000):")
     all_jobs = employment_manager.all()
     high_paying = [j for j in all_jobs if j.salary and j.salary.value >= 110000]
-    for job in sorted(high_paying, key=lambda j: j.salary.value if j.salary else 0, reverse=True):  # type: ignore[attr-defined]
+    for job in sorted(high_paying, key=lambda j: j.salary.value if j.salary else 0, reverse=True):
         salary_val = job.salary.value if job.salary else 0
-        print(f"  • {job.employee.name.value}: ${salary_val} at {job.employer.name.value}")  # type: ignore[attr-defined]
+        print(f"  • {job.employee.name.value}: ${salary_val} at {job.employer.name.value}")
     print()
 
 

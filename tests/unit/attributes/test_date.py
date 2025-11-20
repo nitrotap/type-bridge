@@ -44,8 +44,8 @@ def test_date_in_entity():
 
     class Book(Entity):
         flags = TypeFlags(type_name="book")
-        title: BookTitle = Flag(Key)
         publish_date: PublishDate
+        title: BookTitle = Flag(Key)
 
     # Create entity with date value
     book = Book(title=BookTitle("TypeDB Guide"), publish_date=PublishDate(date(2024, 3, 30)))

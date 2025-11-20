@@ -17,7 +17,7 @@ from type_bridge.attribute.flags import format_type_name
 from type_bridge.models.utils import ModelAttrInfo, validate_type_name
 
 
-@dataclass_transform(kw_only_default=False, field_specifiers=(AttributeFlags, TypeFlags))
+@dataclass_transform(kw_only_default=True, field_specifiers=(AttributeFlags, TypeFlags))
 class TypeDBType(BaseModel, ABC):
     """Abstract base class for TypeDB entities and relations.
 

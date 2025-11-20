@@ -7,6 +7,7 @@ from type_bridge.validation import validate_type_name as validate_reserved_word
 
 if TYPE_CHECKING:
     from type_bridge.attribute.flags import TypeNameCase
+    from type_bridge.expressions import AggregateExpr, ComparisonExpr
 
 # TypeDB built-in type names that cannot be used for attributes
 TYPEDB_BUILTIN_TYPES = {"thing", "entity", "relation", "attribute"}
@@ -211,3 +212,197 @@ class Attribute(ABC):
             definition += ", abstract"
 
         return definition + ";"
+
+    # ========================================================================
+    # Query Expression Class Methods (Type-Safe API)
+    # ========================================================================
+
+    @classmethod
+    def gt(cls, value: "Attribute") -> "ComparisonExpr":
+        """Create greater-than comparison expression.
+
+        Args:
+            value: Value to compare against
+
+        Returns:
+            ComparisonExpr for attr > value
+
+        Example:
+            Age.gt(Age(30))  # age > 30
+        """
+        from type_bridge.expressions import ComparisonExpr
+
+        return ComparisonExpr(attr_type=cls, operator=">", value=value)
+
+    @classmethod
+    def lt(cls, value: "Attribute") -> "ComparisonExpr":
+        """Create less-than comparison expression.
+
+        Args:
+            value: Value to compare against
+
+        Returns:
+            ComparisonExpr for attr < value
+
+        Example:
+            Age.lt(Age(30))  # age < 30
+        """
+        from type_bridge.expressions import ComparisonExpr
+
+        return ComparisonExpr(attr_type=cls, operator="<", value=value)
+
+    @classmethod
+    def gte(cls, value: "Attribute") -> "ComparisonExpr":
+        """Create greater-than-or-equal comparison expression.
+
+        Args:
+            value: Value to compare against
+
+        Returns:
+            ComparisonExpr for attr >= value
+
+        Example:
+            Salary.gte(Salary(80000.0))  # salary >= 80000
+        """
+        from type_bridge.expressions import ComparisonExpr
+
+        return ComparisonExpr(attr_type=cls, operator=">=", value=value)
+
+    @classmethod
+    def lte(cls, value: "Attribute") -> "ComparisonExpr":
+        """Create less-than-or-equal comparison expression.
+
+        Args:
+            value: Value to compare against
+
+        Returns:
+            ComparisonExpr for attr <= value
+
+        Example:
+            Age.lte(Age(65))  # age <= 65
+        """
+        from type_bridge.expressions import ComparisonExpr
+
+        return ComparisonExpr(attr_type=cls, operator="<=", value=value)
+
+    @classmethod
+    def eq(cls, value: "Attribute") -> "ComparisonExpr":
+        """Create equality comparison expression.
+
+        Args:
+            value: Value to compare against
+
+        Returns:
+            ComparisonExpr for attr == value
+
+        Example:
+            Status.eq(Status("active"))  # status == "active"
+        """
+        from type_bridge.expressions import ComparisonExpr
+
+        return ComparisonExpr(attr_type=cls, operator="==", value=value)
+
+    @classmethod
+    def neq(cls, value: "Attribute") -> "ComparisonExpr":
+        """Create not-equal comparison expression.
+
+        Args:
+            value: Value to compare against
+
+        Returns:
+            ComparisonExpr for attr != value
+
+        Example:
+            Status.neq(Status("deleted"))  # status != "deleted"
+        """
+        from type_bridge.expressions import ComparisonExpr
+
+        return ComparisonExpr(attr_type=cls, operator="!=", value=value)
+
+    @classmethod
+    def sum(cls) -> "AggregateExpr":
+        """Create sum aggregation expression.
+
+        Returns:
+            AggregateExpr for sum(attr)
+
+        Example:
+            Salary.sum()  # sum of all salaries
+        """
+        from type_bridge.expressions import AggregateExpr
+
+        return AggregateExpr(attr_type=cls, function="sum")
+
+    @classmethod
+    def avg(cls) -> "AggregateExpr":
+        """Create average (mean) aggregation expression.
+
+        Note:
+            Automatically converts to TypeQL 'mean' function.
+            TypeDB 3.x uses 'mean' instead of 'avg'.
+
+        Returns:
+            AggregateExpr for mean(attr)
+
+        Example:
+            Age.avg()  # Generates TypeQL: mean($age)
+        """
+        from type_bridge.expressions import AggregateExpr
+
+        return AggregateExpr(attr_type=cls, function="mean")
+
+    @classmethod
+    def max(cls) -> "AggregateExpr":
+        """Create maximum aggregation expression.
+
+        Returns:
+            AggregateExpr for max(attr)
+
+        Example:
+            Score.max()  # maximum score
+        """
+        from type_bridge.expressions import AggregateExpr
+
+        return AggregateExpr(attr_type=cls, function="max")
+
+    @classmethod
+    def min(cls) -> "AggregateExpr":
+        """Create minimum aggregation expression.
+
+        Returns:
+            AggregateExpr for min(attr)
+
+        Example:
+            Price.min()  # minimum price
+        """
+        from type_bridge.expressions import AggregateExpr
+
+        return AggregateExpr(attr_type=cls, function="min")
+
+    @classmethod
+    def median(cls) -> "AggregateExpr":
+        """Create median aggregation expression.
+
+        Returns:
+            AggregateExpr for median(attr)
+
+        Example:
+            Salary.median()  # median salary
+        """
+        from type_bridge.expressions import AggregateExpr
+
+        return AggregateExpr(attr_type=cls, function="median")
+
+    @classmethod
+    def std(cls) -> "AggregateExpr":
+        """Create standard deviation aggregation expression.
+
+        Returns:
+            AggregateExpr for std(attr)
+
+        Example:
+            Score.std()  # standard deviation of scores
+        """
+        from type_bridge.expressions import AggregateExpr
+
+        return AggregateExpr(attr_type=cls, function="std")

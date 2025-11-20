@@ -30,7 +30,7 @@ class TestInheritanceEdgeCases:
 
         with pytest.raises(ValueError, match="conflicts with TypeDB built-in type"):
             # Class name directly conflicts (will lowercase to "attribute")
-            class Attribute(String):  # type: ignore[misc]
+            class Attribute(String):
                 pass
 
     def test_builtin_type_name_collision_thing(self):
@@ -74,7 +74,7 @@ class TestInheritanceEdgeCases:
         # which would default to type_name="Entity" (which lowercases to "entity", collision)
         with pytest.raises(ValueError, match="'Entity'.*conflicts with TypeDB built-in"):
             # Intentionally name the class "Entity" to trigger the edge case
-            class Entity(tbg.Entity):  # type: ignore[no-redef]
+            class Entity(tbg.Entity):
                 pass  # No flags - would default to type_name="Entity" (CLASS_NAME)
 
     def test_multi_level_inheritance_chain(self):
@@ -132,7 +132,7 @@ class TestInheritanceEdgeCases:
 
         with pytest.raises(ValueError, match="'Relation'.*conflicts with TypeDB built-in"):
 
-            class Relation(tbg.Relation):  # type: ignore[no-redef]
+            class Relation(tbg.Relation):
                 pass  # Would default to type_name="Relation" (CLASS_NAME)
 
     def test_case_sensitivity_in_builtin_check(self):

@@ -67,21 +67,21 @@ class Active(Boolean):
 class Person(Entity):
     """Person entity with various attribute types."""
 
-    flags = TypeFlags(type_name="person")
+    flags: TypeFlags = TypeFlags(type_name="person")
 
-    name: Name = Flag(Key)  # Required, unique identifier
-    email: Email = Flag(Unique)  # Required, must be unique
     age: Age | None  # Optional (0 or 1)
     active: Active  # Required, default cardinality
+    name: Name = Flag(Key)  # Required, unique identifier
+    email: Email = Flag(Unique)  # Required, must be unique
 
 
 class Company(Entity):
     """Company entity with multi-value attributes."""
 
-    flags = TypeFlags(type_name="company")
+    flags: TypeFlags = TypeFlags(type_name="company")
 
-    name: Name = Flag(Key)  # Required, unique identifier
     founded: Founded  # Required
+    name: Name = Flag(Key)  # Required, unique identifier
     industry: list[Industry] = Flag(Card(1, 5))  # 1 to 5 industries
 
 
@@ -89,7 +89,7 @@ class Company(Entity):
 class Employment(Relation):
     """Employment relation connecting persons and companies."""
 
-    flags = TypeFlags(type_name="employment")
+    flags: TypeFlags = TypeFlags(type_name="employment")
 
     # Define roles (not ClassVar, so they can be instance attributes)
     employee: Role[Person] = Role("employee", Person)

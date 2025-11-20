@@ -35,7 +35,7 @@ class Person(Entity):
 
     # Use Flag() for key/unique markers and cardinality
     name: Name = Flag(Key)                  # @key (implies @card(1..1))
-    age: Age | None                         # @card(0..1) - optional single value
+    age: Age | None = None                  # @card(0..1) - explicit default - optional single value
     email: Email                            # @card(1..1) - default, required
     tags: list[Tag] = Flag(Card(min=2))     # @card(2..) - multi-value with Card
 ```
@@ -171,7 +171,7 @@ class Person(Entity):
     flags = EntityFlags(type_name="person")
 
     name: Name = Flag(Key)                  # @key (implies @card(1..1))
-    age: Age | None                         # @card(0..1)
+    age: Age | None = None                  # @card(0..1) - explicit default
     email: Email                            # @card(1..1) - default
     skills: list[Skill] = Flag(Card(min=1)) # @card(1..) - multi-value
 
@@ -188,7 +188,7 @@ class Employment(Relation):
     employer: Role[Company] = Role("employer", Company)
 
     position: Position        # @card(1..1) - default
-    salary: Salary | None     # @card(0..1)
+    salary: Salary | None = None          # @card(0..1) - explicit default
 ```
 
 ## Generated Schema
@@ -243,7 +243,7 @@ class Person(Entity):
 
     # Single value patterns
     name: Name                              # @card(1..1) - required, exactly one
-    age: Age | None                         # @card(0..1) - optional, at most one
+    age: Age | None = None                  # @card(0..1) - explicit default - optional, at most one
 
     # Multi-value patterns (MUST use Flag(Card(...)))
     tags: list[Tag] = Flag(Card(min=1))     # @card(1..) - at least one, unbounded

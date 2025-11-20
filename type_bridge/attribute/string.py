@@ -1,11 +1,14 @@
 """String attribute type for TypeDB."""
 
-from typing import Any, ClassVar, Literal, TypeVar, get_origin
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeVar, get_origin
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import core_schema
 
 from type_bridge.attribute.base import Attribute
+
+if TYPE_CHECKING:
+    from type_bridge.expressions import StringExpr
 
 # TypeVar for proper type checking
 StrValue = TypeVar("StrValue", bound=str)
@@ -102,3 +105,62 @@ class String(Attribute):
                 return_schema=core_schema.str_schema(),
             ),
         )
+
+    # ========================================================================
+    # String Query Expression Class Methods (Type-Safe API)
+    # ========================================================================
+
+    @classmethod
+    def contains(cls, value: "String") -> "StringExpr":
+        """Create contains string expression.
+
+        Args:
+            value: String value to search for
+
+        Returns:
+            StringExpr for attr contains value
+
+        Example:
+            Email.contains(Email("@company.com"))  # email contains "@company.com"
+        """
+        from type_bridge.expressions import StringExpr
+
+        return StringExpr(attr_type=cls, operation="contains", pattern=value)
+
+    @classmethod
+    def like(cls, pattern: "String") -> "StringExpr":
+        """Create regex pattern matching expression.
+
+        Args:
+            pattern: Regex pattern to match
+
+        Returns:
+            StringExpr for attr like pattern
+
+        Example:
+            Name.like(Name("^A.*"))  # name starts with 'A'
+        """
+        from type_bridge.expressions import StringExpr
+
+        return StringExpr(attr_type=cls, operation="like", pattern=pattern)
+
+    @classmethod
+    def regex(cls, pattern: "String") -> "StringExpr":
+        """Create regex pattern matching expression (alias for like).
+
+        Note:
+            Automatically converts to TypeQL 'like' operator.
+            Both 'like' and 'regex' perform regex pattern matching in TypeDB.
+
+        Args:
+            pattern: Regex pattern to match
+
+        Returns:
+            StringExpr for attr like pattern
+
+        Example:
+            Email.regex(Email(".*@gmail\\.com"))  # Generates TypeQL: $email like ".*@gmail\\.com"
+        """
+        from type_bridge.expressions import StringExpr
+
+        return StringExpr(attr_type=cls, operation="regex", pattern=pattern)

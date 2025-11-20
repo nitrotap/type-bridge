@@ -17,7 +17,9 @@ echo "✓ Ruff format complete"
 echo ""
 
 echo "🔎 Running pyright type checker..."
-uv run pyright .
+uv run pyright type_bridge
+uv run pyright examples
+uv run pyright tests
 echo "✓ Pyright check complete"
 echo ""
 

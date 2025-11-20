@@ -55,9 +55,9 @@ class FirstPerson(Entity):
     """
 
     # No case parameter specified - defaults to LOWERCASE
-    flags = TypeFlags()
-    name: PersonName = Flag(Key)
+    flags: TypeFlags = TypeFlags()
     age: Age | None
+    name: PersonName = Flag(Key)
 
 
 # Example 2: CLASS_NAME - keeps class name as-is (PascalCase)
@@ -68,9 +68,9 @@ class SecondPerson(Entity):
     TypeDB type: SecondPerson (unchanged)
     """
 
-    flags = TypeFlags(case=TypeNameCase.CLASS_NAME)
-    name: PersonName = Flag(Key)
+    flags: TypeFlags = TypeFlags(case=TypeNameCase.CLASS_NAME)
     age: Age | None
+    name: PersonName = Flag(Key)
 
 
 # Example 3: SNAKE_CASE - converts PascalCase to snake_case
@@ -81,9 +81,9 @@ class ThirdPerson(Entity):
     TypeDB type: third_person
     """
 
-    flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
-    name: PersonName = Flag(Key)
+    flags: TypeFlags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
     age: Age | None
+    name: PersonName = Flag(Key)
 
 
 # Example 4: Multi-word class names with SNAKE_CASE
@@ -94,7 +94,7 @@ class TechnologyCompany(Entity):
     TypeDB type: technology_company
     """
 
-    flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
+    flags: TypeFlags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
     name: CompanyName = Flag(Key)
 
 
@@ -107,9 +107,9 @@ class FourthPerson(Entity):
     TypeDB type: person (explicit type_name)
     """
 
-    flags = TypeFlags(type_name="person", case=TypeNameCase.SNAKE_CASE)
-    name: PersonName = Flag(Key)
+    flags: TypeFlags = TypeFlags(type_name="person", case=TypeNameCase.SNAKE_CASE)
     age: Age | None
+    name: PersonName = Flag(Key)
 
 
 # Example 6: Relations also support case formatting
@@ -120,7 +120,7 @@ class PersonCompanyEmployment(Relation):
     TypeDB type: person_company_employment
     """
 
-    flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
+    flags: TypeFlags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
     employee: Role[FourthPerson] = Role("employee", FourthPerson)
     employer: Role[TechnologyCompany] = Role("employer", TechnologyCompany)
     title: JobTitle
