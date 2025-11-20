@@ -18,7 +18,7 @@ print("=" * 70)
 class Entity(tbg.Entity):
     """Custom Python base class for shared functionality."""
 
-    flags = TypeFlags(base=True)  # Won't appear in TypeDB schema
+    flags: TypeFlags = TypeFlags(base=True)  # Won't appear in TypeDB schema
 
     def custom_method(self) -> str:
         """Shared method for all entities."""
@@ -35,12 +35,12 @@ class Age(Integer):
 
 # Concrete entities inherit from custom Entity
 class XX(Entity):
-    flags = TypeFlags(type_name="xx")
+    flags: TypeFlags = TypeFlags(type_name="xx")
     name: Name
 
 
 class YY(XX):
-    flags = TypeFlags(type_name="yy")
+    flags: TypeFlags = TypeFlags(type_name="yy")
     age: Age
 
 
@@ -75,19 +75,19 @@ print("=" * 70)
 class Timestamped(tbg.Entity):
     """Python base class providing timestamp functionality."""
 
-    flags = TypeFlags(base=True)  # Python-only, not in TypeDB
+    flags: TypeFlags = TypeFlags(base=True)  # Python-only, not in TypeDB
 
     # This attribute will be inherited by all children
     created_at: Integer  # Could store Unix timestamp
 
 
 class Person(Timestamped):
-    flags = TypeFlags(type_name="person")
+    flags: TypeFlags = TypeFlags(type_name="person")
     name: Name
 
 
 class Company(Timestamped):
-    flags = TypeFlags(type_name="company")
+    flags: TypeFlags = TypeFlags(type_name="company")
     name: Name
 
 
@@ -111,7 +111,7 @@ print("=" * 70)
 
 # Python-only base
 class BaseEntity(tbg.Entity):
-    flags = TypeFlags(base=True)
+    flags: TypeFlags = TypeFlags(base=True)
 
     def audit_log(self) -> str:
         return f"Auditing {self.get_type_name()}"
@@ -119,13 +119,13 @@ class BaseEntity(tbg.Entity):
 
 # TypeDB abstract entity
 class LivingThing(BaseEntity):
-    flags = TypeFlags(type_name="living_thing", abstract=True)
+    flags: TypeFlags = TypeFlags(type_name="living_thing", abstract=True)
     name: Name
 
 
 # Another Python-only base
 class AuditedEntity(LivingThing):
-    flags = TypeFlags(base=True)
+    flags: TypeFlags = TypeFlags(base=True)
 
     def get_audit_metadata(self) -> dict:
         return {"entity_type": self.get_type_name(), "audited": True}
@@ -133,7 +133,7 @@ class AuditedEntity(LivingThing):
 
 # Concrete entity
 class Animal(AuditedEntity):
-    flags = TypeFlags(type_name="animal")
+    flags: TypeFlags = TypeFlags(type_name="animal")
     age: Age
 
 

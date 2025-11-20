@@ -251,7 +251,7 @@ def test_entity_instance():
         age: Age
 
     # NOTE: Intentionally using raw values to test Pydantic's type coercion
-    alice = Person(name="Alice", age=30)  # type: ignore[arg-type]
+    alice = Person(name="Alice", age=30)
     # Strict type safety: attributes are wrapped instances
     assert isinstance(alice.name, Name)
     assert not isinstance(alice.name, str)  # Not a raw str
@@ -304,7 +304,7 @@ def test_entity_insert_query():
         age: Age
 
     # NOTE: Intentionally using raw values to test Pydantic's type coercion
-    alice = Person(name="Alice", age=30)  # type: ignore[arg-type]
+    alice = Person(name="Alice", age=30)
     query = alice.to_insert_query()
 
     assert "$e isa person" in query

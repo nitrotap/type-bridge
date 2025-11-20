@@ -26,7 +26,7 @@ def test_pydantic_validation():
         age: Age
 
     # Valid creation - testing type coercion
-    alice = Person(name="Alice", age=30)  # type: ignore[arg-type]
+    alice = Person(name="Alice", age=30)
     assert alice.name != "Alice"  # Strict type safety: not equal to raw value
     assert alice.name.value == "Alice"  # Access raw value via .value
     assert alice.age != 30  # Strict type safety: not equal to raw value
@@ -35,7 +35,7 @@ def test_pydantic_validation():
     assert not isinstance(alice.age, int)  # Not a raw int
 
     # Type coercion works
-    bob = Person(name="Bob", age="25")  # type: ignore[arg-type]  # String will be converted to int
+    bob = Person(name="Bob", age="25")  # String will be converted to int
     assert bob.age != 25  # Strict type safety: not equal to raw value
     assert bob.age.value == 25  # Access raw value via .value
     assert isinstance(bob.age, Age)  # Wrapped in Age instance
@@ -57,17 +57,17 @@ def test_pydantic_validation_on_assignment():
         name: Name
         age: Age
 
-    alice = Person(name="Alice", age=30)  # type: ignore[arg-type]
+    alice = Person(name="Alice", age=30)
 
     # Valid assignment - testing type coercion
-    alice.age = 31  # type: ignore[assignment]
+    alice.age = 31
     assert alice.age != 31  # Strict type safety: not equal to raw value
     assert alice.age.value == 31  # Access raw value via .value
     assert isinstance(alice.age, Age)  # Wrapped in Age instance
     assert not isinstance(alice.age, int)  # Not a raw int
 
     # Type coercion on assignment - testing string to int coercion
-    alice.age = "32"  # type: ignore[assignment]
+    alice.age = "32"
     assert alice.age != 32  # Strict type safety: not equal to raw value
     assert alice.age.value == 32  # Access raw value via .value
     assert isinstance(alice.age, Age)  # Wrapped in Age instance
@@ -88,7 +88,7 @@ def test_pydantic_json_serialization():
         name: Name
         age: Age
 
-    alice = Person(name="Alice", age=30)  # type: ignore[arg-type]
+    alice = Person(name="Alice", age=30)
 
     # Serialize to dict
     alice_dict = alice.model_dump()
@@ -150,7 +150,7 @@ def test_pydantic_model_copy():
         name: Name
         age: Age
 
-    alice = Person(name="Alice", age=30)  # type: ignore[arg-type]
+    alice = Person(name="Alice", age=30)
 
     # Create a copy with raw values (automatically wrapped)
     alice_older = alice.model_copy(update={"age": 31})
@@ -172,15 +172,15 @@ def test_pydantic_with_optional_fields():
     class Person(Entity):
         flags = TypeFlags(type_name="person")
         name: Name
-        email: Email = None  # type: ignore[assignment]  # Optional field with default
+        email: Email | None  # Optional field (PEP 604 syntax)
 
     # Create without optional field - testing type coercion
-    alice = Person(name="Alice")  # type: ignore[arg-type]
+    alice = Person(name="Alice")
     assert alice.name == Name("Alice")  # Equal to wrapped value
     assert alice.email is None
 
     # Create with optional field - testing type coercion
-    bob = Person(name="Bob", email="bob@example.com")  # type: ignore[arg-type]
+    bob = Person(name="Bob", email="bob@example.com")
     assert bob.name == Name("Bob")  # Equal to wrapped value
     assert bob.email == Email("bob@example.com")  # Equal to wrapped value
 
@@ -197,16 +197,16 @@ def test_pydantic_with_default_values():
     class Person(Entity):
         flags = TypeFlags(type_name="person")
         name: Name
-        age: Age = 0  # type: ignore[assignment]  # Default value
+        age: Age | None = Age(0)  # Default value (properly wrapped)
 
     # Create without age - testing type coercion
-    alice = Person(name="Alice")  # type: ignore[arg-type]
+    alice = Person(name="Alice")
     assert alice.name == Name("Alice")  # Equal to wrapped value
     assert alice.name != "Alice"  # Not Equal to raw value
     assert alice.age == Age(0)  # Equal to wrapped default value
 
     # Create with age - testing type coercion
-    bob = Person(name="Bob", age=25)  # type: ignore[arg-type]
+    bob = Person(name="Bob", age=25)
     assert bob.name == Name("Bob")  # Equal to wrapped value
     assert bob.age == Age(25)  # Equal to wrapped value
 
@@ -226,7 +226,7 @@ def test_pydantic_type_coercion():
         age: Age
 
     # Valid string accepted and wrapped in Attribute instances - testing type coercion
-    alice = Person(name="Alice", age=30)  # type: ignore[arg-type]
+    alice = Person(name="Alice", age=30)
     assert isinstance(alice.name, Name)  # Wrapped in Name instance
     assert not isinstance(alice.name, str)  # Not a raw str
     assert alice.name != "Alice"  # Not equal to raw value
@@ -237,7 +237,7 @@ def test_pydantic_type_coercion():
     assert alice.age == Age(30)  # Equal to wrapped value
 
     # Another valid instance - testing type coercion
-    bob = Person(name="Bob", age=25)  # type: ignore[arg-type]
+    bob = Person(name="Bob", age=25)
     assert isinstance(bob.name, Name)  # Wrapped in Name instance
     assert bob.name == Name("Bob")  # Equal to wrapped value
     assert isinstance(bob.age, Age)  # Wrapped in Age instance
@@ -260,6 +260,6 @@ def test_pydantic_validation_errors():
 
     # Invalid type that can't be coerced - testing validation error
     with pytest.raises(ValidationError) as exc_info:
-        Person(name="Alice", age="not_a_number")  # type: ignore[arg-type]
+        Person(name="Alice", age="not_a_number")
 
     assert "age" in str(exc_info.value)

@@ -115,16 +115,18 @@ class IsActive(Boolean):
 class Person(Entity):
     """Entity using attributes with various case formats."""
 
-    flags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
+    flags: TypeFlags = TypeFlags(case=TypeNameCase.SNAKE_CASE)
 
     # Mix of different attribute case formats
-    first_name: FirstName = Flag(Key)  # → firstname (LOWERCASE)
+    # Fields without defaults first
     last_name: LastName  # → LastName (CLASS_NAME)
     email: EmailAddress  # → email_address (SNAKE_CASE)
     phone: PhoneNumber  # → phone_number (SNAKE_CASE)
     age: PersonAge | None  # → person_age (SNAKE_CASE)
     active: IsActive  # → is_active (SNAKE_CASE)
     dob: DateOfBirth | None  # → dob (explicit attr_name)
+    # Fields with Flag() defaults last
+    first_name: FirstName = Flag(Key)  # → firstname (LOWERCASE)
 
 
 def demonstrate_case_formatting():

@@ -57,7 +57,7 @@ class Industry(String):
 
 # Define entities (must match crud_01_define.py schema)
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags: TypeFlags = TypeFlags(type_name="person")
 
     name: Name = Flag(Key)
     age: Age | None
@@ -66,7 +66,7 @@ class Person(Entity):
 
 
 class Company(Entity):
-    flags = TypeFlags(type_name="company")
+    flags: TypeFlags = TypeFlags(type_name="company")
 
     name: Name = Flag(Key)
     industry: list[Industry] = Flag(Card(1, 5))
@@ -74,7 +74,7 @@ class Company(Entity):
 
 # Define relation (must match crud_01_define.py schema)
 class Employment(Relation):
-    flags = TypeFlags(type_name="employment")
+    flags: TypeFlags = TypeFlags(type_name="employment")
 
     employee: Role[Person] = Role("employee", Person)
     employer: Role[Company] = Role("employer", Company)

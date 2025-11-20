@@ -2,6 +2,166 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [0.5.0] - 2025-11-20
+
+### 🚀 New Features
+
+#### Concise Attribute Type-Based Expression API
+- **New streamlined query API using attribute class methods**
+  - Old: `Person.age.gt(Age(30))` → New: `Age.gt(Age(30))` ✨
+  - Shorter, more readable syntax with better type checking support
+  - Type checkers now correctly validate all expression methods
+  - Location: `type_bridge/attribute/base.py`, `type_bridge/attribute/string.py`
+
+#### Class Methods Added to Attribute Base Class
+- **Comparison methods**: `gt()`, `lt()`, `gte()`, `lte()`, `eq()`, `neq()`
+  - Example: `Age.gt(Age(30))`, `Salary.gte(Salary(80000))`
+- **Aggregation methods**: `sum()`, `avg()`, `max()`, `min()`, `median()`, `std()`
+  - Example: `Salary.avg()`, `Age.sum()`
+- **String-specific methods** (on `String` class): `contains()`, `like()`, `regex()`
+  - Example: `Email.contains(Email("@company.com"))`, `Name.like(Name("^A.*"))`
+
+#### Runtime Validation
+- **Automatic attribute ownership validation in filter() methods**
+  - Validates that entity owns the attribute type being queried
+  - Raises `ValueError` with helpful message if validation fails
+  - Example: `person_manager.filter(Salary.gt(Salary(50000)))` validates Person owns Salary
+  - Location: `type_bridge/crud.py`, `type_bridge/expressions/base.py`
+
+### 🔄 API Changes
+
+#### Expression Classes Refactored
+- **Changed from field-based to attribute type-based**
+  - `ComparisonExpr`, `StringExpr`, `AggregateExpr` now use `attr_type` instead of `field`
+  - Simpler internal structure with 1-to-1 mapping (attribute type uniquely identifies field)
+  - Location: `type_bridge/expressions/comparison.py`, `type_bridge/expressions/string.py`, `type_bridge/expressions/aggregate.py`
+
+#### Backwards Compatibility
+- **Old field-based API still works**
+  - `Person.age.gt(Age(30))` continues to work alongside new API
+  - FieldRef classes now delegate to attribute class methods internally
+  - Gradual migration path for existing code
+  - Location: `type_bridge/fields.py`
+
+### 🔧 Type Safety Improvements
+
+#### Keyword-Only Arguments Enforced
+- **Changed `@dataclass_transform(kw_only_default=False)` → `True`**
+  - All Entity/Relation constructors now require keyword arguments for clarity and safety
+  - Improves code readability and prevents positional argument order errors
+  - Example: `Person(name=Name("Alice"), age=Age(30))` ✅
+  - Positional args now rejected by type checkers: `Person(Name("Alice"), Age(30))` ❌
+  - Location: `type_bridge/models/base.py:20`, `type_bridge/models/entity.py:81`, `type_bridge/models/relation.py:30`
+
+#### Optional Field Defaults Required
+- **Added explicit `= None` defaults for all optional fields**
+  - Pattern: `age: Age | None = None` (previously `age: Age | None`)
+  - Makes field optionality explicit in code for better clarity
+  - Improves IDE autocomplete and type checking accuracy
+  - Required by `kw_only_default=True` to distinguish optional from required fields
+  - Applied throughout codebase: examples, tests, integration tests
+
+#### Pyright Type Checking Configuration
+- **Added `pyrightconfig.json`** for project-wide type checking
+  - Excludes validation tests from type checking (`tests/unit/type-check-except/`)
+  - Tests intentionally checking Pydantic validation failures now properly excluded
+  - Core library achieves **0 errors, 0 warnings, 0 informations** ✨
+  - Proper separation of type-safe code vs runtime validation tests
+  - Location: `pyrightconfig.json` (new file)
+
+#### Validation Tests Reorganized
+- **Moved intentional validation tests to `tests/unit/type-check-except/`**
+  - Tests using raw values to verify Pydantic validation now excluded from type checking
+  - Original tests fixed to use properly wrapped attribute types
+  - Clean separation: type-safe tests vs validation behavior tests
+  - Moved files: `test_pydantic.py`, `test_basic.py`, `test_update_api.py`, `test_cardinality.py`, `test_list_default.py`
+
+#### Benefits
+1. **Clearer code**: Keyword arguments make field names explicit at call sites
+2. **Better IDE support**: Explicit `= None` improves autocomplete for optional fields
+3. **100% type safety**: Pyright validates correctly with zero false positives
+4. **Maintainability**: Adding new fields doesn't break existing constructor calls
+5. **Error prevention**: Type checker catches argument order mistakes at development time
+
+### 📚 Documentation
+
+#### Automatic Conversions Documented
+- **`avg()` → `mean` in TypeQL**
+  - TypeDB 3.x uses `mean` instead of `avg`
+  - User calls `Age.avg()`, generates `mean($age)` in TypeQL
+  - Result key converted back to `avg_age` for consistency
+  - Clearly documented in docstrings and implementation comments
+- **`regex()` → `like` in TypeQL**
+  - TypeQL uses `like` for regex pattern matching
+  - `regex()` provided as user-friendly alias
+  - Both methods generate identical TypeQL output
+  - Documented in method docstrings and code comments
+
+#### TypeQL Compliance Verification
+- **All expressions verified against TypeDB 3.x specification**
+  - Comparison operators: `>`, `<`, `>=`, `<=`, `==`, `!=` ✓
+  - String operations: `contains`, `like` ✓
+  - Aggregations: `sum`, `mean`, `max`, `min`, `median`, `std`, `count` ✓
+  - Boolean logic: `;` (AND), `or`, `not` ✓
+  - Created `tmp/typeql_verification.md` and `tmp/automatic_conversions.md`
+
+#### Examples Updated
+- **Updated query_expressions.py to use new API**
+  - All field-based expressions converted to attribute type-based
+  - Added notes about API improvements and type safety
+  - Location: `examples/advanced/query_expressions.py`
+
+### 🧪 Testing
+
+#### Test Results
+- **417/417 tests passing** (100% pass rate) ✅
+- **Unit tests**: 284/284 passing (0.3s)
+- **Integration tests**: 133/133 passing
+- **Type checking**: 0 errors, 0 warnings, 0 informations ✅
+- All type errors eliminated (250 errors → 0 errors)
+
+#### Tests Updated
+- **Updated field reference tests for new API**
+  - Tests now check `attr_type` instead of `field` attributes
+  - All expression creation and TypeQL generation tests passing
+  - Location: `tests/unit/expressions/test_field_refs.py`
+
+#### Test Organization
+- **Integration tests reorganized into subdirectories**
+  - `tests/integration/queries/test_expressions.py` - Query expression integration tests
+  - `tests/integration/crud/relations/test_abstract_roles.py` - Abstract role type tests
+  - Better organization: crud/, queries/, schema/ subdirectories
+  - Improved test discoverability and maintenance
+
+### 🔧 Type Safety
+
+#### Type Checking Improvements
+- **Eliminated all expression-related type errors**
+  - Before: 26 errors (`.gt()`, `.avg()` "not a known attribute" errors)
+  - After: 0 errors ✅
+  - Type checkers now fully understand class method API
+  - Pyright passes with 0 errors, 0 warnings, 0 informations
+
+#### Benefits
+1. **Type-safe**: Full type checker support with zero errors
+2. **Concise**: Shorter syntax (`Age.gt()` vs `Person.age.gt()`)
+3. **Validated**: Runtime checks prevent invalid queries
+4. **Compatible**: Old API still works for gradual migration
+5. **Documented**: All automatic conversions clearly explained
+
+### 📦 Key Files Modified
+
+- `type_bridge/attribute/base.py` - Added class methods for comparisons and aggregations
+- `type_bridge/attribute/string.py` - Added string-specific class methods
+- `type_bridge/expressions/comparison.py` - Changed to `attr_type`-based
+- `type_bridge/expressions/string.py` - Changed to `attr_type`-based
+- `type_bridge/expressions/aggregate.py` - Changed to `attr_type`-based
+- `type_bridge/expressions/base.py` - Added `get_attribute_types()` method
+- `type_bridge/expressions/boolean.py` - Added recursive attribute type collection
+- `type_bridge/fields.py` - Updated to delegate to attribute class methods
+- `type_bridge/crud.py` - Added validation in filter() methods
+- `examples/advanced/query_expressions.py` - Updated to use new API
+
 ## [0.4.4] - 2025-11-19
 
 ### 🐛 Bug Fixes

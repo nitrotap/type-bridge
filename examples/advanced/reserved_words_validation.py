@@ -22,7 +22,7 @@ def demonstrate_entity_validation():
     try:
 
         class Person(Entity):
-            flags = TypeFlags(name="person")
+            flags: TypeFlags = TypeFlags(name="person")
 
         print("✓ Valid: 'person' is not a reserved word")
     except ReservedWordError as e:
@@ -32,7 +32,7 @@ def demonstrate_entity_validation():
     try:
 
         class Match(Entity):
-            flags = TypeFlags(name="match")
+            flags: TypeFlags = TypeFlags(name="match")
 
         print("✓ Created entity with name 'match'")
     except ReservedWordError as e:
@@ -44,7 +44,7 @@ def demonstrate_entity_validation():
     try:
 
         class Define(Entity):
-            flags = TypeFlags(base=True, name="define")
+            flags: TypeFlags = TypeFlags(base=True, name="define")
 
         print("✓ Created base entity with reserved name 'define' (base=True bypasses validation)")
     except ReservedWordError as e:
@@ -106,7 +106,7 @@ def demonstrate_relation_validation():
     try:
 
         class Employment(Relation):
-            flags = TypeFlags(name="employment")
+            flags: TypeFlags = TypeFlags(name="employment")
 
         print("✓ Valid: 'employment' is not a reserved word")
     except ReservedWordError as e:
@@ -116,7 +116,7 @@ def demonstrate_relation_validation():
     try:
 
         class Update(Relation):
-            flags = TypeFlags(name="update")
+            flags: TypeFlags = TypeFlags(name="update")
 
         print("✓ Created relation with name 'update'")
     except ReservedWordError as e:

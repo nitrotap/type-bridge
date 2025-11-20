@@ -122,16 +122,73 @@ class EntityManager[E: Entity]:
 
         return entities
 
-    def filter(self, **filters) -> "EntityQuery[E]":
+    def filter(self, *expressions: Any, **filters: Any) -> "EntityQuery[E]":
         """Create a query for filtering entities.
 
+        Supports both expression-based and dictionary-based filtering.
+
         Args:
-            filters: Attribute filters
+            *expressions: Expression objects (Age.gt(Age(30)), etc.)
+            **filters: Attribute filters (exact match) - age=30, name="Alice"
 
         Returns:
             EntityQuery for chaining
+
+        Examples:
+            # Expression-based (advanced filtering)
+            manager.filter(Age.gt(Age(30)))
+            manager.filter(Age.gt(Age(18)), Age.lt(Age(65)))
+
+            # Dictionary-based (exact match - legacy)
+            manager.filter(age=30, name="Alice")
+
+            # Mixed
+            manager.filter(Age.gt(Age(30)), status="active")
+
+        Raises:
+            ValueError: If expression references attribute type not owned by entity
         """
-        return EntityQuery(self.db, self.model_class, filters)
+        # Validate expressions reference owned attribute types
+        if expressions:
+            owned_attrs = self.model_class.get_owned_attributes()
+            owned_attr_types = {attr_info.typ for attr_info in owned_attrs.values()}
+
+            for expr in expressions:
+                # Get attribute types from expression
+                expr_attr_types = expr.get_attribute_types()
+
+                # Check if all attribute types are owned by entity
+                for attr_type in expr_attr_types:
+                    if attr_type not in owned_attr_types:
+                        raise ValueError(
+                            f"{self.model_class.__name__} does not own attribute type {attr_type.__name__}. "
+                            f"Available attribute types: {', '.join(t.__name__ for t in owned_attr_types)}"
+                        )
+
+        query = EntityQuery(self.db, self.model_class, filters if filters else None)
+        if expressions:
+            query._expressions.extend(expressions)
+        return query
+
+    def group_by(self, *fields: Any) -> "GroupByQuery[E]":
+        """Create a group-by query for aggregating by field values.
+
+        Args:
+            *fields: Field references to group by (Person.city, Person.department, etc.)
+
+        Returns:
+            GroupByQuery for aggregation
+
+        Example:
+            # Group by single field
+            result = manager.group_by(Person.city).aggregate(Person.age.avg())
+
+            # Group by multiple fields
+            result = manager.group_by(Person.city, Person.department).aggregate(
+                Person.salary.avg()
+            )
+        """
+        return GroupByQuery(self.db, self.model_class, {}, [], fields)
 
     def all(self) -> list[E]:
         """Get all entities of this type.
@@ -200,8 +257,8 @@ class EntityManager[E: Entity]:
             # Update in database
             person_manager.update(alice)
         """
-        # Get owned attributes to determine cardinality
-        owned_attrs = self.model_class.get_owned_attributes()
+        # Get all attributes (including inherited) to determine cardinality
+        owned_attrs = self.model_class.get_all_attributes()
 
         # Extract key attributes from entity for matching
         match_filters = {}
@@ -393,21 +450,61 @@ class EntityQuery[E: Entity]:
     """Chainable query for entities.
 
     Type-safe query builder that preserves entity type information.
+    Supports both dictionary filters (exact match) and expression-based filters.
     """
 
-    def __init__(self, db: Database, model_class: type[E], filters: dict[str, Any]):
+    def __init__(self, db: Database, model_class: type[E], filters: dict[str, Any] | None = None):
         """Initialize entity query.
 
         Args:
             db: Database connection
             model_class: Entity model class
-            filters: Attribute filters
+            filters: Attribute filters (exact match) - optional, defaults to empty dict
         """
         self.db = db
         self.model_class = model_class
-        self.filters = filters
+        self.filters = filters or {}
+        self._expressions: list[Any] = []  # Store Expression objects
         self._limit_value: int | None = None
         self._offset_value: int | None = None
+
+    def filter(self, *expressions: Any) -> "EntityQuery[E]":
+        """Add expression-based filters to the query.
+
+        Args:
+            *expressions: Expression objects (ComparisonExpr, StringExpr, etc.)
+
+        Returns:
+            Self for chaining
+
+        Example:
+            query = Person.manager(db).filter(
+                Age.gt(Age(30)),
+                Name.contains(Name("Alice"))
+            )
+
+        Raises:
+            ValueError: If expression references attribute type not owned by entity
+        """
+        # Validate expressions reference owned attribute types
+        if expressions:
+            owned_attrs = self.model_class.get_owned_attributes()
+            owned_attr_types = {attr_info.typ for attr_info in owned_attrs.values()}
+
+            for expr in expressions:
+                # Get attribute types from expression
+                expr_attr_types = expr.get_attribute_types()
+
+                # Check if all attribute types are owned by entity
+                for attr_type in expr_attr_types:
+                    if attr_type not in owned_attr_types:
+                        raise ValueError(
+                            f"{self.model_class.__name__} does not own attribute type {attr_type.__name__}. "
+                            f"Available attribute types: {', '.join(t.__name__ for t in owned_attr_types)}"
+                        )
+
+        self._expressions.extend(expressions)
+        return self
 
     def limit(self, limit: int) -> "EntityQuery[E]":
         """Limit number of results.
@@ -440,6 +537,13 @@ class EntityQuery[E: Entity]:
             List of matching entities
         """
         query = QueryBuilder.match_entity(self.model_class, **self.filters)
+
+        # Apply expression-based filters
+        for expr in self._expressions:
+            # Generate TypeQL pattern from expression
+            pattern = expr.to_typeql("$e")
+            query.match(pattern)
+
         query.fetch("$e")  # Fetch all attributes with $e.*
 
         # TypeDB 3.x requires sorting for pagination to work reliably
@@ -515,6 +619,276 @@ class EntityQuery[E: Entity]:
         """
         return len(self.execute())
 
+    def aggregate(self, *aggregates: Any) -> dict[str, Any]:
+        """Execute aggregation queries.
+
+        Performs database-side aggregations for efficiency.
+
+        Args:
+            *aggregates: AggregateExpr objects (Person.age.avg(), Person.score.sum(), etc.)
+
+        Returns:
+            Dictionary mapping aggregate keys to results
+
+        Examples:
+            # Single aggregation
+            result = manager.filter().aggregate(Person.age.avg())
+            avg_age = result['avg_age']
+
+            # Multiple aggregations
+            result = manager.filter(Person.city.eq(City("NYC"))).aggregate(
+                Person.age.avg(),
+                Person.score.sum(),
+                Person.salary.max()
+            )
+            avg_age = result['avg_age']
+            total_score = result['sum_score']
+            max_salary = result['max_salary']
+        """
+        from type_bridge.expressions import AggregateExpr
+
+        if not aggregates:
+            raise ValueError("At least one aggregation expression required")
+
+        # Build base match query with filters
+        query = QueryBuilder.match_entity(self.model_class, **self.filters)
+
+        # Apply expression-based filters
+        for expr in self._expressions:
+            pattern = expr.to_typeql("$e")
+            query.match(pattern)
+
+        # Build reduce query with aggregations
+        # TypeQL 3.x syntax: reduce $result = function($var);
+        # First, we need to bind all the fields being aggregated in the match clause
+        reduce_clauses = []
+        for agg in aggregates:
+            if not isinstance(agg, AggregateExpr):
+                raise TypeError(f"Expected AggregateExpr, got {type(agg).__name__}")
+
+            # If this aggregation is on a specific attr_type (not count), add binding pattern
+            if agg.attr_type is not None:
+                attr_name = agg.attr_type.get_attribute_name()
+                attr_var = f"${attr_name.lower()}"
+                query.match(f"$e has {attr_name} {attr_var}")
+
+            # Generate reduce clause: $result_var = function($var)
+            result_var = f"${agg.get_fetch_key()}"
+            reduce_clauses.append(f"{result_var} = {agg.to_typeql('$e')}")
+
+        # Convert match to reduce query
+        match_clause = query.build().replace("fetch", "get").split("fetch")[0]
+        reduce_query = f"{match_clause}\nreduce {', '.join(reduce_clauses)};"
+
+        with self.db.transaction("read") as tx:
+            results = tx.execute(reduce_query)
+
+        # Parse aggregation results
+        # TypeDB 3.x reduce operator returns results as formatted strings
+        if not results:
+            return {}
+
+        result = results[0] if results else {}
+
+        # TypeDB reduce returns results as a formatted string in 'result' key
+        # Format: '|  $var_name: Value(type: value)  |'
+        import re
+
+        output = {}
+        if "result" in result:
+            result_str = result["result"]
+            # Parse variable names and values from the formatted string
+            # Pattern: $variable_name: Value(type: actual_value)
+            pattern = r"\$([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*Value\([^:]+:\s*([^)]+)\)"
+            matches = re.findall(pattern, result_str)
+
+            for var_name, value_str in matches:
+                # Try to convert the value to appropriate Python type
+                try:
+                    # Try float first (covers both int and float)
+                    if "." in value_str:
+                        value = float(value_str)
+                    else:
+                        value = int(value_str)
+                except ValueError:
+                    # Keep as string if conversion fails
+                    value = value_str.strip()
+
+                output[var_name] = value
+
+        return output
+
+    def group_by(self, *fields: Any) -> "GroupByQuery[E]":
+        """Group entities by field values.
+
+        Args:
+            *fields: FieldRef objects to group by
+
+        Returns:
+            GroupByQuery for chained aggregations
+
+        Example:
+            result = manager.group_by(Person.city).aggregate(Person.age.avg())
+        """
+        return GroupByQuery(self.db, self.model_class, self.filters, self._expressions, fields)
+
+
+class GroupByQuery[E: Entity]:
+    """Query for grouped aggregations.
+
+    Allows grouping entities by field values and computing aggregations per group.
+    """
+
+    def __init__(
+        self,
+        db: Database,
+        model_class: type[E],
+        filters: dict[str, Any],
+        expressions: list[Any],
+        group_fields: tuple[Any, ...],
+    ):
+        """Initialize grouped query.
+
+        Args:
+            db: Database connection
+            model_class: Entity model class
+            filters: Dict-based filters
+            expressions: Expression-based filters
+            group_fields: Fields to group by
+        """
+        self.db = db
+        self.model_class = model_class
+        self.filters = filters
+        self._expressions = expressions
+        self.group_fields = group_fields
+
+    def aggregate(self, *aggregates: Any) -> dict[Any, dict[str, Any]]:
+        """Execute grouped aggregation.
+
+        Args:
+            *aggregates: AggregateExpr objects
+
+        Returns:
+            Dictionary mapping group values to aggregation results
+
+        Example:
+            # Group by city, compute average age per city
+            result = manager.group_by(Person.city).aggregate(Person.age.avg())
+            # Returns: {
+            #   "NYC": {"avg_age": 35.5},
+            #   "LA": {"avg_age": 28.3}
+            # }
+        """
+        from type_bridge.expressions import AggregateExpr
+
+        if not aggregates:
+            raise ValueError("At least one aggregation expression required")
+
+        # Build base match query
+        query = QueryBuilder.match_entity(self.model_class, **self.filters)
+
+        # Apply expression filters
+        for expr in self._expressions:
+            pattern = expr.to_typeql("$e")
+            query.match(pattern)
+
+        # Add group-by fields to match
+        group_vars = []
+        for i, field in enumerate(self.group_fields):
+            var_name = f"$group{i}"
+            attr_name = field.attr_type.get_attribute_name()
+            query.match(f"$e has {attr_name} {var_name}")
+            group_vars.append(var_name)
+
+        # Build reduce query with group-by
+        # First, bind all the fields being aggregated in the match clause
+        reduce_clauses = []
+        for agg in aggregates:
+            if not isinstance(agg, AggregateExpr):
+                raise TypeError(f"Expected AggregateExpr, got {type(agg).__name__}")
+
+            # If this aggregation is on a specific attr_type (not count), add binding pattern
+            if agg.attr_type is not None:
+                attr_name = agg.attr_type.get_attribute_name()
+                attr_var = f"${attr_name.lower()}"
+                query.match(f"$e has {attr_name} {attr_var}")
+
+            # Generate reduce clause: $result_var = function($var)
+            result_var = f"${agg.get_fetch_key()}"
+            reduce_clauses.append(f"{result_var} = {agg.to_typeql('$e')}")
+
+        # TypeQL 3.x group-by syntax:
+        # match ... reduce $result = function($var) groupby $group_var;
+        match_clause = query.build().replace("fetch", "get").split("fetch")[0]
+        group_clause = ", ".join(group_vars)
+        reduce_clause = ", ".join(reduce_clauses)
+        reduce_query = f"{match_clause}\nreduce {reduce_clause} groupby {group_clause};"
+
+        with self.db.transaction("read") as tx:
+            results = tx.execute(reduce_query)
+
+        # Parse grouped results
+        # TypeDB 3.x reduce with groupby returns formatted strings
+        import re
+
+        output = {}
+        for result in results:
+            # Result is a dict with 'result' key containing formatted string
+            if "result" not in result:
+                continue
+
+            result_str = result["result"]
+
+            # Parse both Value(...) and Attribute(...) formats
+            # Value format: $var: Value(type: value)
+            # Attribute format: $var: Attribute(type: "value")
+            value_pattern = r"\$([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*Value\([^:]+:\s*([^)]+)\)"
+            attr_pattern = r'\$([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*Attribute\([^:]+:\s*"([^"]+)"\)'
+
+            value_matches = re.findall(value_pattern, result_str)
+            attr_matches = re.findall(attr_pattern, result_str)
+
+            # Combine all matches
+            all_matches = [(name, val) for name, val in value_matches] + [
+                (name, val) for name, val in attr_matches
+            ]
+
+            # Separate group keys from aggregation values
+            group_keys = []
+            group_aggs = {}
+
+            for var_name, value_str in all_matches:
+                # Convert value to appropriate type
+                try:
+                    if "." in value_str:
+                        value = float(value_str)
+                    else:
+                        value = int(value_str)
+                except ValueError:
+                    value = value_str.strip().strip('"')
+
+                # Check if this is a group variable
+                is_group_var = False
+                for group_var in group_vars:
+                    if group_var.lstrip("$") == var_name:
+                        group_keys.append(value)
+                        is_group_var = True
+                        break
+
+                if not is_group_var:
+                    # This is an aggregation result
+                    group_aggs[var_name] = value
+
+            # Create group key (single value or tuple)
+            if len(group_keys) == 1:
+                group_key = group_keys[0]
+            else:
+                group_key = tuple(group_keys)
+
+            output[group_key] = group_aggs
+
+        return output
+
 
 class RelationManager[R: Relation]:
     """Manager for relation CRUD operations.
@@ -562,11 +936,11 @@ class RelationManager[R: Relation]:
         # Build match clause for role players
         match_parts = []
         for role_name, entity in role_players.items():
-            # Get key attributes from the entity
+            # Get key attributes from the entity (including inherited attributes)
             entity_type_name = entity.__class__.get_type_name()
             key_attrs = {
                 field_name: attr_info
-                for field_name, attr_info in entity.__class__.get_owned_attributes().items()
+                for field_name, attr_info in entity.__class__.get_all_attributes().items()
                 if attr_info.flags.is_key
             }
 
@@ -675,9 +1049,9 @@ class RelationManager[R: Relation]:
                 player_entity = relation.__dict__.get(role_name)
                 if player_entity is None:
                     continue
-                # Create unique key for this player based on key attributes
+                # Create unique key for this player based on key attributes (including inherited)
                 player_type = player_entity.get_type_name()
-                owned_attrs = player_entity.get_owned_attributes()
+                owned_attrs = player_entity.get_all_attributes()
 
                 key_values = []
                 for field_name, attr_info in owned_attrs.items():
@@ -713,9 +1087,9 @@ class RelationManager[R: Relation]:
                 if player_entity is None:
                     raise ValueError(f"Missing role player for role: {role_name}")
 
-                # Find the player variable
+                # Find the player variable (including inherited attributes)
                 player_type = player_entity.get_type_name()
-                owned_attrs = player_entity.get_owned_attributes()
+                owned_attrs = player_entity.get_all_attributes()
 
                 key_values = []
                 for field_name, attr_info in owned_attrs.items():
@@ -861,8 +1235,8 @@ class RelationManager[R: Relation]:
             role_var = f"${role_name}"
             entity_class = role_info[role_name][1]
 
-            # Match the role player by their key attributes
-            player_owned_attrs = entity_class.get_owned_attributes()
+            # Match the role player by their key attributes (including inherited)
+            player_owned_attrs = entity_class.get_all_attributes()
             for field_name, attr_info in player_owned_attrs.items():
                 if attr_info.flags.is_key:
                     key_value = getattr(player_entity, field_name, None)
@@ -923,9 +1297,9 @@ class RelationManager[R: Relation]:
             for role_name, (role_var, entity_class) in role_info.items():
                 if role_name in result and isinstance(result[role_name], dict):
                     player_data = result[role_name]
-                    # Extract player attributes
+                    # Extract player attributes (including inherited)
                     player_attrs = {}
-                    for field_name, attr_info in entity_class.get_owned_attributes().items():
+                    for field_name, attr_info in entity_class.get_all_attributes().items():
                         attr_class = attr_info.typ
                         attr_name = attr_class.get_attribute_name()
                         if attr_name in player_data:

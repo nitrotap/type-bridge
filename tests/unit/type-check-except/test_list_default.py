@@ -162,7 +162,7 @@ class TestListFieldDefaults:
         with pytest.raises(Exception):  # Pydantic ValidationError
             Issue(
                 key=IssueKey("TEST-123"),
-                labels=None,  # type: ignore
+                labels=None,
                 created_at=CreatedAt(_now),
                 last_modified=ModifiedAt(_now),
             )

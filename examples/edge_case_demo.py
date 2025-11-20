@@ -13,7 +13,7 @@ from type_bridge import String, TypeFlags
 
 try:
 
-    class Entity(tbg.Entity):  # type: ignore[misc]
+    class Entity(tbg.Entity):
         """Custom entity base class - FAILS!"""
 
         pass
@@ -28,7 +28,7 @@ except ValueError as e:
 class BaseEntity(tbg.Entity):
     """Custom entity base class - WORKS!"""
 
-    flags = TypeFlags(abstract=True, type_name="base_entity")
+    flags: TypeFlags = TypeFlags(abstract=True, type_name="base_entity")
 
 
 print("✅ Successfully created BaseEntity with type_name='base_entity'")
@@ -38,7 +38,7 @@ print()
 # ❌ EDGE CASE 2: Multi-level inheritance with conflicting intermediate class name
 try:
 
-    class Relation(tbg.Relation):  # type: ignore[misc]
+    class Relation(tbg.Relation):
         """Custom relation base - FAILS!"""
 
         pass
@@ -57,20 +57,20 @@ class Name(String):
 class Animal(tbg.Entity):
     """Abstract base - safe name"""
 
-    flags = TypeFlags(abstract=True, type_name="animal")
+    flags: TypeFlags = TypeFlags(abstract=True, type_name="animal")
     name: Name
 
 
 class Mammal(Animal):
     """Another level of inheritance - still safe"""
 
-    flags = TypeFlags(abstract=True, type_name="mammal")
+    flags: TypeFlags = TypeFlags(abstract=True, type_name="mammal")
 
 
 class Dog(Mammal):
     """Concrete entity - works perfectly"""
 
-    flags = TypeFlags(type_name="dog")
+    flags: TypeFlags = TypeFlags(type_name="dog")
 
 
 print("✅ Successfully created multi-level inheritance chain:")
@@ -86,7 +86,7 @@ print()
 # ❌ EDGE CASE 3: Attribute with conflicting name
 try:
 
-    class Attribute(String):  # type: ignore[misc]
+    class Attribute(String):
         """Attribute named 'Attribute' - FAILS!"""
 
         pass

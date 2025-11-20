@@ -105,7 +105,7 @@ def test_cardinal_instance_creation():
         tags: list[Tag] = Flag(Card(2, 5))
 
     # Should accept lists (values will be wrapped in Tag instances)
-    person = Person(tags=["python", "rust", "go"])  # pyright: ignore
+    person = Person(tags=["python", "rust", "go"])
     # Strict type safety: list items are wrapped Tag instances
     assert person.tags != ["python", "rust", "go"]  # Not equal to raw list
     assert person.tags == [Tag("python"), Tag("rust"), Tag("go")]  # Equal to wrapped list
@@ -125,7 +125,7 @@ def test_cardinal_insert_query():
         flags = TypeFlags(type_name="person")
         tags: list[Tag] = Flag(Card(min=2))
 
-    person = Person(tags=["python", "rust"])  # pyright: ignore
+    person = Person(tags=["python", "rust"])
     query = person.to_insert_query()
 
     assert "$e isa person" in query

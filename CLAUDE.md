@@ -175,49 +175,60 @@ tests/
 
 ## Testing Strategy
 
-TypeBridge uses a two-tier testing approach with **100% test pass rate (349/349 tests)**:
+TypeBridge uses a two-tier testing approach with **100% test pass rate (417/417 tests)**:
 
 ### Unit Tests (Default)
 
 Located in `tests/unit/` with organized subdirectories:
-- `core/`: Basic entity/relation/attribute API, inheritance, Pydantic integration
+- `core/`: Basic entity/relation/attribute API, inheritance
 - `attributes/`: All 9 attribute types with dedicated test files
 - `flags/`: Flag system (base flags, cardinality, type name formatting)
-- `crud/`: CRUD operations (update API)
+- `expressions/`: Query expression API (field references, comparisons, aggregations)
 - `validation/`: Reserved word and keyword validation
+- `type-check-except/`: Validation tests intentionally excluded from type checking
 
 Characteristics:
 - **Fast**: Run in ~0.3 seconds without external dependencies
 - **Isolated**: Test individual components in isolation
 - **No TypeDB required**: Use mocks and in-memory validation
 - **Run by default**: `pytest` runs unit tests only
-- **249 tests total**: Organized by functionality
+- **284 tests total**: Organized by functionality
 
 Coverage:
-- Core API: Entity/Relation creation, schema generation, inheritance (33 tests)
-- Attribute types: All 9 types with dedicated test files (115 tests)
+- Core API: Entity/Relation creation, schema generation, inheritance
+- Attribute types: All 9 types with dedicated test files
   - Boolean, Date, DateTime, DateTimeTZ, Decimal, Double, Duration, Integer, String
   - Mixed formatting tests for query generation
-- Flag system: Base flags, cardinality, type name cases (54 tests)
-- CRUD operations: Update API for single/multi-value attributes (6 tests)
-- Validation: Pydantic integration, keyword validation, type checking, schema validation (41 tests)
-  - Duplicate attribute type detection (6 tests)
+- Flag system: Base flags, cardinality, type name cases
+- Expression API: Field references, comparisons, string operations, aggregations
+- Validation: Pydantic integration, keyword validation, type checking, schema validation
+  - Duplicate attribute type detection
 
 ### Integration Tests
 
-Located in `tests/integration/`
+Located in `tests/integration/` with organized subdirectories:
+- `crud/`: CRUD operations organized by type
+  - `entities/`: Entity insert, fetch, update, delete operations
+  - `relations/`: Relation operations including abstract role types
+  - `attributes/`: All 9 attribute types (insert, fetch, update, delete)
+  - `interop/`: Cross-type operations and mixed queries
+- `queries/`: Query builder and expression tests
+- `schema/`: Schema operations, conflict detection, migration
 
+Characteristics:
 - **Sequential**: Use `@pytest.mark.order()` for predictable execution order
 - **Real database**: Require running TypeDB 3.x server
 - **End-to-end**: Test complete workflows from schema to queries
 - **Explicit execution**: Must use `pytest -m integration`
-- **100 tests total**: Full CRUD, schema, and query coverage
+- **133 tests total**: Full CRUD, schema, and query coverage
 
 Coverage:
-- Schema creation, conflict detection, inheritance (10 tests)
+- Schema creation, conflict detection, inheritance
 - CRUD operations for all 9 attribute types (insert, fetch, update, delete)
-- Multi-value attribute operations (9 tests)
+- Multi-value attribute operations
 - Complex queries with real data (pagination, filtering, role players)
+- Query expressions (comparisons, string operations, boolean logic, aggregations)
+- Relations with abstract entity types in role definitions
 - TypeDB 3.x specific features (proper `isa` syntax, offset before limit)
 - Transaction management and database lifecycle
 
@@ -237,14 +248,14 @@ USE_DOCKER=false uv run pytest -m integration -v
 **Test execution patterns:**
 ```bash
 # Unit tests only (default, fast)
-uv run pytest                              # All 249 unit tests
+uv run pytest                              # All 284 unit tests
 
 # Run specific unit test category
-uv run pytest tests/unit/core/             # Core tests (33 tests)
-uv run pytest tests/unit/attributes/       # Attribute tests (115 tests)
-uv run pytest tests/unit/flags/            # Flag tests (54 tests)
-uv run pytest tests/unit/crud/             # CRUD tests (6 tests)
-uv run pytest tests/unit/validation/       # Validation tests (41 tests)
+uv run pytest tests/unit/core/             # Core tests
+uv run pytest tests/unit/attributes/       # Attribute tests
+uv run pytest tests/unit/flags/            # Flag tests
+uv run pytest tests/unit/expressions/      # Expression tests
+uv run pytest tests/unit/validation/       # Validation tests
 
 # Run specific attribute type test
 uv run pytest tests/unit/attributes/test_integer.py -v
@@ -252,16 +263,24 @@ uv run pytest tests/unit/attributes/test_string.py -v
 uv run pytest tests/unit/attributes/test_boolean.py -v
 
 # Integration tests only (requires TypeDB)
-uv run pytest -m integration              # All 100 integration tests
+uv run pytest -m integration              # All 133 integration tests
+
+# Run specific integration test category
+uv run pytest tests/integration/crud/entities/ -v      # Entity CRUD tests
+uv run pytest tests/integration/crud/relations/ -v    # Relation CRUD tests
+uv run pytest tests/integration/queries/ -v           # Query expression tests
+uv run pytest tests/integration/schema/ -v            # Schema operation tests
 
 # All tests (unit + integration)
-uv run pytest -m ""                       # All 349 tests
+uv run pytest -m ""                       # All 417 tests
 ./test.sh                                 # Full test suite with detailed output
 ./check.sh                                # Linting and type checking
 
-# Specific integration test
+# Specific integration test files
 uv run pytest tests/integration/schema/test_conflict.py -v
 uv run pytest tests/integration/queries/test_pagination.py -v
+uv run pytest tests/integration/queries/test_expressions.py -v
+uv run pytest tests/integration/crud/relations/test_abstract_roles.py -v
 ```
 
 ## TypeDB ORM Design Considerations
@@ -303,7 +322,7 @@ TypeBridge follows TypeDB's type system closely:
 
    name: Name = Flag(Key)                    # @key (implies @card(1..1))
    email: Email = Flag(Unique)               # @unique (default @card(1..1))
-   age: Age | None                           # @card(0..1) - PEP 604 syntax
+   age: Age | None = None                    # @card(0..1) - PEP 604 syntax, explicit default
    tags: list[Tag] = Flag(Card(min=2))       # @card(2..)
    jobs: list[Job] = Flag(Card(1, 5))        # @card(1..5)
    languages: list[Lang] = Flag(Card(max=3)) # @card(0..3) (min defaults to 0)
@@ -824,22 +843,91 @@ TypeBridge uses PEP-681 `@dataclass_transform` decorators on Entity and Relation
 - Type checker recognition of `Flag()` as a valid field default
 - Automatic `__init__` signature inference from class annotations
 - Better IDE autocomplete and type hints
+- Keyword-only arguments enforced (improved code clarity and safety)
+
+## Keyword-Only Arguments
+
+TypeBridge enforces keyword-only arguments for Entity and Relation constructors using `@dataclass_transform(kw_only_default=True)`. This improves code clarity and prevents positional argument errors.
+
+### Why Keyword-Only?
+
+1. **Clarity**: Explicit field names make code self-documenting
+2. **Safety**: Type checkers catch argument order mistakes
+3. **Maintainability**: Adding fields doesn't break existing code
+4. **Prevention**: Eliminates entire class of positional argument bugs
+
+### Usage Pattern
+
+```python
+from type_bridge import Entity, TypeFlags, String, Integer, Flag, Key
+
+class Name(String):
+    pass
+
+class Age(Integer):
+    pass
+
+class Person(Entity):
+    flags = TypeFlags(type_name="person")
+    name: Name = Flag(Key)
+    age: Age | None = None  # Optional field requires explicit = None
+
+# ✅ CORRECT: Keyword arguments required
+person = Person(name=Name("Alice"), age=Age(30))
+person2 = Person(name=Name("Bob"))  # age is optional
+
+# ❌ WRONG: Positional arguments not allowed
+person = Person(Name("Alice"), Age(30))  # Type error!
+```
+
+### Optional Fields Require Explicit Defaults
+
+Optional fields (marked with `| None`) **must** have an explicit `= None` default:
+
+```python
+# ✅ CORRECT: Explicit defaults for optional fields
+class Person(Entity):
+    name: Name = Flag(Key)          # Required field
+    age: Age | None = None           # Optional with explicit = None
+    email: Email | None = None       # Optional with explicit = None
+
+# ❌ WRONG: Missing defaults on optional fields
+class Person(Entity):
+    name: Name = Flag(Key)
+    age: Age | None                  # Type error: missing default!
+    email: Email | None              # Type error: missing default!
+```
+
+**Why explicit `= None`?**
+
+1. **Type checking**: Pyright needs explicit defaults to distinguish optional from required fields
+2. **IDE support**: Autocomplete works better with explicit optionality
+3. **Code clarity**: Makes intent obvious at a glance
+4. **Runtime behavior**: Matches static type annotations exactly
 
 ### Type Checking Limitations
 
-Due to the dynamic nature of Pydantic validation and TypeDB's flexible type system, there are some known type checking limitations:
+TypeBridge achieves 0 type errors with Pyright, but there are some edge cases to be aware of:
 
-1. **Constructor arguments**: Type checkers may show warnings when passing literal values to constructors:
+1. **Optional fields in queries**: When using field references with optional fields, Pyright may incorrectly infer the type:
    ```python
-   # Type checker may warn, but this works at runtime via Pydantic
-   person = Person(name="Alice", age=30)  # ⚠️ Type checker warning
+   class Person(Entity):
+       score: PersonScore | None = None  # Optional field
+
+   # Pyright may warn about optional field access
+   high_scorers = manager.filter(Person.score.gt(PersonScore(90)))  # May show warning
    ```
 
-   **Why**: Type checkers see `name: Name` and expect a `Name` instance, but Pydantic's `__get_pydantic_core_schema__` accepts both `str` and `Name` at runtime.
+   **Solution**: Use attribute class methods instead of field references for optional fields:
+   ```python
+   # ✅ RECOMMENDED: Attribute class method (no warnings)
+   high_scorers = manager.filter(PersonScore.gt(PersonScore(90)))
 
-   **Workaround**: Use `# type: ignore[arg-type]` comments if needed, or pass properly typed instances.
+   # Also works, but may trigger type checker warnings
+   high_scorers = manager.filter(Person.score.gt(PersonScore(90)))
+   ```
 
-2. **Runtime vs. Static Analysis**: The `__init_subclass__` hook rewrites annotations at runtime to support union types (`str | Name`), but type checkers perform static analysis before this happens.
+2. **Validation tests**: Tests that intentionally check Pydantic validation behavior use raw values and are excluded from type checking via `pyrightconfig.json`. These are located in `tests/unit/type-check-except/`.
 
 ### Minimal `Any` Usage
 
@@ -1016,6 +1104,322 @@ alice = Person(name=Name("Alice"), age=Age(30))
 person_manager.insert(alice)  # ✓ Type-safe
 persons: list[Person] = person_manager.all()  # ✓ Type-safe
 ```
+
+## Advanced Query API with Expressions
+
+TypeBridge provides a fully type-safe expression-based query API for advanced filtering, aggregations, and boolean logic. All expressions are validated at compile-time and execute efficiently on the database.
+
+### Field References
+
+Access entity fields at the class level to get type-safe field references:
+
+```python
+# Class-level access returns FieldRef for query building
+Person.age      # Returns NumericFieldRef[Age]
+Person.name     # Returns StringFieldRef[Name]
+Person.email    # Returns StringFieldRef[Email]
+
+# Instance-level access still returns attribute values
+person.age      # Returns Age instance
+person.name     # Returns Name instance
+```
+
+### Value Comparisons
+
+Filter entities using type-safe comparison operators:
+
+```python
+# Greater than
+older = manager.filter(Person.age.gt(Age(30)))
+
+# Less than or equal
+young = manager.filter(Person.age.lte(Age(25)))
+
+# Range queries (AND multiple comparisons)
+adults = manager.filter(
+    Person.age.gte(Age(18)),
+    Person.age.lt(Age(65))
+)
+
+# Equality and inequality
+exact = manager.filter(Person.age.eq(Age(35)))
+not_thirty = manager.filter(Person.age.neq(Age(30)))
+
+# All methods: .gt(), .lt(), .gte(), .lte(), .eq(), .neq()
+```
+
+### String Operations
+
+Perform text searches with type-safe string methods:
+
+```python
+# Contains substring
+gmail = manager.filter(Person.email.contains(Email("@gmail.com")))
+
+# Regex pattern matching
+a_names = manager.filter(Person.name.like(Name("^A.*")))
+
+# Regex (alias for like)
+pattern = manager.filter(Person.city.regex(City("New.*")))
+
+# All methods: .contains(), .like(), .regex()
+```
+
+### Boolean Logic
+
+Compose complex queries with AND, OR, NOT:
+
+```python
+# OR: young OR senior
+young_or_old = manager.filter(
+    Person.age.lt(Age(25)).or_(Person.age.gt(Age(60)))
+)
+
+# AND: explicit composition
+senior_engineers = manager.filter(
+    Person.department.eq(Department("Engineering")).and_(
+        Person.job_title.contains(JobTitle("Senior"))
+    )
+)
+
+# NOT: negation
+non_sales = manager.filter(
+    Person.department.eq(Department("Sales")).not_()
+)
+
+# Complex: (age > 40 AND salary > 100k) OR performance > 90
+top_talent = manager.filter(
+    Person.age.gt(Age(40)).and_(
+        Person.salary.gt(Salary(100000.0))
+    ).or_(
+        Person.performance.gt(Performance(90.0))
+    )
+)
+
+# Multiple filters are implicitly AND'ed
+result = manager.filter(
+    Person.age.gt(Age(18)),      # AND
+    Person.age.lt(Age(65)),      # AND
+    Person.status.eq(Status("active"))
+).execute()
+```
+
+### Database-Side Aggregations
+
+Execute efficient aggregations on the database (not in Python):
+
+```python
+# Single aggregation
+result = manager.filter().aggregate(Person.age.avg())
+avg_age = result['avg_age']
+
+# Multiple aggregations
+stats = manager.filter(
+    Person.department.eq(Department("Engineering"))
+).aggregate(
+    Person.age.avg(),
+    Person.salary.avg(),
+    Person.salary.sum(),
+    Person.salary.max(),
+    Person.salary.min()
+)
+
+avg_age = stats['avg_age']
+avg_salary = stats['avg_salary']
+total_payroll = stats['sum_salary']
+max_salary = stats['max_salary']
+min_salary = stats['min_salary']
+
+# Available aggregation methods:
+# - .avg()    - Average value
+# - .sum()    - Sum of values
+# - .max()    - Maximum value
+# - .min()    - Minimum value
+# - .median() - Median value
+# - .std()    - Standard deviation
+```
+
+### Group-By Queries
+
+Group entities by field values and compute per-group aggregations:
+
+```python
+# Group by single field
+dept_stats = manager.group_by(Person.department).aggregate(
+    Person.age.avg(),
+    Person.salary.avg()
+)
+
+# Results: dict mapping group values to stats
+for dept, stats in dept_stats.items():
+    print(f"{dept}: avg age={stats['avg_age']}, avg salary={stats['avg_salary']}")
+
+# Example output:
+# Engineering: avg age=32.5, avg salary=95000.0
+# Sales: avg age=29.3, avg salary=75000.0
+# Marketing: avg age=28.1, avg salary=68000.0
+
+# Group by multiple fields
+title_dept_stats = manager.group_by(
+    Person.job_title,
+    Person.department
+).aggregate(Person.salary.avg())
+
+# Results: dict with tuple keys
+for (title, dept), stats in title_dept_stats.items():
+    print(f"{title} in {dept}: avg salary={stats['avg_salary']}")
+```
+
+### Combining Filters and Aggregations
+
+Chain expression filters with aggregations:
+
+```python
+# Filter then aggregate
+eng_stats = manager.filter(
+    Person.department.eq(Department("Engineering")),
+    Person.age.gt(Age(30))
+).aggregate(
+    Person.salary.avg(),
+    Person.performance.avg()
+)
+
+# Filter, group, then aggregate
+senior_stats_by_dept = manager.filter(
+    Person.job_title.contains(JobTitle("Senior"))
+).group_by(Person.department).aggregate(
+    Person.salary.avg(),
+    Person.age.avg()
+)
+```
+
+### Backward Compatibility
+
+The expression API coexists with the dictionary filter API:
+
+```python
+# Old style (exact match only) - still works
+persons = manager.filter(age=30, status="active").execute()
+
+# New style (advanced filtering)
+persons = manager.filter(
+    Person.age.gt(Age(30)),
+    Person.status.eq(Status("active"))
+).execute()
+
+# Mixed style (both together)
+persons = manager.filter(
+    Person.age.gt(Age(25)),  # Expression
+    status="active"           # Dict filter
+).execute()
+```
+
+### Query Chaining and Pagination
+
+All query methods support chaining:
+
+```python
+# Build query step by step
+query = manager.filter(Person.age.gt(Age(25)))
+query = query.filter(Person.department.eq(Department("Engineering")))
+results = query.limit(10).offset(20).execute()
+
+# Or chain in one expression
+results = manager.filter(
+    Person.age.gt(Age(25)),
+    Person.department.eq(Department("Engineering"))
+).limit(10).offset(20).execute()
+
+# Get first matching entity
+first = manager.filter(Person.age.gt(Age(30))).first()  # Returns Person | None
+
+# Count without fetching all
+count = manager.filter(Person.department.eq(Department("Sales"))).count()
+```
+
+### Type Safety Guarantees
+
+All expression operations are fully type-safe:
+
+```python
+# ✓ Type-safe: Age field has numeric methods
+Person.age.gt(Age(30))
+Person.age.avg()
+
+# ✓ Type-safe: Name field has string methods
+Person.name.contains(Name("Alice"))
+Person.name.like(Name("A.*"))
+
+# ✗ Type error: String field doesn't have numeric methods
+Person.name.avg()  # Caught by type checker!
+
+# ✗ Type error: Numeric field doesn't have string methods
+Person.age.contains(Age(30))  # Caught by type checker!
+
+# ✓ Type-safe: Expression returns correct type
+expr: ComparisonExpr[Age] = Person.age.gt(Age(30))
+str_expr: StringExpr[Name] = Person.name.contains(Name("Alice"))
+agg_expr: AggregateExpr[Age] = Person.age.avg()
+```
+
+### Complete Example
+
+```python
+from type_bridge import Database, Entity, TypeFlags
+from type_bridge.attribute import String, Integer, Double
+from type_bridge.attribute.flags import Flag, Key
+
+class Email(String):
+    pass
+
+class Age(Integer):
+    pass
+
+class Salary(Double):
+    pass
+
+class Department(String):
+    pass
+
+class Employee(Entity):
+    flags = TypeFlags(type_name="employee")
+    email: Email = Flag(Key)
+    age: Age
+    salary: Salary
+    department: Department
+
+# Connect
+db = Database(address="localhost:1729", database="company")
+db.connect()
+manager = Employee.manager(db)
+
+# Complex query: senior engineers with high salary
+senior_engineers = manager.filter(
+    Employee.department.eq(Department("Engineering")),
+    Employee.age.gt(Age(35)),
+    Employee.salary.gte(Salary(120000.0))
+).execute()
+
+# Aggregation: average salary by department
+dept_salaries = manager.group_by(Employee.department).aggregate(
+    Employee.salary.avg(),
+    Employee.age.avg()
+)
+
+for dept, stats in dept_salaries.items():
+    print(f"{dept}: ${stats['avg_salary']:,.2f}, {stats['avg_age']:.1f} years")
+
+# Boolean logic: young high performers OR experienced employees
+talent = manager.filter(
+    Employee.age.lt(Age(30)).and_(
+        Employee.salary.gt(Salary(80000.0))
+    ).or_(
+        Employee.age.gte(Age(45))
+    )
+).execute()
+```
+
+See `examples/advanced/query_expressions.py` for comprehensive real-world examples.
 
 ## Schema Management and Conflict Detection
 

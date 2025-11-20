@@ -32,8 +32,8 @@ print()
 
 class Person(Entity):
     # No flags needed! Automatically gets TypeFlags() with CLASS_NAME default
-    name: Name = Flag(Key)
     age: Age
+    name: Name = Flag(Key)
 
 
 class Company(Entity):
@@ -61,13 +61,13 @@ print()
 
 # Python base class (won't appear in TypeDB schema)
 class BaseEntity(Entity):
-    flags = TypeFlags(base=True)  # This one needs explicit base=True
+    flags: TypeFlags = TypeFlags(base=True)  # This one needs explicit base=True
 
 
 class Employee(BaseEntity):
     # No flags needed! Gets fresh TypeFlags() automatically
-    name: Name = Flag(Key)
     age: Age
+    name: Name = Flag(Key)
 
 
 class Manager(Employee):
@@ -116,12 +116,12 @@ print()
 
 
 class AbstractPerson(Entity):
-    flags = TypeFlags(abstract=True)  # Need explicit flag for abstract
+    flags: TypeFlags = TypeFlags(abstract=True)  # Need explicit flag for abstract
     name: Name
 
 
 class SpecialPerson(Entity):
-    flags = TypeFlags(type_name="special_person")  # Need explicit type_name override
+    flags: TypeFlags = TypeFlags(type_name="special_person")  # Need explicit type_name override
     name: Name
 
 

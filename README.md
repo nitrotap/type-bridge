@@ -76,7 +76,7 @@ class Person(Entity):
 
     # Use Flag() for key/unique markers and Card for cardinality
     name: Name = Flag(Key)                   # @key (implies @card(1..1))
-    age: Age | None                          # @card(0..1) - optional field
+    age: Age | None = None                   # @card(0..1) - optional field (explicit default)
     email: Email                             # @card(1..1) - default cardinality
     tags: list[Tag] = Flag(Card(min=2))      # @card(2..) - two or more
 ```
@@ -84,7 +84,7 @@ class Person(Entity):
 ### 3. Create Instances
 
 ```python
-# Create entity instances with attribute values
+# Create entity instances with attribute values (keyword arguments required)
 alice = Person(
     name=Name("Alice"),
     age=Age(30),
@@ -138,7 +138,7 @@ class Person(Entity):
 
     # Cardinality options:
     name: Name                              # @card(1..1) - exactly one (default)
-    age: Age | None                         # @card(0..1) - zero or one
+    age: Age | None = None                  # @card(0..1) - zero or one (explicit default)
     tags: list[Tag] = Flag(Card(min=2))     # @card(2..) - two or more (unbounded)
     skills: list[Skill] = Flag(Card(max=5)) # @card(0..5) - zero to five
     jobs: list[Job] = Flag(Card(1, 3))      # @card(1..3) - one to three
@@ -158,7 +158,7 @@ class Employment(Relation):
 
     # Relations can own attributes
     position: Position                   # @card(1..1)
-    salary: Salary | None                # @card(0..1)
+    salary: Salary | None = None         # @card(0..1) - explicit default
 ```
 
 ### 7. Using Python Inheritance
@@ -226,20 +226,27 @@ TypeBridge uses a two-tier testing approach with **100% test pass rate**:
 
 ```bash
 # Unit tests (fast, no external dependencies) - DEFAULT
-uv run pytest                              # Run 264 unit tests (0.3s)
+uv run pytest                              # Run 284 unit tests (0.3s)
 uv run pytest tests/unit/attributes/ -v   # Test all 9 attribute types
 uv run pytest tests/unit/core/ -v         # Test core functionality
 uv run pytest tests/unit/flags/ -v        # Test flag system
+uv run pytest tests/unit/expressions/ -v  # Test query expressions
 
 # Integration tests (requires running TypeDB server)
 # Option 1: Use Docker (recommended)
 ./test-integration.sh                     # Starts Docker, runs tests, stops Docker
 
 # Option 2: Use existing TypeDB server
-USE_DOCKER=false uv run pytest -m integration -v  # Run 102 integration tests (~18s)
+USE_DOCKER=false uv run pytest -m integration -v  # Run 133 integration tests (~18s)
+
+# Run specific integration test categories
+uv run pytest tests/integration/crud/entities/ -v      # Entity CRUD tests
+uv run pytest tests/integration/crud/relations/ -v    # Relation CRUD tests
+uv run pytest tests/integration/queries/ -v           # Query expression tests
+uv run pytest tests/integration/schema/ -v            # Schema operation tests
 
 # All tests
-uv run pytest -m "" -v                    # Run all 366 tests
+uv run pytest -m "" -v                    # Run all 417 tests
 ./test.sh                                 # Run full test suite with detailed output
 ./check.sh                                # Run linting and type checking
 ```

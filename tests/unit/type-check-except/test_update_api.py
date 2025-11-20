@@ -76,7 +76,7 @@ def test_update_reads_entity_state():
     person_manager = Person.manager(db)
 
     # Create entity with all attributes set - testing type coercion
-    alice = Person(name="Alice", age=30, status="active", tags=["python", "typedb"])  # type: ignore[arg-type]
+    alice = Person(name="Alice", age=30, status="active", tags=["python", "typedb"])
 
     # The update should read age, status, and tags from alice's current state
     # This doesn't actually execute against DB, just validates the logic
