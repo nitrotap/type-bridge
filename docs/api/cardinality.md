@@ -1,0 +1,498 @@
+# Cardinality
+
+Complete reference for cardinality constraints and the Flag system in TypeBridge.
+
+## Overview
+
+**Cardinality** defines how many values an attribute can have on an entity or relation. TypeBridge provides the `Card` API and `Flag` system for declaring cardinality constraints that map directly to TypeDB's `@card` annotations.
+
+## Card API
+
+The `Card` class specifies minimum and maximum cardinality for attributes:
+
+```python
+from type_bridge import Card
+
+# Positional arguments
+Card(min, max)
+
+# Keyword arguments
+Card(min=N)        # At least N values
+Card(max=N)        # At most N values
+Card(min=N, max=M) # Between N and M values
+```
+
+### Card Constructors
+
+```python
+from type_bridge import Card
+
+# Exact count
+Card(1, 1)          # Exactly 1 → @card(1..1)
+Card(2, 2)          # Exactly 2 → @card(2..2)
+
+# Minimum bound
+Card(min=1)         # At least 1 → @card(1..)
+Card(min=2)         # At least 2 → @card(2..)
+
+# Maximum bound
+Card(max=5)         # At most 5 → @card(0..5)
+Card(max=10)        # At most 10 → @card(0..10)
+
+# Range
+Card(1, 5)          # 1 to 5 → @card(1..5)
+Card(2, 10)         # 2 to 10 → @card(2..10)
+Card(min=2, max=8)  # 2 to 8 → @card(2..8)
+```
+
+## Flag System
+
+The `Flag` function combines cardinality with special annotations (Key, Unique):
+
+```python
+from type_bridge import Flag, Key, Unique, Card
+
+# Key attribute (implies @card(1..1))
+field: Type = Flag(Key)
+
+# Unique attribute (default @card(1..1))
+field: Type = Flag(Unique)
+
+# Multi-value with cardinality
+field: list[Type] = Flag(Card(min=1))
+
+# Key with multi-value
+field: list[Type] = Flag(Key, Card(min=1))
+```
+
+## Cardinality Patterns
+
+TypeBridge provides multiple patterns for specifying cardinality:
+
+### Single-Value Attributes
+
+#### Required Single Value (Default)
+
+```python
+# Pattern: Type (no annotation needed)
+# Cardinality: @card(1..1) - exactly one
+name: Name  # Required, exactly one
+```
+
+#### Optional Single Value
+
+```python
+# Pattern: Type | None with explicit = None
+# Cardinality: @card(0..1) - zero or one
+age: Age | None = None  # Optional, at most one
+```
+
+### Multi-Value Attributes
+
+Multi-value attributes **must** use `list[Type]` with `Flag(Card(...))`:
+
+#### At Least N Values
+
+```python
+# Pattern: list[Type] = Flag(Card(min=N))
+# Cardinality: @card(N..) - at least N, unbounded
+tags: list[Tag] = Flag(Card(min=1))     # @card(1..) - at least 1
+admins: list[Admin] = Flag(Card(min=2)) # @card(2..) - at least 2
+```
+
+#### At Most N Values
+
+```python
+# Pattern: list[Type] = Flag(Card(max=N))
+# Cardinality: @card(0..N) - zero to N
+emails: list[Email] = Flag(Card(max=3))    # @card(0..3) - up to 3
+phones: list[Phone] = Flag(Card(max=5))    # @card(0..5) - up to 5
+```
+
+#### Range of Values
+
+```python
+# Pattern: list[Type] = Flag(Card(min, max))
+# Cardinality: @card(min..max) - min to max
+jobs: list[Job] = Flag(Card(1, 5))         # @card(1..5) - 1 to 5
+skills: list[Skill] = Flag(Card(min=2, max=10))  # @card(2..10) - 2 to 10
+```
+
+#### Zero or More Values
+
+```python
+# Pattern: list[Type] = Flag(Card(min=0))
+# Cardinality: @card(0..) - zero or more (unbounded)
+tags: list[Tag] = Flag(Card(min=0))  # @card(0..)
+```
+
+## Special Annotations
+
+### Key Annotation
+
+The `Key` annotation marks an attribute as a key (unique identifier):
+
+```python
+from type_bridge import Flag, Key
+
+class Person(Entity):
+    # Key implies @card(1..1) - required and unique
+    user_id: UserID = Flag(Key)
+```
+
+**Generated TypeQL**:
+
+```typeql
+entity person,
+    owns user_id @key;
+```
+
+**Properties**:
+- Implies `@card(1..1)` (exactly one)
+- Enforces uniqueness across all instances
+- Used for entity identification
+
+### Unique Annotation
+
+The `Unique` annotation enforces uniqueness without making it a key:
+
+```python
+from type_bridge import Flag, Unique
+
+class Person(Entity):
+    email: Email = Flag(Unique)  # Unique but not the primary key
+```
+
+**Generated TypeQL**:
+
+```typeql
+entity person,
+    owns email @unique;
+```
+
+**Properties**:
+- Default `@card(1..1)` (exactly one)
+- Enforces uniqueness across all instances
+- Can have multiple unique attributes per entity
+
+### Combining Key/Unique with Card
+
+```python
+from type_bridge import Flag, Key, Unique, Card
+
+class Person(Entity):
+    # Key with multi-value
+    ids: list[ID] = Flag(Key, Card(min=1))  # @key @card(1..)
+
+    # Unique with custom cardinality
+    emails: list[Email] = Flag(Unique, Card(1, 3))  # @unique @card(1..3)
+```
+
+## Cardinality Rules
+
+### Rule 1: `Flag(Card(...))` Only with `list[Type]`
+
+Multi-value attributes must use `list[Type]`:
+
+```python
+# ✅ CORRECT: list[Type] with Card
+tags: list[Tag] = Flag(Card(min=2))
+
+# ❌ WRONG: Card without list[Type]
+age: Age = Flag(Card(0, 1))  # Use Age | None instead!
+```
+
+### Rule 2: `list[Type]` Must Have `Flag(Card(...))`
+
+All multi-value attributes must specify cardinality:
+
+```python
+# ✅ CORRECT: list[Type] with Card
+tags: list[Tag] = Flag(Card(min=1))
+
+# ❌ WRONG: list[Type] without Card
+tags: list[Tag]  # Error: missing cardinality!
+
+# ❌ WRONG: Key/Unique alone is not enough
+tags: list[Tag] = Flag(Key)  # Error: need Card too!
+tags: list[Tag] = Flag(Key, Card(min=1))  # ✅ CORRECT
+```
+
+### Rule 3: Optional Single Values Use `Type | None`
+
+For zero-or-one cardinality, use union types:
+
+```python
+# ✅ CORRECT: Type | None for optional
+age: Age | None = None  # @card(0..1)
+
+# ❌ WRONG: Don't use Card for single optional
+age: Age = Flag(Card(0, 1))
+```
+
+### Rule 4: Explicit `= None` for Optional Fields
+
+Optional fields must have explicit defaults:
+
+```python
+# ✅ CORRECT: Explicit default
+age: Age | None = None
+
+# ❌ WRONG: Missing default
+age: Age | None
+```
+
+## Complete Examples
+
+### Entity with Mixed Cardinality
+
+```python
+from type_bridge import (
+    Entity, TypeFlags,
+    String, Integer, Boolean,
+    Flag, Key, Unique, Card
+)
+
+class UserID(String):
+    pass
+
+class Username(String):
+    pass
+
+class Email(String):
+    pass
+
+class Age(Integer):
+    pass
+
+class IsActive(Boolean):
+    pass
+
+class Role(String):
+    pass
+
+class Tag(String):
+    pass
+
+class User(Entity):
+    flags = TypeFlags(type_name="user")
+
+    # Key: exactly one, unique
+    user_id: UserID = Flag(Key)
+
+    # Unique: exactly one, unique but not key
+    email: Email = Flag(Unique)
+
+    # Required: exactly one
+    username: Username
+
+    # Optional: zero or one
+    age: Age | None = None
+    is_active: IsActive | None = None
+
+    # Multi-value: at least one
+    roles: list[Role] = Flag(Card(min=1))
+
+    # Multi-value: zero to five
+    tags: list[Tag] = Flag(Card(max=5))
+```
+
+**Generated TypeQL**:
+
+```typeql
+define
+
+attribute user_id, value string;
+attribute username, value string;
+attribute email, value string;
+attribute age, value integer;
+attribute is_active, value boolean;
+attribute role, value string;
+attribute tag, value string;
+
+entity user,
+    owns user_id @key,
+    owns email @unique,
+    owns username @card(1..1),
+    owns age @card(0..1),
+    owns is_active @card(0..1),
+    owns role @card(1..),
+    owns tag @card(0..5);
+```
+
+### Relation with Cardinality
+
+```python
+from type_bridge import Relation, TypeFlags, Role, Card
+
+class Friendship(Relation):
+    flags = TypeFlags(type_name="friendship")
+
+    # Exactly 2 friends (symmetric relation)
+    friend: Role[Person] = Role("friend", Person, Card(2, 2))
+
+    # Optional attributes
+    since: StartDate | None = None
+    is_active: IsActive | None = None
+
+    # Multi-value attributes
+    shared_interests: list[Interest] = Flag(Card(min=0))
+```
+
+**Generated TypeQL**:
+
+```typeql
+relation friendship,
+    relates friend @card(2..2),
+    owns since @card(0..1),
+    owns is_active @card(0..1),
+    owns shared_interests @card(0..);
+```
+
+### Complex Cardinality Example
+
+```python
+from type_bridge import Entity, TypeFlags, Flag, Key, Unique, Card
+
+class Product(Entity):
+    flags = TypeFlags(type_name="product")
+
+    # Key: product_id (exactly one, unique)
+    product_id: ProductID = Flag(Key)
+
+    # Unique: SKU (exactly one, unique)
+    sku: SKU = Flag(Unique)
+
+    # Required: name (exactly one)
+    name: ProductName
+
+    # Optional: description (zero or one)
+    description: Description | None = None
+
+    # Multi-value: at least one category
+    categories: list[Category] = Flag(Card(min=1))
+
+    # Multi-value: 1 to 5 images
+    images: list[ImageURL] = Flag(Card(1, 5))
+
+    # Multi-value: 0 to 10 tags
+    tags: list[Tag] = Flag(Card(max=10))
+
+    # Multi-value: at least 2 suppliers
+    suppliers: list[SupplierID] = Flag(Card(min=2))
+```
+
+**Generated TypeQL**:
+
+```typeql
+entity product,
+    owns product_id @key,
+    owns sku @unique,
+    owns name @card(1..1),
+    owns description @card(0..1),
+    owns category @card(1..),
+    owns image_url @card(1..5),
+    owns tag @card(0..10),
+    owns supplier_id @card(2..);
+```
+
+## Cardinality Semantics
+
+TypeBridge follows these cardinality semantics:
+
+| Pattern | Annotation | Meaning |
+|---------|------------|---------|
+| `Type` | `@card(1..1)` | Exactly one (required) |
+| `Type \| None` | `@card(0..1)` | Zero or one (optional) |
+| `Flag(Key)` | `@key` | Exactly one, unique (implies `@card(1..1)`) |
+| `Flag(Unique)` | `@unique` | Exactly one, unique (default `@card(1..1)`) |
+| `list[Type] = Flag(Card(min=N))` | `@card(N..)` | At least N, unbounded |
+| `list[Type] = Flag(Card(max=N))` | `@card(0..N)` | Zero to N |
+| `list[Type] = Flag(Card(min, max))` | `@card(min..max)` | Min to max |
+
+## Best Practices
+
+### 1. Use Clear Cardinality Patterns
+
+Follow the established patterns for clarity:
+
+```python
+# ✅ GOOD: Clear patterns
+name: Name                          # Required (1..1)
+age: Age | None = None              # Optional (0..1)
+tags: list[Tag] = Flag(Card(min=1)) # Multi-value (1..)
+
+# ❌ CONFUSING: Mixing patterns
+name: Name | None = Name("default") # Don't provide default for optional
+age: Age = Flag(Card(1, 1))         # Just use Age
+```
+
+### 2. Use Semantic Cardinality
+
+Choose cardinality that reflects business logic:
+
+```python
+# ✅ GOOD: Reflects reality
+class Person(Entity):
+    # Everyone has exactly one birth date
+    birth_date: BirthDate
+
+    # Some people have a middle name, some don't
+    middle_name: MiddleName | None = None
+
+    # People can have multiple phone numbers
+    phones: list[Phone] = Flag(Card(min=0))
+
+# ❌ POOR: Doesn't reflect reality
+class Person(Entity):
+    birth_date: BirthDate | None = None  # Everyone has a birth date!
+    middle_name: MiddleName               # Not everyone has one
+```
+
+### 3. Use Key for Primary Identifiers
+
+Always use `Flag(Key)` for primary identifiers:
+
+```python
+# ✅ GOOD: Clear primary key
+class User(Entity):
+    user_id: UserID = Flag(Key)
+
+# ❌ POOR: Unique without Key
+class User(Entity):
+    user_id: UserID = Flag(Unique)  # Should be Key
+```
+
+### 4. Use Unique for Secondary Identifiers
+
+Use `Flag(Unique)` for fields that must be unique but aren't the primary key:
+
+```python
+class User(Entity):
+    user_id: UserID = Flag(Key)       # Primary identifier
+    email: Email = Flag(Unique)       # Secondary identifier
+    username: Username = Flag(Unique) # Secondary identifier
+```
+
+## Deprecated APIs
+
+The following cardinality APIs are deprecated:
+
+```python
+# ❌ DEPRECATED: Cardinal, Min, Max, Range
+from type_bridge import Cardinal, Min, Max, Range
+
+tags: Min[1, Tag]          # Use: list[Tag] = Flag(Card(min=1))
+tags: Max[5, Tag]          # Use: list[Tag] = Flag(Card(max=5))
+tags: Range[1, 5, Tag]     # Use: list[Tag] = Flag(Card(1, 5))
+age: Optional[Age]         # Use: Age | None
+```
+
+Use modern `Card` API and PEP 604 union syntax instead.
+
+## See Also
+
+- [Attributes](attributes.md) - Attribute types that use cardinality
+- [Entities](entities.md) - Entity ownership with cardinality constraints
+- [Relations](relations.md) - Relations with role and attribute cardinality
+- [Validation](validation.md) - Type validation and cardinality enforcement

@@ -1,0 +1,561 @@
+# Internal Architecture Guide
+
+This guide covers TypeBridge's internal type system, architecture decisions, and implementation details.
+
+## Table of Contents
+
+- [Internal Type System](#internal-type-system)
+- [Modern Python Type Hints](#modern-python-type-hints)
+- [Type Checking and Static Analysis](#type-checking-and-static-analysis)
+- [Keyword-Only Arguments](#keyword-only-arguments)
+- [Deprecated APIs](#deprecated-apis)
+
+## Internal Type System
+
+### ModelAttrInfo Dataclass
+
+The codebase uses `ModelAttrInfo` (defined in `models.py`) as a structured type for attribute metadata:
+
+```python
+@dataclass
+class ModelAttrInfo:
+    typ: type[Attribute]  # The attribute class (e.g., Name, Age)
+    flags: AttributeFlags  # Metadata (Key, Unique, Card)
+```
+
+**IMPORTANT**: Always use dataclass attribute access, never dictionary-style access:
+
+```python
+# ✅ CORRECT
+owned_attrs = Entity.get_owned_attributes()
+for field_name, attr_info in owned_attrs.items():
+    attr_class = attr_info.typ
+    flags = attr_info.flags
+
+# ❌ WRONG - Never use dict-style access
+attr_class = attr_info["type"]   # Will fail!
+flags = attr_info["flags"]       # Will fail!
+```
+
+### AttributeFlags
+
+The `AttributeFlags` dataclass stores attribute metadata:
+
+```python
+@dataclass
+class AttributeFlags:
+    is_key: bool = False
+    is_unique: bool = False
+    cardinality: tuple[int | None, int | None] | None = None
+    base: bool = False  # For BaseFlag (exclude from schema)
+```
+
+**Usage in code:**
+
+```python
+# Check if attribute is a key
+if attr_info.flags.is_key:
+    # Handle key attribute
+
+# Get cardinality
+if attr_info.flags.cardinality:
+    min_card, max_card = attr_info.flags.cardinality
+```
+
+### TypeFlags
+
+The `TypeFlags` dataclass stores entity/relation metadata:
+
+```python
+@dataclass
+class TypeFlags:
+    type_name: str | None = None
+    abstract: bool = False
+    case: str = "snake_case"  # Or "kebab-case", "camelCase", etc.
+```
+
+**Usage patterns:**
+
+```python
+# Define entity with TypeFlags
+class Person(Entity):
+    flags = TypeFlags(type_name="person")
+
+# Define abstract entity
+class Animal(Entity):
+    flags = TypeFlags(abstract=True)
+
+# Custom type name casing
+class MyEntity(Entity):
+    flags = TypeFlags(type_name="my-entity", case="kebab-case")
+```
+
+### Attribute Metadata Collection
+
+TypeBridge automatically collects attribute metadata during class definition:
+
+```python
+class Entity:
+    def __init_subclass__(cls):
+        """Automatically collects TypeFlags and owned attributes from type annotations."""
+        # 1. Collect TypeFlags
+        cls._flags = getattr(cls, "flags", TypeFlags())
+
+        # 2. Collect owned attributes from annotations
+        cls._owned_attrs = {}
+        for field_name, field_type in get_type_hints(cls).items():
+            if is_attribute_type(field_type):
+                # Extract attribute class and flags
+                attr_class, flags = extract_attribute_info(field_type, field_name, cls)
+                cls._owned_attrs[field_name] = ModelAttrInfo(typ=attr_class, flags=flags)
+```
+
+This enables automatic schema generation without explicit configuration.
+
+## Modern Python Type Hints
+
+The project follows modern Python typing standards (Python 3.12+):
+
+### 1. PEP 604: Union Type Syntax
+
+Use `X | Y` instead of `Union[X, Y]`:
+
+```python
+# ✅ Modern (Python 3.10+)
+age: int | str | None
+
+# ❌ Deprecated
+from typing import Union, Optional
+age: Optional[Union[int, str]]
+```
+
+**Application in TypeBridge:**
+
+```python
+# Optional fields
+class Person(Entity):
+    name: Name = Flag(Key)
+    age: Age | None = None  # PEP 604 syntax
+```
+
+### 2. PEP 695: Type Parameter Syntax
+
+Use type parameter syntax for generics:
+
+```python
+# ✅ Modern (Python 3.12+)
+class EntityManager[E: Entity]:
+    def __init__(self, entity_class: type[E]):
+        self.entity_class = entity_class
+
+    def insert(self, entity: E) -> E:
+        ...
+
+# ❌ Old style (still works but verbose)
+from typing import Generic, TypeVar
+E = TypeVar("E", bound=Entity)
+class EntityManager(Generic[E]):
+    def __init__(self, entity_class: type[E]):
+        self.entity_class = entity_class
+
+    def insert(self, entity: E) -> E:
+        ...
+```
+
+**Benefits:**
+- Cleaner syntax
+- Better IDE support
+- Matches modern Python standards
+
+### 3. No Linter Suppressions
+
+Code should pass `ruff` and `pyright` without needing `# noqa` or `# type: ignore` comments:
+
+```python
+# ✅ CORRECT: No suppressions needed
+def process_entity(entity: Entity) -> str:
+    return entity.get_type_name()
+
+# ❌ WRONG: Avoid suppressions
+def process_entity(entity):  # type: ignore
+    return entity.get_type_name()
+```
+
+**Exception:** Tests intentionally checking validation failures may show type warnings. These tests are in `tests/unit/type-check-except/` and excluded from type checking via `pyrightconfig.json`.
+
+## Type Checking and Static Analysis
+
+### @dataclass_transform Decorators
+
+TypeBridge uses PEP-681 `@dataclass_transform` decorators on Entity and Relation classes to improve type checker support:
+
+```python
+from typing import dataclass_transform
+
+@dataclass_transform(kw_only_default=True)
+class Entity(BaseModel):
+    """Base class for all entities."""
+    ...
+```
+
+**Benefits:**
+
+1. **Type checker recognition** of `Flag()` as a valid field default
+2. **Automatic `__init__` signature inference** from class annotations
+3. **Better IDE autocomplete** and type hints
+4. **Keyword-only arguments enforced** (improved code clarity and safety)
+
+### Type Checker Support
+
+TypeBridge is fully compatible with:
+
+- **Pyright**: Microsoft's static type checker (used in VS Code)
+- **MyPy**: Optional, but TypeBridge is MyPy-compatible
+- **Pydantic's type system**: Built on Pydantic v2
+
+**Current status:**
+- ✅ 0 type errors with Pyright
+- ✅ 0 type warnings (except in type-check-except tests)
+- ✅ Full type inference for managers and queries
+
+### Type Checking Limitations
+
+TypeBridge achieves 0 type errors with Pyright, but there are some edge cases:
+
+#### 1. Optional Fields in Queries
+
+When using field references with optional fields, Pyright may incorrectly infer the type:
+
+```python
+class Person(Entity):
+    score: PersonScore | None = None  # Optional field
+
+# Pyright may warn about optional field access
+high_scorers = manager.filter(Person.score.gt(PersonScore(90)))  # May show warning
+```
+
+**Solution**: Use attribute class methods instead of field references for optional fields:
+
+```python
+# ✅ RECOMMENDED: Attribute class method (no warnings)
+high_scorers = manager.filter(PersonScore.gt(PersonScore(90)))
+
+# Also works, but may trigger type checker warnings
+high_scorers = manager.filter(Person.score.gt(PersonScore(90)))
+```
+
+#### 2. Validation Tests
+
+Tests that intentionally check Pydantic validation behavior use raw values and are excluded from type checking via `pyrightconfig.json`:
+
+```json
+{
+  "exclude": [
+    "tests/unit/type-check-except/**"
+  ]
+}
+```
+
+These tests verify that runtime validation works correctly, even when type checkers would flag the code.
+
+### Minimal `Any` Usage
+
+The project minimizes `Any` usage for type safety:
+
+**Where `Any` is used:**
+
+1. **`Flag()` function**: Accepts `Any` for parameters to handle type aliases like `Key` and `Unique`
+   ```python
+   def Flag(*args: Any) -> AttributeFlags:
+       """Create attribute flags from Key, Unique, Card arguments."""
+       ...
+   ```
+
+2. **`Flag()` return type**: Returns `AttributeFlags` (used as field default)
+   ```python
+   class Person(Entity):
+       name: Name = Flag(Key)  # Flag() returns AttributeFlags
+   ```
+
+3. **Pydantic core schema methods**: Use proper TypeVars (`StrValue`, `IntValue`, etc.)
+   ```python
+   @classmethod
+   def __get_pydantic_core_schema__(
+       cls, source_type: Any, handler: GetCoreSchemaHandler
+   ) -> CoreSchema:
+       ...
+   ```
+
+**Where `Any` is NOT used:**
+
+- ✅ No other `Any` types in the core attribute system
+- ✅ All managers are fully typed with generics
+- ✅ All queries preserve type information
+- ✅ All entity/relation operations are type-safe
+
+## Keyword-Only Arguments
+
+TypeBridge enforces keyword-only arguments for Entity and Relation constructors using `@dataclass_transform(kw_only_default=True)`.
+
+### Why Keyword-Only?
+
+1. **Clarity**: Explicit field names make code self-documenting
+2. **Safety**: Type checkers catch argument order mistakes
+3. **Maintainability**: Adding fields doesn't break existing code
+4. **Prevention**: Eliminates entire class of positional argument bugs
+
+### Usage Pattern
+
+```python
+from type_bridge import Entity, TypeFlags, String, Integer, Flag, Key
+
+class Name(String):
+    pass
+
+class Age(Integer):
+    pass
+
+class Person(Entity):
+    flags = TypeFlags(type_name="person")
+    name: Name = Flag(Key)
+    age: Age | None = None  # Optional field requires explicit = None
+
+# ✅ CORRECT: Keyword arguments required
+person = Person(name=Name("Alice"), age=Age(30))
+person2 = Person(name=Name("Bob"))  # age is optional
+
+# ❌ WRONG: Positional arguments not allowed
+person = Person(Name("Alice"), Age(30))  # Type error!
+```
+
+### Optional Fields Require Explicit Defaults
+
+Optional fields (marked with `| None`) **must** have an explicit `= None` default:
+
+```python
+# ✅ CORRECT: Explicit defaults for optional fields
+class Person(Entity):
+    name: Name = Flag(Key)          # Required field
+    age: Age | None = None           # Optional with explicit = None
+    email: Email | None = None       # Optional with explicit = None
+
+# ❌ WRONG: Missing defaults on optional fields
+class Person(Entity):
+    name: Name = Flag(Key)
+    age: Age | None                  # Type error: missing default!
+    email: Email | None              # Type error: missing default!
+```
+
+**Why explicit `= None`?**
+
+1. **Type checking**: Pyright needs explicit defaults to distinguish optional from required fields
+2. **IDE support**: Autocomplete works better with explicit optionality
+3. **Code clarity**: Makes intent obvious at a glance
+4. **Runtime behavior**: Matches static type annotations exactly
+
+### Implementation Details
+
+The keyword-only enforcement is implemented via `@dataclass_transform`:
+
+```python
+@dataclass_transform(
+    kw_only_default=True,
+    field_specifiers=(Flag,)
+)
+class Entity(BaseModel):
+    """Base class for all entities."""
+    ...
+```
+
+This tells type checkers:
+- All fields are keyword-only by default
+- `Flag()` is recognized as a valid field specifier
+- Constructor signature is inferred from class annotations
+
+## Deprecated APIs
+
+The following APIs are deprecated and should NOT be used:
+
+### Removed Type Aliases
+
+❌ **`Long`** - Renamed to `Integer` to match TypeDB 3.x
+
+```python
+# ❌ DEPRECATED
+from type_bridge import Long
+class Age(Long):
+    pass
+
+# ✅ USE INSTEAD
+from type_bridge import Integer
+class Age(Integer):
+    pass
+```
+
+### Removed Cardinality Types
+
+❌ **`Cardinal`** - Use `Flag(Card(...))` instead
+
+```python
+# ❌ DEPRECATED
+from type_bridge import Cardinal
+tags: Cardinal[2, None, Tag]
+
+# ✅ USE INSTEAD
+from type_bridge import Card, Flag
+tags: list[Tag] = Flag(Card(min=2))
+```
+
+❌ **`Min[N, Type]`** - Use `list[Type] = Flag(Card(min=N))` instead
+
+```python
+# ❌ DEPRECATED
+from type_bridge import Min
+tags: Min[2, Tag]
+
+# ✅ USE INSTEAD
+from type_bridge import Card, Flag
+tags: list[Tag] = Flag(Card(min=2))
+```
+
+❌ **`Max[N, Type]`** - Use `list[Type] = Flag(Card(max=N))` instead
+
+```python
+# ❌ DEPRECATED
+from type_bridge import Max
+tags: Max[5, Tag]
+
+# ✅ USE INSTEAD
+from type_bridge import Card, Flag
+tags: list[Tag] = Flag(Card(max=5))
+```
+
+❌ **`Range[Min, Max, Type]`** - Use `list[Type] = Flag(Card(min, max))` instead
+
+```python
+# ❌ DEPRECATED
+from type_bridge import Range
+tags: Range[1, 5, Tag]
+
+# ✅ USE INSTEAD
+from type_bridge import Card, Flag
+tags: list[Tag] = Flag(Card(1, 5))
+```
+
+### Removed Type Hint Aliases
+
+❌ **`Optional[Type]`** - Use `Type | None` (PEP 604 syntax) instead
+
+```python
+# ❌ DEPRECATED
+from typing import Optional
+age: Optional[Age]
+
+# ✅ USE INSTEAD (PEP 604)
+age: Age | None = None
+```
+
+❌ **`Union[X, Y]`** - Use `X | Y` (PEP 604 syntax) instead
+
+```python
+# ❌ DEPRECATED
+from typing import Union
+result: Union[int, str]
+
+# ✅ USE INSTEAD (PEP 604)
+result: int | str
+```
+
+### Removed Flag Aliases
+
+❌ **`EntityFlags`** - Use `TypeFlags` instead
+
+```python
+# ❌ DEPRECATED
+from type_bridge import EntityFlags
+class Person(Entity):
+    flags = EntityFlags(type_name="person")
+
+# ✅ USE INSTEAD
+from type_bridge import TypeFlags
+class Person(Entity):
+    flags = TypeFlags(type_name="person")
+```
+
+❌ **`RelationFlags`** - Use `TypeFlags` instead
+
+```python
+# ❌ DEPRECATED
+from type_bridge import RelationFlags
+class Employment(Relation):
+    flags = RelationFlags(type_name="employment")
+
+# ✅ USE INSTEAD
+from type_bridge import TypeFlags
+class Employment(Relation):
+    flags = TypeFlags(type_name="employment")
+```
+
+### Migration Guide
+
+If you're updating code that uses deprecated APIs:
+
+**Step 1: Update imports**
+
+```python
+# Before
+from type_bridge import Long, Optional, EntityFlags, RelationFlags, Cardinal
+
+# After
+from type_bridge import Integer, TypeFlags, Card, Flag
+```
+
+**Step 2: Update type annotations**
+
+```python
+# Before
+age: Optional[Age]
+result: Union[int, str]
+
+# After
+age: Age | None = None
+result: int | str
+```
+
+**Step 3: Update cardinality**
+
+```python
+# Before
+tags: Cardinal[2, None, Tag]
+
+# After
+tags: list[Tag] = Flag(Card(min=2))
+```
+
+**Step 4: Update flags**
+
+```python
+# Before
+flags = EntityFlags(type_name="person")
+flags = RelationFlags(type_name="employment")
+
+# After
+flags = TypeFlags(type_name="person")
+flags = TypeFlags(type_name="employment")
+```
+
+### Why These Changes?
+
+These deprecations provide a cleaner, more consistent API following modern Python standards:
+
+1. **PEP 604**: Native union syntax (`X | Y`) is now standard in Python 3.10+
+2. **PEP 695**: Type parameter syntax is cleaner in Python 3.12+
+3. **Unified API**: `TypeFlags` works for both entities and relations
+4. **Explicit cardinality**: `Flag(Card(...))` is more explicit than type aliases
+5. **TypeDB 3.x alignment**: `Integer` matches TypeDB's renamed `long` type
+
+---
+
+For API usage, see [docs/api/](api/).
+
+For development guidelines, see [DEVELOPMENT.md](DEVELOPMENT.md).

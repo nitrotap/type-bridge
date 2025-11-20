@@ -2,6 +2,44 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [0.5.1] - 2025-11-20
+
+### 🐛 Bug Fixes
+
+#### Integer Key Query Bug
+- **Fixed entities with Integer-type keys failing to query by key value**
+  - Root cause: Attribute instances not being unwrapped before TypeQL value formatting
+  - `EntityId(123)` was formatted as `"123"` (string) instead of `123` (integer)
+  - Generated incorrect TypeQL: `has EntityId "123"` causing type mismatch
+  - Fix: Added `.value` extraction in `_format_value()` before type checking
+  - Location: `type_bridge/query.py:252-256`, `type_bridge/crud.py:419-423`, `type_bridge/crud.py:1145-1149`
+- **Impact**: All non-string attribute types (Integer, Double, Decimal, Boolean, Date, DateTime, DateTimeTZ, Duration) now work correctly as entity keys and in query filters
+- **Silent failure fixed**: Entities would insert successfully but couldn't be queried, now both work correctly
+
+### 🧪 Testing
+
+#### Regression Tests Added
+- **Created comprehensive Integer key test suite**
+  - 5 new integration tests specifically for Integer key bug regression
+  - Tests cover: basic insert/query, comparison with String keys, various integer values, chainable queries, all()/count() methods
+  - Location: `tests/integration/crud/entities/test_integer_key_bug.py`
+- **Test Results**: 422/422 tests passing (284 unit + 138 integration) ✅
+  - All existing tests still passing
+  - All new regression tests passing
+  - Zero test failures or regressions
+
+#### Why String Keys Worked
+- String attributes need quotes in TypeQL anyway
+- Bug accidentally produced correct output: `"KEY-123"`
+- Integer, Boolean, Double, etc. require unquoted values in TypeQL
+- These would fail with incorrect quoting: `"123"`, `"true"`, `"3.14"`
+
+### 📦 Key Files Modified
+
+- `type_bridge/query.py` - Fixed `_format_value()` function
+- `type_bridge/crud.py` - Fixed `EntityManager._format_value()` and `RelationManager._format_value()`
+- `tests/integration/crud/entities/test_integer_key_bug.py` - New regression test suite (5 tests)
+
 ## [0.5.0] - 2025-11-20
 
 ### 🚀 New Features

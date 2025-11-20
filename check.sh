@@ -23,4 +23,6 @@ uv run pyright tests
 echo "✓ Pyright check complete"
 echo ""
 
+bash ./find_type_ignores.sh
+
 echo "✅ All checks passed!"

@@ -419,6 +419,10 @@ class EntityManager[E: Entity]:
     @staticmethod
     def _format_value(value: Any) -> str:
         """Format a Python value for TypeQL."""
+        # Extract value from Attribute instances first
+        if hasattr(value, "value"):
+            value = value.value
+
         if isinstance(value, str):
             # Escape backslashes first, then double quotes for TypeQL string literals
             escaped = value.replace("\\", "\\\\").replace('"', '\\"')
@@ -1145,6 +1149,10 @@ class RelationManager[R: Relation]:
     @staticmethod
     def _format_value(value: Any) -> str:
         """Format a Python value for TypeQL."""
+        # Extract value from Attribute instances first
+        if hasattr(value, "value"):
+            value = value.value
+
         if isinstance(value, str):
             # Escape backslashes first, then double quotes for TypeQL string literals
             escaped = value.replace("\\", "\\\\").replace('"', '\\"')
