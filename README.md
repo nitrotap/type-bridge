@@ -295,45 +295,9 @@ uv run pytest -m "" -v                    # Run all 438 tests
 - pydantic>=2.0.0
 - isodate==0.7.2 (for Duration type support)
 
-## What's New in v0.5.1
+## Release Notes
 
-### Bug Fixes
-- ✅ **Fixed Integer key query bug**: Entities with Integer-type keys now query correctly
-  - All non-string attribute types (Integer, Double, Decimal, Boolean, Date, DateTime, DateTimeTZ, Duration) work as entity keys
-  - Fixed silent failure where entities would insert but couldn't be queried
-- ✅ **5 new regression tests** added to prevent Integer key bug from recurring
-
-### Expression API (v0.5.0)
-- ✅ **Type-safe query expressions**: Advanced filtering with comparisons, ranges, and boolean logic
-  - Comparison: `Person.age.gt(Age(30))`, `Person.salary.gte(Salary(50000))`
-  - String ops: `Person.email.contains(Email("@gmail"))`, `Person.name.like(Name("^A.*"))`
-  - Boolean: `.and_()`, `.or_()`, `.not_()` for complex queries
-- ✅ **Database-side aggregations**: `avg()`, `sum()`, `max()`, `min()`, `median()`, `std()`
-- ✅ **Group-by queries**: Aggregate by one or more fields with type safety
-- ✅ **Pagination & chaining**: `limit()`, `offset()`, `first()`, `count()` methods
-
-### Type Safety Improvements (v0.5.0)
-- ✅ **Keyword-only constructors**: All Entity/Relation instances require keyword arguments
-  - Pattern: `Person(name=Name("Alice"), age=Age(30))` enforced by type checkers
-- ✅ **Explicit optional defaults**: Optional fields now use `field: Type | None = None` pattern
-- ✅ **Zero type errors**: Pyright passes with 0 errors, 0 warnings, 0 informations
-
-### Testing & Quality
-- ✅ **438 comprehensive tests** (291 unit, 147 integration) - 100% pass rate
-- ✅ Docker integration for automated test setup
-- ✅ Zero errors from Ruff and Pyright
-
-### Complete Type System
-- ✅ All 9 TypeDB value types: String, Integer, Double, Decimal, Boolean, Date, DateTime, DateTimeTZ, Duration
-- ✅ Temporal type conversions (DateTime ↔ DateTimeTZ with timezone handling)
-- ✅ ISO 8601 Duration support with calendar-aware arithmetic
-
-### Production-Ready Features
-- ✅ Type-safe CRUD operations with inheritance support
-- ✅ Advanced query builder with expressions, aggregations, and pagination
-- ✅ Schema conflict detection and validation
-- ✅ Duplicate attribute type detection
-- ✅ Unified TypeFlags API for entities and relations
+See the [CHANGELOG.md](CHANGELOG.md) for detailed release notes and version history.
 
 ## License
 

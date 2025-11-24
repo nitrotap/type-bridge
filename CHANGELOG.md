@@ -2,65 +2,6 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
-## [Unreleased]
-
-### 🏗️ Refactoring
-
-#### Modularized CRUD Operations
-- **Refactored monolithic `crud.py` (3008 lines) into modular structure**
-  - Split into 11 focused modules under `crud/` directory
-  - Entity operations: `crud/entity/` with manager, query, and group_by modules
-  - Relation operations: `crud/relation/` with manager, query, and group_by modules
-  - Shared utilities: `crud/utils.py` for `format_value` and `is_multi_value_attribute`
-  - Base definitions: `crud/base.py` for type variables
-- **Benefits**:
-  - Eliminated code duplication (shared utilities now have single implementations)
-  - Improved maintainability (files are now 200-800 lines each)
-  - Better code organization and discoverability
-  - Preserved backward compatibility (all imports still work)
-- **Impact**: No breaking changes, all existing code continues to work
-
-#### Modularized Models
-- **Previously refactored `models.py` into modular structure**
-  - Split into `models/` directory with base, entity, relation, role, and utils modules
-  - Improved separation of concerns and maintainability
-
-### 🐛 Bug Fixes
-
-#### String Attribute Escaping in Multi-Value Attributes
-- **Fixed proper escaping of special characters in multi-value string attributes**
-  - Backslashes are now properly escaped: `\` → `\\`
-  - Double quotes are properly escaped: `"` → `\"`
-  - Escape order matters: backslashes first, then quotes
-  - Location: `type_bridge/query.py`, `type_bridge/crud.py`, `type_bridge/models/base.py`
-- **Impact**: Multi-value string attributes with quotes or backslashes now work correctly in insert/update operations
-- **Examples**:
-  - Quotes: `Tag('skill "Python"')` → TypeQL: `has Tag "skill \"Python\""`
-  - Backslashes: `Path("C:\\Users\\Alice")` → TypeQL: `has Path "C:\\Users\\Alice"`
-  - Mixed: `Description(r'Path: "C:\Program Files"')` → TypeQL: `has Description "Path: \"C:\\Program Files\""`
-
-### 🧪 Testing
-
-#### Escaping Test Coverage Added
-- **Created comprehensive string escaping test suite**
-  - 7 unit tests for multi-value string escaping patterns
-  - 9 integration tests verifying end-to-end escaping behavior
-  - Location: `tests/unit/attributes/test_multivalue_escaping.py`, `tests/integration/crud/attributes/test_multivalue_escaping.py`
-- **Test coverage includes**:
-  - Quotes in strings: `'skill "Python"'`
-  - Backslashes in paths: `C:\Users\Alice`
-  - Mixed escaping: `"C:\Program Files\App"`
-  - Empty strings and special characters
-  - Unicode characters (café, 日本語, emoji😀)
-  - Single quotes (not escaped in TypeQL)
-  - Relations with multi-value escaping
-  - Batch operations: `insert_many()`, `update_with()`
-
-### 📦 Key Files Modified
-
-- `tests/unit/attributes/test_multivalue_escaping.py` - New unit test suite (7 tests)
-- `tests/integration/crud/attributes/test_multivalue_escaping.py` - New integration test suite (9 tests)
-
 ## [0.6.0] - 2025-11-24
 
 ### 🚀 New Features
@@ -116,6 +57,41 @@ All notable changes to TypeBridge will be documented in this file.
 2. **Consistent API**: Mirrors TypeFlags.name pattern for entities/relations
 3. **Migration friendly**: Easier interop with existing TypeDB databases
 4. **Developer choice**: Explicit name or automatic case formatting
+
+### 🏗️ Refactoring
+
+#### Modularized CRUD Operations
+- **Refactored monolithic `crud.py` (3008 lines) into modular structure**
+  - Split into 11 focused modules under `crud/` directory
+  - Entity operations: `crud/entity/` with manager, query, and group_by modules
+  - Relation operations: `crud/relation/` with manager, query, and group_by modules
+  - Shared utilities: `crud/utils.py` for `format_value` and `is_multi_value_attribute`
+  - Base definitions: `crud/base.py` for type variables
+- **Benefits**:
+  - Eliminated code duplication (shared utilities now have single implementations)
+  - Improved maintainability (files are now 200-800 lines each)
+  - Better code organization and discoverability
+  - Preserved backward compatibility (all imports still work)
+- **Impact**: No breaking changes, all existing code continues to work
+
+#### Modularized Models
+- **Previously refactored `models.py` into modular structure**
+  - Split into `models/` directory with base, entity, relation, role, and utils modules
+  - Improved separation of concerns and maintainability
+
+### 🐛 Bug Fixes
+
+#### String Attribute Escaping in Multi-Value Attributes
+- **Fixed proper escaping of special characters in multi-value string attributes**
+  - Backslashes are now properly escaped: `\` → `\\`
+  - Double quotes are properly escaped: `"` → `\"`
+  - Escape order matters: backslashes first, then quotes
+  - Location: `type_bridge/query.py`, `type_bridge/crud.py`, `type_bridge/models/base.py`
+- **Impact**: Multi-value string attributes with quotes or backslashes now work correctly in insert/update operations
+- **Examples**:
+  - Quotes: `Tag('skill "Python"')` → TypeQL: `has Tag "skill \"Python\""`
+  - Backslashes: `Path("C:\\Users\\Alice")` → TypeQL: `has Path "C:\\Users\\Alice"`
+  - Mixed: `Description(r'Path: "C:\Program Files"')` → TypeQL: `has Description "Path: \"C:\\Program Files\""`
 
 ### 📚 Documentation
 
@@ -176,6 +152,21 @@ All notable changes to TypeBridge will be documented in this file.
   - Multi-attribute updates
   - Lambda and function-based updates
 
+#### Escaping Test Coverage Added
+- **Created comprehensive string escaping test suite**
+  - 7 unit tests for multi-value string escaping patterns
+  - 9 integration tests verifying end-to-end escaping behavior
+  - Location: `tests/unit/attributes/test_multivalue_escaping.py`, `tests/integration/crud/attributes/test_multivalue_escaping.py`
+- **Test coverage includes**:
+  - Quotes in strings: `'skill "Python"'`
+  - Backslashes in paths: `C:\Users\Alice`
+  - Mixed escaping: `"C:\Program Files\App"`
+  - Empty strings and special characters
+  - Unicode characters (café, 日本語, emoji😀)
+  - Single quotes (not escaped in TypeQL)
+  - Relations with multi-value escaping
+  - Batch operations: `insert_many()`, `update_with()`
+
 ### 📦 Key Files Modified
 
 - `type_bridge/crud.py` - Added delete() and update_with() to EntityQuery class
@@ -183,6 +174,8 @@ All notable changes to TypeBridge will be documented in this file.
 - `README.md` - Added chainable operations to features list
 - `examples/advanced/crud_07_chainable_operations.py` - New comprehensive example
 - `tests/integration/crud/entities/test_chainable.py` - New integration test suite
+- `tests/unit/attributes/test_multivalue_escaping.py` - New unit test suite (7 tests)
+- `tests/integration/crud/attributes/test_multivalue_escaping.py` - New integration test suite (9 tests)
 
 ### 💡 Usage Examples
 
