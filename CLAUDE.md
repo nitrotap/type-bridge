@@ -91,7 +91,6 @@ The project requires:
 
 ### User Documentation
 - **[README.md](README.md)** - Quick start guide for users
-- **[ABSTRACT_API.md](ABSTRACT_API.md)** - Abstract types and interface hierarchies
 
 ### Development Guides
 - **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)** - Development setup, commands, code quality standards
@@ -99,6 +98,7 @@ The project requires:
 
 ### TypeDB Integration
 - **[docs/TYPEDB.md](docs/TYPEDB.md)** - TypeDB concepts, driver API, TypeQL syntax, 3.x changes
+- **[docs/ABSTRACT_TYPES.md](docs/ABSTRACT_TYPES.md)** - Abstract types and interface hierarchies in TypeDB
 
 ### Architecture & Internals
 - **[docs/INTERNALS.md](docs/INTERNALS.md)** - Internal type system, ModelAttrInfo, modern Python standards
@@ -108,6 +108,7 @@ The project requires:
 - **[docs/api/attributes.md](docs/api/attributes.md)** - Attribute types and value types
 - **[docs/api/entities.md](docs/api/entities.md)** - Entity definition and ownership
 - **[docs/api/relations.md](docs/api/relations.md)** - Relations, roles, and role players
+- **[docs/api/abstract_types.md](docs/api/abstract_types.md)** - Abstract types implementation and patterns
 - **[docs/api/cardinality.md](docs/api/cardinality.md)** - Card API and Flag system
 - **[docs/api/crud.md](docs/api/crud.md)** - CRUD operations and managers
 - **[docs/api/queries.md](docs/api/queries.md)** - Query expressions and aggregations

@@ -52,7 +52,7 @@ class Industry(String):
 class Person(Entity):
     """Person entity with single and multi-value attributes."""
 
-    flags: TypeFlags = TypeFlags(type_name="person")
+    flags: TypeFlags = TypeFlags(name="person")
 
     # Single-value attributes
     name: Name = Flag(Key)  # @key (implies @card(1..1))
@@ -64,7 +64,7 @@ class Person(Entity):
 class Company(Entity):
     """Company entity with multi-value attribute."""
 
-    flags: TypeFlags = TypeFlags(type_name="company")
+    flags: TypeFlags = TypeFlags(name="company")
 
     name: Name = Flag(Key)  # @key
     industry: list[Industry] = Flag(Card(1, 5))  # @card(1..5) - 1 to 5 industries

@@ -76,7 +76,7 @@ class PerformanceScore(Double):
 class Employee(Entity):
     """Employee entity with comprehensive attributes."""
 
-    flags = TypeFlags(type_name="employee")
+    flags = TypeFlags(name="employee")
 
     employee_id: EmployeeID = Flag(Key)
     name: FullName

@@ -25,7 +25,7 @@ class Email(String):
 
 
 class PersonV1(Entity):
-    flags: TypeFlags = TypeFlags(type_name="person")
+    flags: TypeFlags = TypeFlags(name="person")
 
     email: Email
     name: Name = Flag(Key)
@@ -33,7 +33,7 @@ class PersonV1(Entity):
 
 # Modified schema V2 - removed email field
 class PersonV2(Entity):
-    flags: TypeFlags = TypeFlags(type_name="person")
+    flags: TypeFlags = TypeFlags(name="person")
 
     # email removed - breaking change!
     name: Name = Flag(Key)

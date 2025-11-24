@@ -5,7 +5,7 @@ This example demonstrates the three case formatting options for Entity and Relat
 2. CLASS_NAME: PersonName → PersonName (keeps as-is)
 3. SNAKE_CASE: PersonName → person_name
 
-You can also explicitly set type_name, which takes precedence over case formatting.
+You can also explicitly set name, which takes precedence over case formatting.
 """
 
 from type_bridge import (
@@ -98,16 +98,16 @@ class TechnologyCompany(Entity):
     name: CompanyName = Flag(Key)
 
 
-# Example 5: Explicit type_name takes precedence
+# Example 5: Explicit name takes precedence
 class FourthPerson(Entity):
-    """Explicit type_name overrides case formatting.
+    """Explicit name overrides case formatting.
 
     Class name: FourthPerson
     Case: SNAKE_CASE (but ignored)
-    TypeDB type: person (explicit type_name)
+    TypeDB type: person (explicit name)
     """
 
-    flags: TypeFlags = TypeFlags(type_name="person", case=TypeNameCase.SNAKE_CASE)
+    flags: TypeFlags = TypeFlags(name="person", case=TypeNameCase.SNAKE_CASE)
     age: Age | None
     name: PersonName = Flag(Key)
 
@@ -138,7 +138,7 @@ def demonstrate_case_formatting():
         ("SecondPerson", SecondPerson, "CLASS_NAME"),
         ("ThirdPerson", ThirdPerson, "SNAKE_CASE"),
         ("TechnologyCompany", TechnologyCompany, "SNAKE_CASE"),
-        ("FourthPerson", FourthPerson, "Explicit type_name"),
+        ("FourthPerson", FourthPerson, "Explicit name"),
         ("PersonCompanyEmployment", PersonCompanyEmployment, "SNAKE_CASE (Relation)"),
     ]
 
@@ -213,10 +213,10 @@ def demonstrate_usage_recommendations():
     print("   - Example: PersonName → person_name, HTTPResponse → http_response")
     print()
 
-    print("4. Explicit type_name")
+    print("4. Explicit name")
     print("   - When you need complete control")
     print("   - For legacy schema compatibility")
-    print("   - Example: PersonName with type_name='person' → person")
+    print("   - Example: PersonName with name='person' → person")
     print()
 
 
@@ -246,7 +246,7 @@ def main():
     print("  • LOWERCASE (default): Simple and traditional")
     print("  • CLASS_NAME: Preserves exact class names")
     print("  • SNAKE_CASE: Best for multi-word class names (recommended!)")
-    print("  • Explicit type_name: Complete control when needed")
+    print("  • Explicit name: Complete control when needed")
     print("=" * 80)
 
 

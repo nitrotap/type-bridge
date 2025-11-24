@@ -167,10 +167,10 @@ All tests must pass:
 uv run pytest                              # All 284 unit tests
 
 # Integration tests
-./test-integration.sh                     # All 133 integration tests with Docker
+./test-integration.sh                     # All 138 integration tests with Docker
 
 # All tests
-uv run pytest -m ""                       # All 417 tests
+uv run pytest -m ""                       # All 422 tests
 ./test.sh                                 # Full test suite with detailed output
 ./check.sh                                # Linting and type checking
 ```

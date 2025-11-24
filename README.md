@@ -174,8 +174,25 @@ class Dog(Animal):  # Automatically: dog sub animal in TypeDB
 
 ## Documentation
 
-- **Complete API Reference**: [docs/ATTRIBUTE_API.md](docs/ATTRIBUTE_API.md)
-- **Project Guidance**: [CLAUDE.md](CLAUDE.md) - Development guide and TypeDB concepts
+- **[CLAUDE.md](CLAUDE.md)** - Project guidance for development, TypeDB concepts, and quick reference
+- **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)** - Development setup, commands, and code quality standards
+- **[docs/TESTING.md](docs/TESTING.md)** - Testing strategy, patterns, and execution
+- **[docs/TYPEDB.md](docs/TYPEDB.md)** - TypeDB concepts, driver API, and TypeQL syntax
+- **[docs/ABSTRACT_TYPES.md](docs/ABSTRACT_TYPES.md)** - Abstract types and interface hierarchies in TypeDB
+- **[docs/INTERNALS.md](docs/INTERNALS.md)** - Internal type system and architecture
+
+### API Reference
+
+- **[docs/api/README.md](docs/api/README.md)** - API overview and quick reference
+- **[docs/api/attributes.md](docs/api/attributes.md)** - Attribute types and value types
+- **[docs/api/entities.md](docs/api/entities.md)** - Entity definition and ownership
+- **[docs/api/relations.md](docs/api/relations.md)** - Relations, roles, and role players
+- **[docs/api/abstract_types.md](docs/api/abstract_types.md)** - Abstract types implementation and patterns
+- **[docs/api/cardinality.md](docs/api/cardinality.md)** - Card API and Flag system
+- **[docs/api/crud.md](docs/api/crud.md)** - CRUD operations and managers
+- **[docs/api/queries.md](docs/api/queries.md)** - Query expressions and aggregations
+- **[docs/api/schema.md](docs/api/schema.md)** - Schema management and conflict detection
+- **[docs/api/validation.md](docs/api/validation.md)** - Pydantic integration and type safety
 
 ## Pydantic Integration
 
@@ -237,7 +254,7 @@ uv run pytest tests/unit/expressions/ -v  # Test query expressions
 ./test-integration.sh                     # Starts Docker, runs tests, stops Docker
 
 # Option 2: Use existing TypeDB server
-USE_DOCKER=false uv run pytest -m integration -v  # Run 133 integration tests (~18s)
+USE_DOCKER=false uv run pytest -m integration -v  # Run 138 integration tests (~18s)
 
 # Run specific integration test categories
 uv run pytest tests/integration/crud/entities/ -v      # Entity CRUD tests
@@ -246,7 +263,7 @@ uv run pytest tests/integration/queries/ -v           # Query expression tests
 uv run pytest tests/integration/schema/ -v            # Schema operation tests
 
 # All tests
-uv run pytest -m "" -v                    # Run all 417 tests
+uv run pytest -m "" -v                    # Run all 422 tests
 ./test.sh                                 # Run full test suite with detailed output
 ./check.sh                                # Run linting and type checking
 ```
@@ -259,18 +276,31 @@ uv run pytest -m "" -v                    # Run all 417 tests
 - pydantic>=2.0.0
 - isodate==0.7.2 (for Duration type support)
 
-## What's New in v0.4.4
+## What's New in v0.5.1
 
 ### Bug Fixes
-- ✅ **Fixed inherited attributes in CRUD operations**: Insert and fetch now properly include inherited attributes from parent Entity/Relation classes
-- ✅ Added `get_all_attributes()` method to collect attributes from entire class hierarchy
+- ✅ **Fixed Integer key query bug**: Entities with Integer-type keys now query correctly
+  - All non-string attribute types (Integer, Double, Decimal, Boolean, Date, DateTime, DateTimeTZ, Duration) work as entity keys
+  - Fixed silent failure where entities would insert but couldn't be queried
+- ✅ **5 new regression tests** added to prevent Integer key bug from recurring
 
-### API Improvements
-- ✅ **Unified TypeFlags API**: Removed deprecated `EntityFlags` and `RelationFlags` aliases - use `TypeFlags` for both
-- ✅ All examples updated to use unified TypeFlags API
+### Expression API (v0.5.0)
+- ✅ **Type-safe query expressions**: Advanced filtering with comparisons, ranges, and boolean logic
+  - Comparison: `Person.age.gt(Age(30))`, `Person.salary.gte(Salary(50000))`
+  - String ops: `Person.email.contains(Email("@gmail"))`, `Person.name.like(Name("^A.*"))`
+  - Boolean: `.and_()`, `.or_()`, `.not_()` for complex queries
+- ✅ **Database-side aggregations**: `avg()`, `sum()`, `max()`, `min()`, `median()`, `std()`
+- ✅ **Group-by queries**: Aggregate by one or more fields with type safety
+- ✅ **Pagination & chaining**: `limit()`, `offset()`, `first()`, `count()` methods
+
+### Type Safety Improvements (v0.5.0)
+- ✅ **Keyword-only constructors**: All Entity/Relation instances require keyword arguments
+  - Pattern: `Person(name=Name("Alice"), age=Age(30))` enforced by type checkers
+- ✅ **Explicit optional defaults**: Optional fields now use `field: Type | None = None` pattern
+- ✅ **Zero type errors**: Pyright passes with 0 errors, 0 warnings, 0 informations
 
 ### Testing & Quality
-- ✅ **366 comprehensive tests** (264 unit, 102 integration) - 100% pass rate
+- ✅ **422 comprehensive tests** (284 unit, 138 integration) - 100% pass rate
 - ✅ Docker integration for automated test setup
 - ✅ Zero errors from Ruff and Pyright
 
@@ -281,9 +311,10 @@ uv run pytest -m "" -v                    # Run all 417 tests
 
 ### Production-Ready Features
 - ✅ Type-safe CRUD operations with inheritance support
-- ✅ Chainable query builder with limit/offset/sort
+- ✅ Advanced query builder with expressions, aggregations, and pagination
 - ✅ Schema conflict detection and validation
 - ✅ Duplicate attribute type detection
+- ✅ Unified TypeFlags API for entities and relations
 
 ## License
 

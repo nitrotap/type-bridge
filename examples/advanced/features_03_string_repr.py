@@ -40,7 +40,7 @@ class Salary(Integer):
 
 # Define entities
 class Person(Entity):
-    flags: TypeFlags = TypeFlags(type_name="person")
+    flags: TypeFlags = TypeFlags(name="person")
 
     email: Email
     age: Age | None
@@ -48,14 +48,14 @@ class Person(Entity):
 
 
 class Company(Entity):
-    flags: TypeFlags = TypeFlags(type_name="company")
+    flags: TypeFlags = TypeFlags(name="company")
 
     name: Name = Flag(Key)
 
 
 # Define relation
 class Employment(Relation):
-    flags: TypeFlags = TypeFlags(type_name="employment")
+    flags: TypeFlags = TypeFlags(name="employment")
 
     employee: Role[Person] = Role("employee", Person)
     employer: Role[Company] = Role("employer", Company)

@@ -35,12 +35,12 @@ class Age(Integer):
 
 # Concrete entities inherit from custom Entity
 class XX(Entity):
-    flags: TypeFlags = TypeFlags(type_name="xx")
+    flags: TypeFlags = TypeFlags(name="xx")
     name: Name
 
 
 class YY(XX):
-    flags: TypeFlags = TypeFlags(type_name="yy")
+    flags: TypeFlags = TypeFlags(name="yy")
     age: Age
 
 
@@ -82,12 +82,12 @@ class Timestamped(tbg.Entity):
 
 
 class Person(Timestamped):
-    flags: TypeFlags = TypeFlags(type_name="person")
+    flags: TypeFlags = TypeFlags(name="person")
     name: Name
 
 
 class Company(Timestamped):
-    flags: TypeFlags = TypeFlags(type_name="company")
+    flags: TypeFlags = TypeFlags(name="company")
     name: Name
 
 
@@ -119,7 +119,7 @@ class BaseEntity(tbg.Entity):
 
 # TypeDB abstract entity
 class LivingThing(BaseEntity):
-    flags: TypeFlags = TypeFlags(type_name="living_thing", abstract=True)
+    flags: TypeFlags = TypeFlags(name="living_thing", abstract=True)
     name: Name
 
 
@@ -133,7 +133,7 @@ class AuditedEntity(LivingThing):
 
 # Concrete entity
 class Animal(AuditedEntity):
-    flags: TypeFlags = TypeFlags(type_name="animal")
+    flags: TypeFlags = TypeFlags(name="animal")
     age: Age
 
 

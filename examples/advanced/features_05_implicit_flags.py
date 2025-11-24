@@ -121,7 +121,7 @@ class AbstractPerson(Entity):
 
 
 class SpecialPerson(Entity):
-    flags: TypeFlags = TypeFlags(type_name="special_person")  # Need explicit type_name override
+    flags: TypeFlags = TypeFlags(name="special_person")  # Need explicit name override
     name: Name
 
 
@@ -143,7 +143,7 @@ print()
 print("✗ Explicit flags needed for:")
 print("  • base=True (Python-only base classes)")
 print("  • abstract=True (abstract entities/relations)")
-print("  • Custom type_name (override CLASS_NAME default)")
+print("  • Custom name (override CLASS_NAME default)")
 print("  • Custom case formatting (LOWERCASE, SNAKE_CASE)")
 print()
 print("=" * 80)

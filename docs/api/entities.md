@@ -483,6 +483,7 @@ age: Optional[Age] = None
 
 - [Attributes](attributes.md) - Attribute types and value types
 - [Relations](relations.md) - How to define relations
+- [Abstract Types](abstract_types.md) - Working with abstract entities and inheritance
 - [Cardinality](cardinality.md) - Cardinality constraints
 - [CRUD Operations](crud.md) - Working with entities in the database
 - [Queries](queries.md) - Querying entities

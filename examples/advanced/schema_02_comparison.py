@@ -34,7 +34,7 @@ class Age(Integer):
 
 
 class PersonV1(Entity):
-    flags: TypeFlags = TypeFlags(type_name="person")
+    flags: TypeFlags = TypeFlags(name="person")
 
     email: Email
     name: Name = Flag(Key)
@@ -50,7 +50,7 @@ class Phone(String):
 
 
 class PersonV2(Entity):
-    flags: TypeFlags = TypeFlags(type_name="person")
+    flags: TypeFlags = TypeFlags(name="person")
 
     email: Email
     age: Age | None  # Added optional age
@@ -61,7 +61,7 @@ class PersonV2(Entity):
 class CompanyV2(Entity):
     """New entity in V2."""
 
-    flags: TypeFlags = TypeFlags(type_name="company")
+    flags: TypeFlags = TypeFlags(name="company")
 
     name: Name = Flag(Key)
 
@@ -69,7 +69,7 @@ class CompanyV2(Entity):
 class EmploymentV2(Relation):
     """New relation in V2."""
 
-    flags: TypeFlags = TypeFlags(type_name="employment")
+    flags: TypeFlags = TypeFlags(name="employment")
 
     employee: Role[PersonV2] = Role("employee", PersonV2)
     employer: Role[CompanyV2] = Role("employer", CompanyV2)

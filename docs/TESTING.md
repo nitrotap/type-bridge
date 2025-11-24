@@ -1,6 +1,6 @@
 # Testing Guide
 
-TypeBridge uses a comprehensive two-tier testing approach with **100% test pass rate (417/417 tests)**.
+TypeBridge uses a comprehensive two-tier testing approach with **100% test pass rate (422/422 tests)**.
 
 ## Table of Contents
 
@@ -26,7 +26,7 @@ TypeBridge employs a two-tier testing approach that balances speed, isolation, a
 - **Real database**: Require running TypeDB 3.x server
 - **End-to-end**: Test complete workflows from schema to queries
 - **Explicit execution**: Must use `pytest -m integration`
-- **133 tests total**: Full CRUD, schema, and query coverage
+- **138 tests total**: Full CRUD, schema, and query coverage
 
 ## Unit Tests
 
@@ -167,7 +167,7 @@ Integration tests require a running TypeDB 3.x server.
 
 ```bash
 # Run integration tests with Docker (automatic setup)
-./test-integration.sh                     # All 133 integration tests
+./test-integration.sh                     # All 138 integration tests
 ./test-integration.sh -v                  # With verbose output
 
 # Docker is automatically:
@@ -293,10 +293,10 @@ docker compose down -v
 uv run pytest                              # All 284 unit tests
 
 # Integration tests only (requires TypeDB)
-./test-integration.sh                     # All 133 integration tests with Docker
+./test-integration.sh                     # All 138 integration tests with Docker
 
 # All tests (unit + integration)
-uv run pytest -m ""                       # All 417 tests
+uv run pytest -m ""                       # All 422 tests
 ./test.sh                                 # Full test suite with detailed output
 ```
 

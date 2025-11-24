@@ -1341,3 +1341,269 @@ class RelationManager[R: Relation]:
             all_employments = Employment.manager(db).all()
         """
         return self.get()
+
+    def _is_multi_value_attribute(self, flags: AttributeFlags) -> bool:
+        """Check if attribute is multi-value based on cardinality.
+
+        Args:
+            flags: AttributeFlags instance
+
+        Returns:
+            True if multi-value (card_max is None or > 1), False if single-value
+        """
+        # Single-value: card_max == 1 (including 0..1 and 1..1)
+        # Multi-value: card_max is None (unbounded) or > 1
+        if flags.card_max is None:
+            # Unbounded means multi-value
+            return True
+        return flags.card_max > 1
+
+    def update(self, relation: R) -> R:
+        """Update a relation in the database based on its current state.
+
+        Uses role players to identify the relation, then updates its attributes.
+        Role players themselves cannot be changed (that would be a different relation).
+
+        For single-value attributes (@card(0..1) or @card(1..1)), uses TypeQL update clause.
+        For multi-value attributes (e.g., @card(0..5), @card(2..)), deletes old values
+        and inserts new ones.
+
+        Args:
+            relation: The relation instance to update (must have all role players set)
+
+        Returns:
+            The same relation instance
+
+        Example:
+            # Fetch relation
+            emp = employment_manager.get(employee=alice)[0]
+
+            # Modify attributes
+            emp.position = Position("Senior Engineer")
+            emp.salary = Salary(120000)
+
+            # Update in database
+            employment_manager.update(emp)
+        """
+        # Get all attributes (including inherited)
+        all_attrs = self.model_class.get_all_attributes()
+
+        # Extract role players from relation instance for matching
+        roles = self.model_class._roles
+        role_players = {}
+        for role_name, role in roles.items():
+            entity = relation.__dict__.get(role_name)
+            if entity is None:
+                raise ValueError(f"Role player '{role_name}' is required for update")
+            role_players[role_name] = entity
+
+        # Separate single-value and multi-value updates from relation state
+        single_value_updates = {}
+        multi_value_updates = {}
+
+        for field_name, attr_info in all_attrs.items():
+            attr_class = attr_info.typ
+            attr_name = attr_class.get_attribute_name()
+            flags = attr_info.flags
+
+            # Get current value from relation
+            current_value = getattr(relation, field_name, None)
+
+            # Extract raw values from Attribute instances
+            if current_value is not None:
+                if isinstance(current_value, list):
+                    # Multi-value: extract value from each Attribute in list
+                    raw_values = []
+                    for item in current_value:
+                        if hasattr(item, "value"):
+                            raw_values.append(item.value)
+                        else:
+                            raw_values.append(item)
+                    current_value = raw_values
+                elif hasattr(current_value, "value"):
+                    # Single-value: extract value from Attribute
+                    current_value = current_value.value
+
+            # Determine if multi-value
+            is_multi_value = self._is_multi_value_attribute(flags)
+
+            if is_multi_value:
+                # Multi-value: store as list (even if empty)
+                if current_value is None:
+                    current_value = []
+                multi_value_updates[attr_name] = current_value
+            else:
+                # Single-value: skip None values for optional attributes
+                if current_value is not None:
+                    single_value_updates[attr_name] = current_value
+
+        # Build match clause with role players
+        role_parts = []
+        match_statements = []
+
+        for role_name, entity in role_players.items():
+            role_var = f"${role_name}"
+            role = roles[role_name]
+            role_parts.append(f"{role.role_name}: {role_var}")
+
+            # Match the role player by their key attributes (including inherited)
+            entity_class = entity.__class__
+            player_owned_attrs = entity_class.get_all_attributes()
+            for field_name, attr_info in player_owned_attrs.items():
+                if attr_info.flags.is_key:
+                    key_value = getattr(entity, field_name, None)
+                    if key_value is not None:
+                        attr_name = attr_info.typ.get_attribute_name()
+                        # Extract value from Attribute instance if needed
+                        if hasattr(key_value, "value"):
+                            key_value = key_value.value
+                        formatted_value = self._format_value(key_value)
+                        match_statements.append(f"{role_var} has {attr_name} {formatted_value};")
+                        break
+
+        roles_str = ", ".join(role_parts)
+        relation_match = f"$r isa {self.model_class.get_type_name()} ({roles_str});"
+        match_statements.insert(0, relation_match)
+
+        # Add match statements to bind multi-value attributes for deletion
+        if multi_value_updates:
+            for attr_name in multi_value_updates:
+                match_statements.append(f"$r has {attr_name} ${attr_name};")
+
+        match_clause = "\n".join(match_statements)
+
+        # Build query parts
+        query_parts = [f"match\n{match_clause}"]
+
+        # Delete clause (for multi-value attributes)
+        if multi_value_updates:
+            delete_parts = []
+            for attr_name in multi_value_updates:
+                delete_parts.append(f"${attr_name} of $r;")
+            delete_clause = "\n".join(delete_parts)
+            query_parts.append(f"delete\n{delete_clause}")
+
+        # Insert clause (for multi-value attributes)
+        if multi_value_updates:
+            insert_parts = []
+            for attr_name, values in multi_value_updates.items():
+                for value in values:
+                    formatted_value = self._format_value(value)
+                    insert_parts.append(f"$r has {attr_name} {formatted_value};")
+            if insert_parts:
+                insert_clause = "\n".join(insert_parts)
+                query_parts.append(f"insert\n{insert_clause}")
+
+        # Update clause (for single-value attributes)
+        if single_value_updates:
+            update_parts = []
+            for attr_name, value in single_value_updates.items():
+                formatted_value = self._format_value(value)
+                update_parts.append(f"$r has {attr_name} {formatted_value};")
+            update_clause = "\n".join(update_parts)
+            query_parts.append(f"update\n{update_clause}")
+
+        # Combine and execute
+        full_query = "\n".join(query_parts)
+
+        with self.db.transaction("write") as tx:
+            tx.execute(full_query)
+            tx.commit()
+
+        return relation
+
+    def delete(self, **filters) -> int:
+        """Delete relations matching filters.
+
+        Supports filtering by both attributes and role players to identify relations to delete.
+
+        Args:
+            **filters: Attribute and/or role player filters
+                - Attribute filters: position="Engineer", salary=100000
+                - Role player filters: employee=person_entity, employer=company_entity
+
+        Returns:
+            Number of relations deleted
+
+        Example:
+            # Delete by role players
+            manager.delete(employee=alice, employer=techcorp)
+
+            # Delete by attribute
+            manager.delete(position="Intern")
+
+            # Delete by both
+            manager.delete(employee=alice, position="Engineer")
+        """
+        # Get all attributes (including inherited) for validation
+        all_attrs = self.model_class.get_all_attributes()
+
+        # Separate attribute filters from role player filters
+        attr_filters = {}
+        role_player_filters = {}
+
+        for key, value in filters.items():
+            if key in self.model_class._roles:
+                # This is a role player filter
+                role_player_filters[key] = value
+            elif key in all_attrs:
+                # This is an attribute filter
+                attr_filters[key] = value
+            else:
+                raise ValueError(f"Unknown filter: {key}")
+
+        # Build match clause with role players and filters
+        role_parts = []
+        role_info = {}  # role_name -> (var, entity_class)
+        for role_name, role in self.model_class._roles.items():
+            role_var = f"${role_name}"
+            role_parts.append(f"{role.role_name}: {role_var}")
+            role_info[role_name] = (role_var, role.player_entity_type)
+
+        roles_str = ", ".join(role_parts)
+
+        # Build relation match with inline attribute filters
+        relation_parts = [f"$r isa {self.model_class.get_type_name()} ({roles_str})"]
+
+        # Add attribute filters inline using commas
+        for field_name, value in attr_filters.items():
+            attr_info = all_attrs[field_name]
+            attr_name = attr_info.typ.get_attribute_name()
+            formatted_value = self._format_value(value)
+            relation_parts.append(f"has {attr_name} {formatted_value}")
+
+        # Combine relation and attribute filters with commas
+        relation_match = ", ".join(relation_parts)
+        match_statements = [relation_match]
+
+        # Add role player filter clauses (without semicolons inside)
+        for role_name, player_entity in role_player_filters.items():
+            role_var = f"${role_name}"
+            entity_class = role_info[role_name][1]
+
+            # Match the role player by their key attributes (including inherited)
+            player_owned_attrs = entity_class.get_all_attributes()
+            for field_name, attr_info in player_owned_attrs.items():
+                if attr_info.flags.is_key:
+                    key_value = getattr(player_entity, field_name, None)
+                    if key_value is not None:
+                        attr_name = attr_info.typ.get_attribute_name()
+                        # Extract value from Attribute instance if needed
+                        if hasattr(key_value, "value"):
+                            key_value = key_value.value
+                        formatted_value = self._format_value(key_value)
+                        match_statements.append(f"{role_var} has {attr_name} {formatted_value}")
+                        break
+
+        # Build query
+        query = Query()
+        # Join statements with semicolons, Query class adds final semicolon
+        pattern = ";\n".join(match_statements) if match_statements else ""
+        query.match(pattern)
+        query.delete("$r")
+
+        with self.db.transaction("write") as tx:
+            results = tx.execute(query.build())
+            tx.commit()
+
+        return len(results) if results else 0
