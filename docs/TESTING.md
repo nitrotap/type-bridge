@@ -49,7 +49,8 @@ tests/unit/
 │   ├── test_duration.py      # Duration attribute type (ISO 8601)
 │   ├── test_formatting.py    # Mixed attribute formatting
 │   ├── test_integer.py       # Integer attribute type
-│   └── test_string.py        # String attribute type
+│   ├── test_string.py        # String attribute type
+│   └── test_multivalue_escaping.py # Multi-value string escaping
 ├── flags/                    # Flag system tests
 │   ├── test_base_flag.py     # Base flag for schema exclusion
 │   ├── test_cardinality.py   # Card API for cardinality constraints
@@ -121,6 +122,11 @@ uv run pytest --cov=type_bridge --cov-report=html
 - Type checking
 - Schema validation (duplicate attribute type detection)
 
+**String Escaping:**
+- Multi-value attribute escaping (quotes, backslashes, Unicode)
+- Edge cases: empty strings, single quotes, mixed escaping
+- TypeQL string literal formatting
+
 ## Integration Tests
 
 ### Overview
@@ -143,6 +149,7 @@ tests/integration/
 │   ├── attributes/           # Attribute type operations
 │   │   ├── test_all_types.py # All 9 attribute types
 │   │   ├── test_multi_value.py # Multi-value attributes
+│   │   ├── test_multivalue_escaping.py # String escaping edge cases
 │   │   └── test_conversions.py # DateTime/DateTimeTZ conversions
 │   └── interop/              # Cross-type operations
 │       ├── test_mixed_queries.py # Complex mixed queries
@@ -376,7 +383,7 @@ class TestFeature:
         """Test basic functionality."""
         # Arrange
         class Person(Entity):
-            flags = TypeFlags(type_name="person")
+            flags = TypeFlags(name="person")
             name: Name = Flag(Key)
 
         # Act
@@ -412,7 +419,7 @@ class Name(String):
 
 
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name = Flag(Key)
 
 

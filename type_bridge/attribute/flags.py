@@ -1,6 +1,7 @@
 """Flag system for TypeDB attribute annotations."""
 
 import re
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 from typing import Annotated, Any, TypeVar
@@ -139,6 +140,12 @@ class TypeFlags:
         """
         # Handle backward compatibility: type_name takes precedence if provided
         if type_name is not None:
+            warnings.warn(
+                "The 'type_name' parameter is deprecated and will be removed in a future version. "
+                "Use 'name' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             self.name = type_name
         else:
             self.name = name
@@ -199,9 +206,10 @@ class Card:
 
 @dataclass
 class AttributeFlags:
-    """Metadata for attribute ownership.
+    """Metadata for attribute ownership and type configuration.
 
-    Represents TypeDB ownership annotations like @key, @card(min..max), @unique.
+    Represents TypeDB ownership annotations like @key, @card(min..max), @unique,
+    and allows overriding the attribute type name with explicit name or case formatting.
 
     Example:
         class Person(Entity):
@@ -210,6 +218,14 @@ class AttributeFlags:
             age: Optional[Age]                        # @card(0..1) - no Flag needed
             tags: list[Tag] = Flag(Card(min=2))       # @card(2..)
             jobs: list[Job] = Flag(Card(1, 5))        # @card(1..5)
+
+        # Override attribute type name explicitly
+        class Name(String):
+            flags = AttributeFlags(name="name")
+
+        # Or use case formatting
+        class PersonName(String):
+            flags = AttributeFlags(case=TypeNameCase.SNAKE_CASE)  # -> person_name
     """
 
     is_key: bool = False
@@ -217,6 +233,8 @@ class AttributeFlags:
     card_min: int | None = None
     card_max: int | None = None
     has_explicit_card: bool = False  # Track if Card(...) was explicitly used
+    name: str | None = None  # Override attribute type name explicitly
+    case: "TypeNameCase | None" = None  # Case formatting for type name
 
     def to_typeql_annotations(self) -> list[str]:
         """Convert to TypeQL annotations like @key, @card(0..5).
@@ -277,7 +295,7 @@ def Flag(*annotations: Any) -> Annotated[Any, AttributeFlags]:
 
     Example:
         class Person(Entity):
-            flags = TypeFlags(type_name="person")
+            flags = TypeFlags(name="person")
             name: Name = Flag(Key)                    # @key (implies @card(1..1))
             email: Email = Flag(Key, Unique)          # @key @unique
             age: Optional[Age]                        # @card(0..1)

@@ -19,7 +19,8 @@ unit/
 │   ├── test_duration.py         # Duration attribute type (ISO 8601)
 │   ├── test_formatting.py       # Mixed attribute formatting in insert queries
 │   ├── test_integer.py          # Integer attribute type
-│   └── test_string.py           # String attribute type
+│   ├── test_string.py           # String attribute type
+│   └── test_multivalue_escaping.py  # Multi-value string escaping (7 tests)
 ├── flags/                       # Flag system tests
 │   ├── test_base_flag.py        # Base flag for schema exclusion
 │   ├── test_cardinality.py      # Card API for cardinality constraints
@@ -37,7 +38,7 @@ unit/
 - **test_inheritance.py** (11 tests): Type hierarchies, base classes, edge cases
 - **test_pydantic.py** (9 tests): Validation, serialization, type coercion
 
-### Attribute Tests (115 tests)
+### Attribute Tests (122 tests)
 - **test_boolean.py** (8 tests): Boolean type creation, formatting, multi-value
 - **test_date.py** (17 tests): Date type creation, formatting, validation
 - **test_datetime_tz.py** (14 tests): Timezone-aware datetime, conversions
@@ -47,6 +48,7 @@ unit/
 - **test_formatting.py** (5 tests): Mixed attribute formatting in TypeQL queries
 - **test_integer.py** (8 tests): Integer type creation, edge cases, formatting
 - **test_string.py** (11 tests): String type creation, special characters, concatenation
+- **test_multivalue_escaping.py** (7 tests): String escaping in multi-value attributes (quotes, backslashes, Unicode)
 
 ### Flag Tests (43 tests)
 - **test_base_flag.py** (12 tests): Base class flag for schema exclusion

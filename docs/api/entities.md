@@ -56,7 +56,7 @@ class Email(String):
 
 # 2. Define entity with ownership
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
 
     name: Name = Flag(Key)        # @key (required, unique)
     age: Age | None = None         # @card(0..1) (optional)
@@ -87,7 +87,7 @@ from type_bridge import TypeFlags
 
 class Person(Entity):
     flags = TypeFlags(
-        type_name="person",        # TypeDB type name (default: lowercase class name)
+        name="person",        # TypeDB type name (default: lowercase class name)
         abstract=False,            # Whether this is an abstract entity (default: False)
         case="snake_case"          # Type name case formatting (default: "snake_case")
     )
@@ -109,11 +109,11 @@ Override with `TypeFlags`:
 
 ```python
 class Person(Entity):
-    flags = TypeFlags(type_name="human")  # Type name: "human"
+    flags = TypeFlags(name="human")  # Type name: "human"
 
 class UserAccount(Entity):
     flags = TypeFlags(
-        type_name="user_account",  # Explicit name
+        name="user_account",  # Explicit name
         case="snake_case"          # Or use case formatting
     )
 ```
@@ -183,15 +183,15 @@ TypeBridge automatically maps Python inheritance to TypeDB supertypes:
 from type_bridge import Entity, TypeFlags
 
 class Animal(Entity):
-    flags = TypeFlags(type_name="animal")
+    flags = TypeFlags(name="animal")
     name: Name
 
 class Dog(Animal):
-    flags = TypeFlags(type_name="dog")
+    flags = TypeFlags(name="dog")
     breed: Breed
 
 class Cat(Animal):
-    flags = TypeFlags(type_name="cat")
+    flags = TypeFlags(name="cat")
     color: Color
 ```
 
@@ -212,16 +212,16 @@ entity cat, sub animal,
 
 ```python
 class Content(Entity):
-    flags = TypeFlags(type_name="content", abstract=True)
+    flags = TypeFlags(name="content", abstract=True)
     id: ID = Flag(Key)
 
 class Page(Content):
-    flags = TypeFlags(type_name="page", abstract=True)
+    flags = TypeFlags(name="page", abstract=True)
     page_id: PageID
     bio: Bio
 
 class Person(Page):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     email: Email
 ```
 
@@ -247,11 +247,11 @@ Abstract entities cannot be instantiated directly but serve as base types:
 from type_bridge import Entity, TypeFlags
 
 class Animal(Entity):
-    flags = TypeFlags(type_name="animal", abstract=True)
+    flags = TypeFlags(name="animal", abstract=True)
     name: Name
 
 class Dog(Animal):
-    flags = TypeFlags(type_name="dog")
+    flags = TypeFlags(name="dog")
     breed: Breed
 ```
 
@@ -292,7 +292,7 @@ class Email(String):
     pass
 
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name = Flag(Key)
     age: Age | None = None
     email: Email
@@ -362,7 +362,7 @@ class Tag(String):
 
 # Define entity with various attribute patterns
 class User(Entity):
-    flags = TypeFlags(type_name="user")
+    flags = TypeFlags(name="user")
 
     # Key attribute (required, unique, exactly one)
     user_id: UserID = Flag(Key)
@@ -412,6 +412,8 @@ entity user,
     owns tag @card(1..);
 ```
 
+**⚠️ Note**: Multi-value attributes (like `tags` above) are **unordered sets**. TypeDB has no list type - only sets. TypeBridge uses `list[Type]` syntax for convenience, but order is never preserved. See [Cardinality](cardinality.md#important-no-lists-in-typedb---only-sets) for details.
+
 ## Best Practices
 
 ### 1. Use Distinct Attribute Types
@@ -446,7 +448,7 @@ Always use `TypeFlags` instead of deprecated dunder attributes:
 ```python
 # ✅ CORRECT: TypeFlags API
 class Person(Entity):
-    flags = TypeFlags(type_name="person", abstract=False)
+    flags = TypeFlags(name="person", abstract=False)
 
 # ❌ DEPRECATED: Dunder attributes
 class Person(Entity):

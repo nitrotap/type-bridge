@@ -48,7 +48,7 @@ def test_datetimetz_in_entity():
         pass
 
     class Event(Entity):
-        flags = TypeFlags(type_name="event")
+        flags = TypeFlags(name="event")
         created_at: CreatedAt
 
     # Create entity with timezone-aware datetime
@@ -201,7 +201,7 @@ def test_datetimetz_pydantic_validation():
         pass
 
     class Event(Entity):
-        flags = TypeFlags(type_name="event")
+        flags = TypeFlags(name="event")
         updated_at: UpdatedAt
 
     # Test with timezone-aware datetime
@@ -234,7 +234,7 @@ def test_mixed_datetime_types_in_entity():
         pass
 
     class Event(Entity):
-        flags = TypeFlags(type_name="event")
+        flags = TypeFlags(name="event")
         created_at: CreatedAt
         updated_at: UpdatedAt
 

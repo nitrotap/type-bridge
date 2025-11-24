@@ -49,7 +49,7 @@ class PersonScore(Double):
 
 
 class Person(Entity):
-    flags = TypeFlags(type_name="test_person")
+    flags = TypeFlags(name="test_person")
     person_id: PersonID = Flag(Key)
     name: PersonName
     email: PersonEmail

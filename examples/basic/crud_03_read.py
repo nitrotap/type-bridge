@@ -349,9 +349,16 @@ def main():
     print("Query demonstrations complete!")
     print("=" * 80)
     print()
-    print("-" * 80)
+    print("What we learned:")
+    print("  ✓ Getting all entities with .all()")
+    print("  ✓ Dictionary-based filtering with .get()")
+    print("  ✓ Chainable queries with .filter(), .limit(), .first()")
+    print("  ✓ Querying relations and role players")
     print()
-    print("Database 'crud_demo' is ready for crud_04_update.py")
+    print("Next steps:")
+    print("  • crud_04_update.py - Learn about updating entities")
+    print("  • crud_05_filter.py - Advanced filtering with query expressions")
+    print("  • crud_06_aggregate.py - Aggregations and group-by queries")
     print("=" * 80)
 
 

@@ -24,14 +24,14 @@ def test_schema_inheritance(clean_db):
         pass
 
     class Animal(Entity):
-        flags = TypeFlags(type_name="animal", abstract=True)
+        flags = TypeFlags(name="animal", abstract=True)
         name: Name = Flag(Key)
 
     class Species(String):
         pass
 
     class Dog(Animal):
-        flags = TypeFlags(type_name="dog")
+        flags = TypeFlags(name="dog")
         species: Species
 
     # Create and sync schema
@@ -78,23 +78,23 @@ def test_multi_level_abstract_inheritance(clean_db):
 
     # Level 1: Abstract base entity
     class Content(Entity):
-        flags = TypeFlags(type_name="content", abstract=True)
+        flags = TypeFlags(name="content", abstract=True)
         id: Id = Flag(Key)
 
     # Level 2: Abstract entity inheriting from abstract
     class Page(Content):
-        flags = TypeFlags(type_name="page", abstract=True)
+        flags = TypeFlags(name="page", abstract=True)
         page_id: PageId
         bio: Bio | None
 
     # Level 3: Abstract entity inheriting from abstract
     class Profile(Page):
-        flags = TypeFlags(type_name="profile", abstract=True)
+        flags = TypeFlags(name="profile", abstract=True)
         username: Username
 
     # Level 4: Concrete entity inheriting from abstract
     class Person(Profile):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
 
     # Create and sync schema
     schema_manager = SchemaManager(clean_db)
@@ -141,22 +141,22 @@ def test_relation_inheritance_with_abstract(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     # Abstract base relation
     class SocialRelation(Relation):
-        flags = TypeFlags(type_name="social_relation", abstract=True)
+        flags = TypeFlags(name="social_relation", abstract=True)
         related: Role[Person] = Role("related", Person)
 
     # Concrete relation inheriting from abstract
     class Friendship(SocialRelation):
-        flags = TypeFlags(type_name="friendship")
+        flags = TypeFlags(name="friendship")
         friend: Role[Person] = Role("friend", Person)
 
     # Another concrete relation with attribute
     class Relationship(SocialRelation):
-        flags = TypeFlags(type_name="relationship")
+        flags = TypeFlags(name="relationship")
         partner: Role[Person] = Role("partner", Person)
         start_date: StartDate | None
 
@@ -204,34 +204,34 @@ def test_ast_hierarchy_integration(clean_db):
 
     # Level 1: Abstract base
     class ASTNode(Entity):
-        flags = TypeFlags(type_name="ast-node", abstract=True)
+        flags = TypeFlags(name="ast-node", abstract=True)
         node_id: NodeId = Flag(Key)
 
     # Level 2: Abstract statement
     class Statement(ASTNode):
-        flags = TypeFlags(type_name="statement", abstract=True)
+        flags = TypeFlags(name="statement", abstract=True)
         line_number: LineNumber
 
     # Level 3: Concrete statements
     class LetStatement(Statement):
-        flags = TypeFlags(type_name="let-statement")
+        flags = TypeFlags(name="let-statement")
         var_name: VarName
         type_annotation: TypeAnnotation | None
 
     class ReturnStatement(Statement):
-        flags = TypeFlags(type_name="return-statement")
+        flags = TypeFlags(name="return-statement")
 
     # Level 2: Abstract expression (sibling to Statement)
     class Expression(ASTNode):
-        flags = TypeFlags(type_name="expression", abstract=True)
+        flags = TypeFlags(name="expression", abstract=True)
 
     # Level 3: Concrete expressions
     class BinaryExpr(Expression):
-        flags = TypeFlags(type_name="binary-expr")
+        flags = TypeFlags(name="binary-expr")
         operator: Operator
 
     class LiteralExpr(Expression):
-        flags = TypeFlags(type_name="literal-expr")
+        flags = TypeFlags(name="literal-expr")
 
     # Create and sync schema
     schema_manager = SchemaManager(clean_db)
@@ -317,35 +317,35 @@ def test_relation_hierarchy_integration(clean_db):
 
     # Entity for role players
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: PersonName = Flag(Key)
 
     # Level 1: Abstract base relation
     class Interaction(Relation):
-        flags = TypeFlags(type_name="interaction", abstract=True)
+        flags = TypeFlags(name="interaction", abstract=True)
         participant: Role[Person] = Role("participant", Person)
         rel_id: RelId = Flag(Key)
 
     # Level 2: Abstract communication
     class Communication(Interaction):
-        flags = TypeFlags(type_name="communication", abstract=True)
+        flags = TypeFlags(name="communication", abstract=True)
         timestamp: Timestamp
 
     # Level 3: Concrete communication
     class DirectMessage(Communication):
-        flags = TypeFlags(type_name="direct-message")
+        flags = TypeFlags(name="direct-message")
         sender: Role[Person] = Role("sender", Person)
         receiver: Role[Person] = Role("receiver", Person)
         message: MessageContent
 
     # Level 2: Abstract collaboration
     class Collaboration(Interaction):
-        flags = TypeFlags(type_name="collaboration", abstract=True)
+        flags = TypeFlags(name="collaboration", abstract=True)
         priority: Priority | None
 
     # Level 3: Concrete collaboration
     class Project(Collaboration):
-        flags = TypeFlags(type_name="project")
+        flags = TypeFlags(name="project")
         team_member: Role[Person] = Role("team-member", Person)
 
     # Create and sync schema

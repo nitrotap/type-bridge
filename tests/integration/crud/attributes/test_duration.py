@@ -19,7 +19,7 @@ def test_duration_insert(clean_db):
         pass
 
     class Session(Entity):
-        flags = TypeFlags(type_name="session_dur")
+        flags = TypeFlags(name="session_dur")
         name: SessionName = Flag(Key)
         duration: SessionDuration
 
@@ -54,7 +54,7 @@ def test_duration_fetch(clean_db):
         pass
 
     class Session(Entity):
-        flags = TypeFlags(type_name="session_dur_fetch")
+        flags = TypeFlags(name="session_dur_fetch")
         name: SessionName = Flag(Key)
         duration: SessionDuration
 
@@ -90,7 +90,7 @@ def test_duration_update(clean_db):
         pass
 
     class Session(Entity):
-        flags = TypeFlags(type_name="session_dur_update")
+        flags = TypeFlags(name="session_dur_update")
         name: SessionName = Flag(Key)
         duration: SessionDuration
 
@@ -128,7 +128,7 @@ def test_duration_delete(clean_db):
         pass
 
     class Session(Entity):
-        flags = TypeFlags(type_name="session_dur_delete")
+        flags = TypeFlags(name="session_dur_delete")
         name: SessionName = Flag(Key)
         duration: SessionDuration
 

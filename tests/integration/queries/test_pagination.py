@@ -17,7 +17,7 @@ def test_query_with_limit_and_offset(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age | None
 
@@ -53,7 +53,7 @@ def test_query_first_method(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age | None
 
@@ -88,7 +88,7 @@ def test_query_count_method(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age | None
 

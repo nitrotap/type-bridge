@@ -17,7 +17,7 @@ def test_double_insert(clean_db):
         pass
 
     class Product(Entity):
-        flags = TypeFlags(type_name="product_dbl")
+        flags = TypeFlags(name="product_dbl")
         name: ProductName = Flag(Key)
         price: Price
 
@@ -50,7 +50,7 @@ def test_double_fetch(clean_db):
         pass
 
     class Product(Entity):
-        flags = TypeFlags(type_name="product_dbl_fetch")
+        flags = TypeFlags(name="product_dbl_fetch")
         name: ProductName = Flag(Key)
         price: Price
 
@@ -86,7 +86,7 @@ def test_double_update(clean_db):
         pass
 
     class Product(Entity):
-        flags = TypeFlags(type_name="product_dbl_update")
+        flags = TypeFlags(name="product_dbl_update")
         name: ProductName = Flag(Key)
         price: Price
 
@@ -124,7 +124,7 @@ def test_double_delete(clean_db):
         pass
 
     class Product(Entity):
-        flags = TypeFlags(type_name="product_dbl_delete")
+        flags = TypeFlags(name="product_dbl_delete")
         name: ProductName = Flag(Key)
         price: Price
 

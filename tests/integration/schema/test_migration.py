@@ -2,7 +2,7 @@
 
 import pytest
 
-from type_bridge import Entity, Flag, Integer, Key, String, TypeFlags
+from type_bridge import AttributeFlags, Entity, Flag, Integer, Key, String, TypeFlags
 from type_bridge.schema.migration import MigrationManager
 
 
@@ -184,7 +184,7 @@ def test_apply_migrations_single(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     # Try to create manager (will fail if schema doesn't exist)
@@ -243,13 +243,13 @@ company plays employment:employer;""",
     # Assert - Verify all types exist by using TypeBridge managers
     # Test 1-4: Can insert and query actual data using TypeBridge
     class Name(String):
-        pass
+        flags = AttributeFlags(name="name")
 
     class Age(Integer):
-        pass
+        flags = AttributeFlags(name="age")
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age
 

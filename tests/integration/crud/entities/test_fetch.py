@@ -17,7 +17,7 @@ def test_fetch_single_entity(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age | None
 
@@ -48,7 +48,7 @@ def test_fetch_all(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age | None
 
@@ -82,7 +82,7 @@ def test_fetch_with_filter(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age | None
 
@@ -116,7 +116,7 @@ def test_chainable_query(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age | None
 

@@ -11,6 +11,7 @@ You can also explicitly set attr_name, which takes precedence over case formatti
 """
 
 from type_bridge import (
+    AttributeFlags,
     Boolean,
     DateTime,
     Double,
@@ -111,7 +112,40 @@ class IsActive(Boolean):
     case = TypeNameCase.SNAKE_CASE
 
 
-# Example 7: Using formatted attributes in an entity
+# Example 7: NEW AttributeFlags API - Using flags.case
+class CompanyName(String):
+    """Using AttributeFlags with case formatting.
+
+    Class name: CompanyName
+    TypeDB attribute: company_name (SNAKE_CASE via flags)
+    """
+
+    flags = AttributeFlags(case=TypeNameCase.SNAKE_CASE)
+
+
+class UserID(String):
+    """Using AttributeFlags with explicit name.
+
+    Class name: UserID
+    TypeDB attribute: user_id (explicit name via flags)
+    """
+
+    flags = AttributeFlags(name="user_id")
+
+
+class FullName(String):
+    """NEW: Priority - flags.name > attr_name > flags.case.
+
+    Even though we set both case and attr_name,
+    attr_name is lower priority than flags.name
+    """
+
+    flags = AttributeFlags(name="full_name")  # This wins
+    attr_name = "fullname"  # Ignored due to lower priority
+    case = TypeNameCase.CLASS_NAME  # Also ignored
+
+
+# Example 8: Using formatted attributes in an entity
 class Person(Entity):
     """Entity using attributes with various case formats."""
 
@@ -146,6 +180,9 @@ def demonstrate_case_formatting():
         ("PersonAge", PersonAge, "SNAKE_CASE"),
         ("AccountBalance", AccountBalance, "SNAKE_CASE"),
         ("IsActive", IsActive, "SNAKE_CASE"),
+        ("CompanyName", CompanyName, "NEW: flags.case=SNAKE_CASE"),
+        ("UserID", UserID, "NEW: flags.name='user_id'"),
+        ("FullName", FullName, "NEW: flags.name (highest priority)"),
     ]
 
     print("Class Name → TypeDB Attribute Name")

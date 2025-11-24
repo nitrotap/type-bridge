@@ -17,7 +17,7 @@ def test_boolean_insert(clean_db):
         pass
 
     class User(Entity):
-        flags = TypeFlags(type_name="user_bool")
+        flags = TypeFlags(name="user_bool")
         email: Email = Flag(Key)
         is_active: IsActive
 
@@ -50,7 +50,7 @@ def test_boolean_fetch(clean_db):
         pass
 
     class User(Entity):
-        flags = TypeFlags(type_name="user_bool_fetch")
+        flags = TypeFlags(name="user_bool_fetch")
         email: Email = Flag(Key)
         is_active: IsActive
 
@@ -86,7 +86,7 @@ def test_boolean_update(clean_db):
         pass
 
     class User(Entity):
-        flags = TypeFlags(type_name="user_bool_update")
+        flags = TypeFlags(name="user_bool_update")
         email: Email = Flag(Key)
         is_active: IsActive
 
@@ -124,7 +124,7 @@ def test_boolean_delete(clean_db):
         pass
 
     class User(Entity):
-        flags = TypeFlags(type_name="user_bool_delete")
+        flags = TypeFlags(name="user_bool_delete")
         email: Email = Flag(Key)
         is_active: IsActive
 

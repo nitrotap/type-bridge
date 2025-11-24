@@ -27,7 +27,7 @@ class Status(String):
 class Person(Entity):
     """Person entity with single and multi-value attributes."""
 
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name = Flag(Key)
     age: Age | None
     status: Status
@@ -47,11 +47,13 @@ def test_update_single_value_attribute():
 
     # Check age is single-value
     age_info = owned_attrs["age"]
-    assert person_manager._is_multi_value_attribute(age_info.flags) is False
+    from type_bridge.crud.utils import is_multi_value_attribute
+
+    assert is_multi_value_attribute(age_info.flags) is False
 
     # Check status is single-value
     status_info = owned_attrs["status"]
-    assert person_manager._is_multi_value_attribute(status_info.flags) is False
+    assert is_multi_value_attribute(status_info.flags) is False
 
 
 def test_update_multi_value_attribute():
@@ -65,7 +67,9 @@ def test_update_multi_value_attribute():
 
     # Check tags is multi-value
     tags_info = owned_attrs["tags"]
-    assert person_manager._is_multi_value_attribute(tags_info.flags) is True
+    from type_bridge.crud.utils import is_multi_value_attribute
+
+    assert is_multi_value_attribute(tags_info.flags) is True
 
 
 def test_update_reads_entity_state():
@@ -125,22 +129,23 @@ def test_update_handles_attribute_values():
 def test_is_multi_value_attribute_logic():
     """Test the multi-value detection logic."""
     from type_bridge import AttributeFlags, Database
+    from type_bridge.crud.utils import is_multi_value_attribute
 
     db = Database(address="localhost:1729", database="test_update")
     person_manager = Person.manager(db)
 
     # Single-value: card_max == 1
     flags_single = AttributeFlags(card_min=1, card_max=1)
-    assert person_manager._is_multi_value_attribute(flags_single) is False
+    assert is_multi_value_attribute(flags_single) is False
 
     # Single-value: card_max == 1 (optional)
     flags_optional = AttributeFlags(card_min=0, card_max=1)
-    assert person_manager._is_multi_value_attribute(flags_optional) is False
+    assert is_multi_value_attribute(flags_optional) is False
 
     # Multi-value: card_max is None (unbounded)
     flags_unbounded = AttributeFlags(card_min=0, card_max=None)
-    assert person_manager._is_multi_value_attribute(flags_unbounded) is True
+    assert is_multi_value_attribute(flags_unbounded) is True
 
     # Multi-value: card_max > 1
     flags_multi = AttributeFlags(card_min=0, card_max=5)
-    assert person_manager._is_multi_value_attribute(flags_multi) is True
+    assert is_multi_value_attribute(flags_multi) is True

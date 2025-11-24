@@ -14,7 +14,7 @@ This guide covers TypeBridge's internal type system, architecture decisions, and
 
 ### ModelAttrInfo Dataclass
 
-The codebase uses `ModelAttrInfo` (defined in `models.py`) as a structured type for attribute metadata:
+The codebase uses `ModelAttrInfo` (defined in `models/utils.py`) as a structured type for attribute metadata:
 
 ```python
 @dataclass
@@ -46,8 +46,11 @@ The `AttributeFlags` dataclass stores attribute metadata:
 class AttributeFlags:
     is_key: bool = False
     is_unique: bool = False
-    cardinality: tuple[int | None, int | None] | None = None
-    base: bool = False  # For BaseFlag (exclude from schema)
+    card_min: int | None = None
+    card_max: int | None = None
+    has_explicit_card: bool = False
+    name: str | None = None  # Override attribute type name
+    case: TypeNameCase | None = None  # Case formatting for type name
 ```
 
 **Usage in code:**
@@ -58,8 +61,16 @@ if attr_info.flags.is_key:
     # Handle key attribute
 
 # Get cardinality
-if attr_info.flags.cardinality:
-    min_card, max_card = attr_info.flags.cardinality
+if attr_info.flags.card_min is not None or attr_info.flags.card_max is not None:
+    # Handle cardinality constraints
+
+# Override attribute type name
+class Name(String):
+    flags = AttributeFlags(name="person_name")
+
+# Use case formatting
+class UserEmail(String):
+    flags = AttributeFlags(case=TypeNameCase.SNAKE_CASE)  # -> user_email
 ```
 
 ### TypeFlags
@@ -79,7 +90,7 @@ class TypeFlags:
 ```python
 # Define entity with TypeFlags
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
 
 # Define abstract entity
 class Animal(Entity):
@@ -87,7 +98,7 @@ class Animal(Entity):
 
 # Custom type name casing
 class MyEntity(Entity):
-    flags = TypeFlags(type_name="my-entity", case="kebab-case")
+    flags = TypeFlags(name="my-entity", case="kebab-case")
 ```
 
 ### Attribute Metadata Collection
@@ -316,7 +327,7 @@ class Age(Integer):
     pass
 
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name = Flag(Key)
     age: Age | None = None  # Optional field requires explicit = None
 
@@ -371,6 +382,65 @@ This tells type checkers:
 - All fields are keyword-only by default
 - `Flag()` is recognized as a valid field specifier
 - Constructor signature is inferred from class annotations
+
+## Modular Architecture
+
+The codebase follows a modular architecture pattern to improve maintainability and reduce file sizes:
+
+### Models Module Structure
+
+The `models/` module (previously a single 1500+ line file) is organized as:
+
+```python
+models/
+├── __init__.py    # Public exports
+├── base.py        # Base model functionality
+├── entity.py      # Entity class
+├── relation.py    # Relation class
+├── role.py        # Role definitions
+└── utils.py       # ModelAttrInfo and utilities
+```
+
+### CRUD Module Structure
+
+The `crud/` module (previously a single 3000+ line file) is organized as:
+
+```python
+crud/
+├── __init__.py       # Backward compatible exports
+├── base.py           # Type variables (E, R)
+├── utils.py          # Shared utilities
+├── entity/           # Entity operations
+│   ├── manager.py    # EntityManager
+│   ├── query.py      # EntityQuery
+│   └── group_by.py   # GroupByQuery
+└── relation/         # Relation operations
+    ├── manager.py    # RelationManager
+    ├── query.py      # RelationQuery
+    └── group_by.py   # RelationGroupByQuery
+```
+
+### Design Principles
+
+1. **Single Responsibility**: Each module has a focused purpose
+2. **Shared Utilities**: Common functions in `utils.py` to avoid duplication
+3. **Backward Compatibility**: Top-level `__init__.py` maintains all public exports
+4. **Clear Boundaries**: Entity and Relation operations are clearly separated
+5. **Manageable Size**: Files are kept between 200-800 lines for maintainability
+
+### Import Patterns
+
+```python
+# Public API (backward compatible)
+from type_bridge import EntityManager, RelationManager
+
+# Direct module imports (new style)
+from type_bridge.crud.entity import EntityManager
+from type_bridge.crud.relation import RelationManager
+
+# Shared utilities (internal use)
+from type_bridge.crud.utils import format_value, is_multi_value_attribute
+```
 
 ## Deprecated APIs
 
@@ -474,12 +544,12 @@ result: int | str
 # ❌ DEPRECATED
 from type_bridge import EntityFlags
 class Person(Entity):
-    flags = EntityFlags(type_name="person")
+    flags = EntityFlags(name="person")
 
 # ✅ USE INSTEAD
 from type_bridge import TypeFlags
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
 ```
 
 ❌ **`RelationFlags`** - Use `TypeFlags` instead
@@ -488,12 +558,12 @@ class Person(Entity):
 # ❌ DEPRECATED
 from type_bridge import RelationFlags
 class Employment(Relation):
-    flags = RelationFlags(type_name="employment")
+    flags = RelationFlags(name="employment")
 
 # ✅ USE INSTEAD
 from type_bridge import TypeFlags
 class Employment(Relation):
-    flags = TypeFlags(type_name="employment")
+    flags = TypeFlags(name="employment")
 ```
 
 ### Migration Guide
@@ -536,12 +606,12 @@ tags: list[Tag] = Flag(Card(min=2))
 
 ```python
 # Before
-flags = EntityFlags(type_name="person")
-flags = RelationFlags(type_name="employment")
+flags = EntityFlags(name="person")
+flags = RelationFlags(name="employment")
 
 # After
-flags = TypeFlags(type_name="person")
-flags = TypeFlags(type_name="employment")
+flags = TypeFlags(name="person")
+flags = TypeFlags(name="employment")
 ```
 
 ### Why These Changes?

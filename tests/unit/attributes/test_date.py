@@ -43,7 +43,7 @@ def test_date_in_entity():
         pass
 
     class Book(Entity):
-        flags = TypeFlags(type_name="book")
+        flags = TypeFlags(name="book")
         publish_date: PublishDate
         title: BookTitle = Flag(Key)
 
@@ -65,7 +65,7 @@ def test_date_insert_query_formatting():
         pass
 
     class Product(Entity):
-        flags = TypeFlags(type_name="product")
+        flags = TypeFlags(name="product")
         release_date: ReleaseDate
 
     # Test with various dates
@@ -99,7 +99,7 @@ def test_date_year_range():
         pass
 
     class Event(Entity):
-        flags = TypeFlags(type_name="event")
+        flags = TypeFlags(name="event")
         event_date: HistoricalDate
 
     # Test with regular 4-digit year
@@ -128,7 +128,7 @@ def test_date_optional_attribute():
         pass
 
     class Document(Entity):
-        flags = TypeFlags(type_name="document")
+        flags = TypeFlags(name="document")
         title: Title = Flag(Key)
         publish_date: PublishDate | None
 
@@ -151,7 +151,7 @@ def test_date_multi_value_attribute():
         pass
 
     class Timeline(Entity):
-        flags = TypeFlags(type_name="timeline")
+        flags = TypeFlags(name="timeline")
         dates: list[ImportantDate] = Flag(Card(min=1))
 
     # Create entity with multiple date values
@@ -177,7 +177,7 @@ def test_date_pydantic_validation():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         birth_date: BirthDate
 
     # Test with Date instance
@@ -229,7 +229,7 @@ def test_date_leap_year():
         pass
 
     class Event(Entity):
-        flags = TypeFlags(type_name="event")
+        flags = TypeFlags(name="event")
         event_date: EventDate
 
     # Test with leap day (Feb 29)
@@ -245,7 +245,7 @@ def test_date_boundary_dates():
         pass
 
     class Record(Entity):
-        flags = TypeFlags(type_name="record")
+        flags = TypeFlags(name="record")
         special_date: SpecialDate
 
     # First day of year
@@ -325,11 +325,11 @@ def test_date_vs_datetime_distinction():
 
     # They should generate different TypeQL
     class Event1(Entity):
-        flags = TypeFlags(type_name="event1")
+        flags = TypeFlags(name="event1")
         date_only: EventDate
 
     class Event2(Entity):
-        flags = TypeFlags(type_name="event2")
+        flags = TypeFlags(name="event2")
         date_time: EventDateTime
 
     e1 = Event1(date_only=EventDate(date(2024, 3, 30)))

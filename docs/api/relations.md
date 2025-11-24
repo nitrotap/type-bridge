@@ -50,11 +50,11 @@ from type_bridge import Relation, TypeFlags, Role, String
 
 # Define entities
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name = Flag(Key)
 
 class Company(Entity):
-    flags = TypeFlags(type_name="company")
+    flags = TypeFlags(name="company")
     name: Name = Flag(Key)
 
 # Define attribute for relation
@@ -63,7 +63,7 @@ class Position(String):
 
 # Define relation
 class Employment(Relation):
-    flags = TypeFlags(type_name="employment")
+    flags = TypeFlags(name="employment")
 
     # Role players
     employee: Role[Person] = Role("employee", Person)
@@ -116,7 +116,7 @@ from type_bridge import TypeFlags
 
 class Employment(Relation):
     flags = TypeFlags(
-        type_name="employment",    # TypeDB type name (default: lowercase class name)
+        name="employment",    # TypeDB type name (default: lowercase class name)
         abstract=False,            # Whether this is an abstract relation (default: False)
         case="snake_case"          # Type name case formatting (default: "snake_case")
     )
@@ -142,7 +142,7 @@ class Skill(String):
     pass
 
 class Employment(Relation):
-    flags = TypeFlags(type_name="employment")
+    flags = TypeFlags(name="employment")
 
     # Roles
     employee: Role[Person] = Role("employee", Person)
@@ -187,7 +187,7 @@ Specify how many times an entity can play a role:
 from type_bridge import Relation, TypeFlags, Role, Card
 
 class Friendship(Relation):
-    flags = TypeFlags(type_name="friendship")
+    flags = TypeFlags(name="friendship")
 
     # Both friends must be Person, exactly 2 role players
     friend: Role[Person] = Role("friend", Person, Card(2, 2))
@@ -212,13 +212,13 @@ Relations support inheritance just like entities:
 from type_bridge import Relation, TypeFlags, Role
 
 class SocialRelation(Relation):
-    flags = TypeFlags(type_name="social-relation", abstract=True)
+    flags = TypeFlags(name="social-relation", abstract=True)
 
     # Abstract role (will be overridden in subclasses)
     related: Role[Person] = Role("related", Person, Card(2))
 
 class Friendship(SocialRelation):
-    flags = TypeFlags(type_name="friendship")
+    flags = TypeFlags(name="friendship")
 
     # Override role with specific semantics
     friend: Role[Person] = Role("friend", Person, Card(2))
@@ -243,13 +243,13 @@ Subrelations can specialize roles from parent relations:
 
 ```python
 class Employment(Relation):
-    flags = TypeFlags(type_name="employment", abstract=True)
+    flags = TypeFlags(name="employment", abstract=True)
 
     employee: Role[Person] = Role("employee", Person)
     employer: Role[Entity] = Role("employer", Entity)  # Generic employer
 
 class CompanyEmployment(Employment):
-    flags = TypeFlags(type_name="company-employment")
+    flags = TypeFlags(name="company-employment")
 
     # Specialize employer role to only Company entities
     employer: Role[Company] = Role("employer", Company)
@@ -263,12 +263,12 @@ Abstract relations cannot be instantiated directly but serve as base types:
 from type_bridge import Relation, TypeFlags, Role
 
 class Relation(Relation):
-    flags = TypeFlags(type_name="relation", abstract=True)
+    flags = TypeFlags(name="relation", abstract=True)
 
     related: Role[Entity] = Role("related", Entity, Card(2))
 
 class Friendship(Relation):
-    flags = TypeFlags(type_name="friendship")
+    flags = TypeFlags(name="friendship")
 
     friend: Role[Person] = Role("friend", Person, Card(2))
 ```
@@ -345,18 +345,18 @@ class Benefit(String):
 
 # Define entities
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name = Flag(Key)
     email: Email = Flag(Unique)
 
 class Company(Entity):
-    flags = TypeFlags(type_name="company")
+    flags = TypeFlags(name="company")
     company_id: CompanyID = Flag(Key)
     name: Name
 
 # Define relation
 class Employment(Relation):
-    flags = TypeFlags(type_name="employment")
+    flags = TypeFlags(name="employment")
 
     # Roles
     employee: Role[Person] = Role("employee", Person)
@@ -441,21 +441,21 @@ from type_bridge import Entity, Relation, TypeFlags, Role
 
 # Abstract base entity
 class Content(Entity):
-    flags = TypeFlags(type_name="content", abstract=True)
+    flags = TypeFlags(name="content", abstract=True)
     title: Title
 
 # Concrete subtypes
 class Article(Content):
-    flags = TypeFlags(type_name="article")
+    flags = TypeFlags(name="article")
     body: Body
 
 class Video(Content):
-    flags = TypeFlags(type_name="video")
+    flags = TypeFlags(name="video")
     url: URL
 
 # Relation using abstract type
 class Authorship(Relation):
-    flags = TypeFlags(type_name="authorship")
+    flags = TypeFlags(name="authorship")
 
     author: Role[Person] = Role("author", Person)
     content: Role[Content] = Role("content", Content)  # Abstract type!

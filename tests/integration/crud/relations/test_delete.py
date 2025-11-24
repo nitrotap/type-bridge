@@ -32,15 +32,15 @@ def test_relation_manager_has_delete_method(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     class Employment(Relation):
-        flags = TypeFlags(type_name="employment")
+        flags = TypeFlags(name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
         position: Position
@@ -70,15 +70,15 @@ def test_delete_relation_by_role_players(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     class Employment(Relation):
-        flags = TypeFlags(type_name="employment")
+        flags = TypeFlags(name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
         position: Position
@@ -133,15 +133,15 @@ def test_delete_relation_by_attribute_filter(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     class Employment(Relation):
-        flags = TypeFlags(type_name="employment")
+        flags = TypeFlags(name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
         position: Position
@@ -203,15 +203,15 @@ def test_delete_all_relations_of_type(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     class Employment(Relation):
-        flags = TypeFlags(type_name="employment")
+        flags = TypeFlags(name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
         position: Position
@@ -271,15 +271,15 @@ def test_delete_relation_preserves_role_player_entities(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     class Employment(Relation):
-        flags = TypeFlags(type_name="employment")
+        flags = TypeFlags(name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
         position: Position
@@ -344,15 +344,15 @@ def test_delete_relation_with_complex_filter(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     class Employment(Relation):
-        flags = TypeFlags(type_name="employment")
+        flags = TypeFlags(name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
         position: Position

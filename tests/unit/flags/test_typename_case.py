@@ -77,7 +77,7 @@ def test_typename_explicit_takes_precedence():
     """Test that explicit type_name takes precedence over case formatting."""
 
     class PersonName(Entity):
-        flags = TypeFlags(type_name="custom_name", case=TypeNameCase.SNAKE_CASE)
+        flags = TypeFlags(name="custom_name", case=TypeNameCase.SNAKE_CASE)
         name: Name
 
     # Should use explicit type_name, not apply case formatting
@@ -118,7 +118,7 @@ def test_relation_typename_explicit_takes_precedence():
     """Test that explicit type_name takes precedence for relations."""
 
     class PersonEmployment(Relation):
-        flags = TypeFlags(type_name="employment", case=TypeNameCase.SNAKE_CASE)
+        flags = TypeFlags(name="employment", case=TypeNameCase.SNAKE_CASE)
         employee: Role[Entity] = Role("employee", Entity)
 
     assert PersonEmployment.get_type_name() == "employment"

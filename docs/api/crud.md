@@ -6,6 +6,8 @@ Complete reference for Create, Read, Update, Delete operations in TypeBridge.
 
 TypeBridge provides type-safe CRUD managers for entities and relations with a modern fetching API. All operations preserve type information and generate optimized TypeQL queries.
 
+> **Note**: The CRUD module has been refactored into a modular structure for better maintainability, but all imports remain backward compatible. You can continue using `from type_bridge import EntityManager, RelationManager` as before.
+
 ## EntityManager
 
 Type-safe manager for entity CRUD operations.
@@ -16,7 +18,7 @@ Type-safe manager for entity CRUD operations.
 from type_bridge import Database, Entity, TypeFlags
 
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name = Flag(Key)
     age: Age | None = None
 
@@ -91,6 +93,8 @@ person_manager.insert_many(persons)
 
 **Performance tip**: Use `insert_many()` for multiple entities - it's significantly faster than calling `insert()` multiple times.
 
+**Note on special characters**: TypeBridge automatically escapes special characters in string attributes (quotes, backslashes) when generating TypeQL queries. You don't need to manually escape values - just pass them as normal Python strings.
+
 ## Read Operations
 
 ### Get All Entities
@@ -164,11 +168,19 @@ class EntityQuery[E: Entity]:
 
     def count(self) -> int:
         """Count matching entities."""
+
+    def delete(self) -> int:
+        """Delete all matching entities. Returns count deleted."""
+
+    def update_with(self, func: Callable[[E], None]) -> list[E]:
+        """Update entities by applying function. Returns updated entities."""
 ```
 
 ## Update Operations
 
-The update API follows the typical ORM pattern: **fetch → modify → update**.
+The update API supports two patterns:
+1. **Instance-based**: fetch → modify → update (traditional ORM pattern)
+2. **Bulk functional**: filter → update_with function (efficient bulk updates)
 
 ### Basic Update
 
@@ -232,6 +244,45 @@ charlie.is_verified = IsVerified(True)
 person_manager.update(charlie)
 ```
 
+### Bulk Update with Function
+
+**New in v0.6.0**: Update multiple entities efficiently using `update_with()`:
+
+```python
+# Increment age for all persons over 30
+updated = person_manager.filter(Age.gt(Age(30))).update_with(
+    lambda person: setattr(person, 'age', Age(person.age.value + 1))
+)
+print(f"Updated {len(updated)} persons")
+
+# Complex updates with function
+def promote_to_senior(person):
+    """Promote eligible persons to senior status."""
+    person.status = Status("senior")
+    if person.salary:
+        # 10% raise
+        person.salary = Salary(int(person.salary.value * 1.1))
+
+# Apply to filtered entities
+promoted = person_manager.filter(
+    Age.gte(Age(35)),
+    Status.eq(Status("regular"))
+).update_with(promote_to_senior)
+
+# All updates happen in single transaction
+print(f"Promoted {len(promoted)} persons")
+```
+
+**How `update_with()` works**:
+1. Fetches all entities matching the filter
+2. Applies the function to each entity in-place
+3. Updates all entities in a single atomic transaction
+4. Returns list of updated entities
+
+**Error handling**: If the function raises an error on any entity, the operation stops immediately and raises the error. No partial updates occur (atomic transaction).
+
+**Empty results**: Returns empty list if no entities match the filter.
+
 ### TypeQL Update Semantics
 
 The update method generates different TypeQL based on cardinality:
@@ -261,6 +312,12 @@ $e has status "active";
 
 ## Delete Operations
 
+TypeBridge supports two delete patterns:
+1. **Direct delete**: `manager.delete(**filters)` - delete with keyword filters
+2. **Chainable delete**: `manager.filter(...).delete()` - delete after complex filtering
+
+### Direct Delete
+
 Delete entities matching filter criteria:
 
 ```python
@@ -275,6 +332,38 @@ deleted_count = person_manager.delete(age=25)
 deleted_count = person_manager.delete(age=30, status="inactive")
 ```
 
+### Chainable Delete
+
+**New in v0.6.0**: Delete after complex filtering with expressions:
+
+```python
+# Delete all persons over 65
+count = person_manager.filter(Age.gt(Age(65))).delete()
+print(f"Deleted {count} seniors")
+
+# Delete with multiple expression filters
+count = person_manager.filter(
+    Age.lt(Age(18)),
+    Status.eq(Status("inactive"))
+).delete()
+print(f"Deleted {count} inactive minors")
+
+# Delete with range filter
+count = person_manager.filter(
+    Age.gte(Age(18)),
+    Age.lt(Age(21))
+).delete()
+
+# Returns 0 if no matches
+count = person_manager.filter(Age.gt(Age(150))).delete()
+assert count == 0
+```
+
+**How chainable delete works**:
+- Builds TypeQL delete query from all filters (dict-based and expression-based)
+- Executes in single atomic transaction
+- Returns count of deleted entities (0 if no matches)
+
 **Warning**: Delete operations are permanent and cannot be undone!
 
 ## RelationManager
@@ -287,13 +376,43 @@ Type-safe manager for relation CRUD operations.
 from type_bridge import Relation, TypeFlags, Role
 
 class Employment(Relation):
-    flags = TypeFlags(type_name="employment")
+    flags = TypeFlags(name="employment")
     employee: Role[Person] = Role("employee", Person)
     employer: Role[Company] = Role("employer", Company)
     position: Position
+    salary: Salary
 
 # Create manager
 employment_manager = Employment.manager(db)
+```
+
+### RelationManager Methods
+
+```python
+class RelationManager[R: Relation]:
+    def insert(self, relation: R) -> R:
+        """Insert a single relation."""
+
+    def insert_many(self, relations: list[R]) -> list[R]:
+        """Insert multiple relations (bulk operation)."""
+
+    def get(self, **filters) -> list[R]:
+        """Get relations matching attribute/role player filters."""
+
+    def filter(self, **filters) -> RelationQuery[R]:
+        """Create chainable query with filters."""
+
+    def group_by(self, *fields) -> RelationGroupByQuery[R]:
+        """Create group-by query for aggregations."""
+
+    def all(self) -> list[R]:
+        """Get all relations of this type."""
+
+    def delete(self, **filters) -> int:
+        """Delete relations matching filters. Returns count."""
+
+    def update(self, relation: R) -> R:
+        """Update relation in database."""
 ```
 
 ### Insert Relations
@@ -303,25 +422,37 @@ employment_manager = Employment.manager(db)
 employment = Employment(
     employee=alice,
     employer=techcorp,
-    position=Position("Senior Engineer")
+    position=Position("Senior Engineer"),
+    salary=Salary(120000)
 )
 employment_manager.insert(employment)
 
 # Bulk insert
 employments = [
-    Employment(employee=alice, employer=techcorp, position=Position("Engineer")),
-    Employment(employee=bob, employer=startup, position=Position("Designer")),
-    Employment(employee=charlie, employer=techcorp, position=Position("Manager")),
+    Employment(employee=alice, employer=techcorp, position=Position("Engineer"), salary=Salary(100000)),
+    Employment(employee=bob, employer=startup, position=Position("Designer"), salary=Salary(90000)),
+    Employment(employee=charlie, employer=techcorp, position=Position("Manager"), salary=Salary(130000)),
 ]
 employment_manager.insert_many(employments)
 ```
 
 ### Fetch Relations
 
+#### Get All Relations
+
 ```python
-# Get all relations
+# Fetch all employments
 all_employments = employment_manager.all()
 
+for employment in all_employments:
+    print(f"{employment.employee.name}: {employment.position}")
+```
+
+#### Get with Filters
+
+Filter by both attributes and role players:
+
+```python
 # Filter by attribute
 engineers = employment_manager.get(position="Engineer")
 
@@ -334,37 +465,239 @@ results = employment_manager.get(
     employee=alice,
     position="Senior Engineer"
 )
+
+# Filter by both role players
+specific_employment = employment_manager.get(
+    employee=alice,
+    employer=techcorp
+)
+```
+
+#### Chainable Queries
+
+**New in v0.6.0**: RelationManager now supports the same chainable query API as EntityManager:
+
+```python
+# Basic query
+query = employment_manager.filter(position="Engineer")
+results = query.execute()
+
+# Chained query with pagination
+results = employment_manager.filter(position="Engineer").limit(10).offset(5).execute()
+
+# Get first matching relation (returns Relation | None)
+first_employment = employment_manager.filter(employee=alice).first()
+
+if first_employment:
+    print(f"Found: {first_employment.position}")
+else:
+    print("Not found")
+
+# Count matching relations
+count = employment_manager.filter(position="Engineer").count()
+print(f"Found {count} engineers")
+```
+
+#### RelationQuery Methods
+
+**New in v0.6.0**: Complete API parity with EntityQuery:
+
+```python
+class RelationQuery[R: Relation]:
+    def filter(self, **filters) -> RelationQuery[R]:
+        """Add additional filters (attributes and role players)."""
+
+    def limit(self, n: int) -> RelationQuery[R]:
+        """Limit number of results."""
+
+    def offset(self, n: int) -> RelationQuery[R]:
+        """Skip first n results."""
+
+    def execute(self) -> list[R]:
+        """Execute query and return results."""
+
+    def first(self) -> R | None:
+        """Get first result or None."""
+
+    def count(self) -> int:
+        """Count matching relations."""
+
+    def delete(self) -> int:
+        """Delete all matching relations. Returns count deleted."""
+
+    def update_with(self, func: Callable[[R], None]) -> list[R]:
+        """Update relations by applying function. Returns updated relations."""
+
+    def aggregate(self, *aggregates) -> dict[str, Any]:
+        """Execute aggregation queries."""
+
+    def group_by(self, *fields) -> RelationGroupByQuery[R]:
+        """Group relations by field values."""
 ```
 
 ### Update Relations
+
+The update API supports two patterns (same as EntityManager):
+1. **Instance-based**: fetch → modify → update (traditional ORM pattern)
+2. **Bulk functional**: filter → update_with function (efficient bulk updates)
+
+#### Basic Update
+
+```python
+# Step 1: Fetch relation
+employment = employment_manager.get(employee=alice, employer=techcorp)[0]
+
+# Step 2: Modify attributes
+employment.position = Position("Staff Engineer")
+employment.salary = Salary(150000)
+
+# Step 3: Persist changes
+employment_manager.update(employment)
+```
+
+#### Update Single-Value Attributes
 
 ```python
 # Fetch relation
 employment = employment_manager.get(employee=alice)[0]
 
 # Modify attributes
-employment.position = Position("Staff Engineer")
-employment.salary = Salary(150000)
+employment.position = Position("Principal Engineer")
+employment.salary = Salary(180000)
+employment.start_date = StartDate("2024-01-01")
 
 # Persist changes
 employment_manager.update(employment)
 ```
 
+#### Update Multi-Value Attributes
+
+```python
+# Fetch relation
+employment = employment_manager.get(employee=alice)[0]
+
+# Replace all values (deletes old, inserts new)
+employment.responsibilities = [
+    Responsibility("Team lead"),
+    Responsibility("Architecture"),
+    Responsibility("Mentoring")
+]
+
+# Persist changes
+employment_manager.update(employment)
+
+# Clear multi-value attribute
+employment.responsibilities = []
+employment_manager.update(employment)
+```
+
+#### Bulk Update with Function
+
+**New in v0.6.0**: Update multiple relations efficiently using `update_with()`:
+
+```python
+# Give all engineers a 10% raise
+updated = employment_manager.filter(position="Engineer").update_with(
+    lambda emp: setattr(emp, 'salary', Salary(int(emp.salary.value * 1.1)))
+)
+print(f"Updated {len(updated)} engineers")
+
+# Complex updates with function
+def promote_to_senior(employment):
+    """Promote engineers to senior level."""
+    # Add "Senior" prefix
+    employment.position = Position(f"Senior {employment.position.value}")
+    # 20% raise
+    if employment.salary:
+        employment.salary = Salary(int(employment.salary.value * 1.2))
+
+# Apply to filtered relations
+promoted = employment_manager.filter(
+    position="Engineer",
+    employee=alice  # Only Alice's employments
+).update_with(promote_to_senior)
+
+# All updates happen in single transaction
+print(f"Promoted {len(promoted)} employments")
+```
+
+**How `update_with()` works for relations**:
+1. Fetches all relations matching the filter
+2. Stores original attribute values (needed to uniquely identify relations)
+3. Applies the function to each relation in-place
+4. Updates all relations in a single atomic transaction using original values for matching
+5. Returns list of updated relations
+
+**Why original values matter**: In TypeDB, multiple relations can have the same role players (e.g., Alice can have multiple employments at TechCorp). The update query matches each relation by both its role players AND its original attribute values to ensure the correct relation is updated.
+
+**Error handling**: If the function raises an error on any relation, the operation stops immediately and raises the error. No partial updates occur (atomic transaction).
+
+**Empty results**: Returns empty list if no relations match the filter.
+
 ### Delete Relations
+
+TypeBridge supports two delete patterns for relations (same as entities):
+1. **Direct delete**: `manager.delete(**filters)` - delete with keyword filters
+2. **Chainable delete**: `manager.filter(...).delete()` - delete after complex filtering
+
+#### Direct Delete
+
+Delete relations matching filter criteria:
 
 ```python
 # Delete by attribute
-deleted_count = employment_manager.delete(position="Engineer")
+deleted_count = employment_manager.delete(position="Intern")
+print(f"Deleted {deleted_count} intern positions")
 
 # Delete by role player
 deleted_count = employment_manager.delete(employee=alice)
+print(f"Deleted {deleted_count} of Alice's employments")
 
-# Delete with multiple filters
+# Delete with multiple filters (AND logic)
 deleted_count = employment_manager.delete(
     employee=alice,
     employer=techcorp
 )
+print(f"Deleted {deleted_count} employments")
+
+# Delete by both role players
+deleted_count = employment_manager.delete(
+    employee=bob,
+    employer=startup
+)
 ```
+
+#### Chainable Delete
+
+**New in v0.6.0**: Delete after complex filtering with expressions:
+
+```python
+# Delete high-salary employments
+count = employment_manager.filter(Salary.gt(Salary(150000))).delete()
+print(f"Deleted {count} high-salary employments")
+
+# Delete with multiple expression filters
+count = employment_manager.filter(
+    Salary.lt(Salary(50000)),
+    Position.eq(Position("Intern"))
+).delete()
+print(f"Deleted {count} low-paid interns")
+
+# Delete by role player using filter
+count = employment_manager.filter(employee=alice).delete()
+print(f"Deleted all of Alice's employments: {count}")
+
+# Returns 0 if no matches
+count = employment_manager.filter(Salary.gt(Salary(1000000))).delete()
+assert count == 0
+```
+
+**How chainable delete works for relations**:
+- Builds TypeQL delete query from all filters (dict-based, expression-based, and role player filters)
+- Executes in single atomic transaction
+- Returns count of deleted relations (0 if no matches)
+
+**Warning**: Delete operations are permanent and cannot be undone!
 
 ## Type Safety
 
@@ -424,7 +757,7 @@ class Tag(String):
     pass
 
 class User(Entity):
-    flags = TypeFlags(type_name="user")
+    flags = TypeFlags(name="user")
     user_id: UserID = Flag(Key)
     username: Username
     email: Email = Flag(Unique)

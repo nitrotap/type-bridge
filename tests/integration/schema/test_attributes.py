@@ -17,7 +17,7 @@ def test_schema_with_unique_attributes(clean_db):
         pass
 
     class User(Entity):
-        flags = TypeFlags(type_name="user")
+        flags = TypeFlags(name="user")
         email: Email = Flag(Key)
         username: Username = Flag(Unique)
 

@@ -19,7 +19,7 @@ def test_datetime_insert(clean_db):
         pass
 
     class Event(Entity):
-        flags = TypeFlags(type_name="event_dt")
+        flags = TypeFlags(name="event_dt")
         name: EventName = Flag(Key)
         created_at: CreatedAt
 
@@ -55,7 +55,7 @@ def test_datetime_fetch(clean_db):
         pass
 
     class Event(Entity):
-        flags = TypeFlags(type_name="event_dt_fetch")
+        flags = TypeFlags(name="event_dt_fetch")
         name: EventName = Flag(Key)
         created_at: CreatedAt
 
@@ -97,7 +97,7 @@ def test_datetime_update(clean_db):
         pass
 
     class Event(Entity):
-        flags = TypeFlags(type_name="event_dt_update")
+        flags = TypeFlags(name="event_dt_update")
         name: EventName = Flag(Key)
         created_at: CreatedAt
 
@@ -138,7 +138,7 @@ def test_datetime_delete(clean_db):
         pass
 
     class Event(Entity):
-        flags = TypeFlags(type_name="event_dt_delete")
+        flags = TypeFlags(name="event_dt_delete")
         name: EventName = Flag(Key)
         created_at: CreatedAt
 

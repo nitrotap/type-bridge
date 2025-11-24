@@ -32,15 +32,15 @@ def test_relation_manager_has_update_method(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     class Employment(Relation):
-        flags = TypeFlags(type_name="employment")
+        flags = TypeFlags(name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
         position: Position
@@ -73,16 +73,16 @@ def test_update_relation_by_role_players(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     class Employment(Relation):
-        flags = TypeFlags(type_name="employment")
+        flags = TypeFlags(name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
         position: Position
@@ -141,15 +141,15 @@ def test_relation_attribute_update_via_direct_typeql(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     class Employment(Relation):
-        flags = TypeFlags(type_name="employment")
+        flags = TypeFlags(name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
         position: Position
@@ -203,15 +203,15 @@ def test_updating_relation_preserves_role_players(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     class Employment(Relation):
-        flags = TypeFlags(type_name="employment")
+        flags = TypeFlags(name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
         position: Position
@@ -268,15 +268,15 @@ def test_update_relation_with_optional_attribute(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     class Employment(Relation):
-        flags = TypeFlags(type_name="employment")
+        flags = TypeFlags(name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
         position: Position
@@ -311,6 +311,7 @@ def test_update_relation_with_optional_attribute(db_with_schema):
     actual = len(result)
     assert expected == actual
 
+    assert result[0].notes is not None
     assert "Founding team member" == result[0].notes.value
 
 
@@ -327,15 +328,15 @@ def test_update_multiple_relations(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     class Employment(Relation):
-        flags = TypeFlags(type_name="employment")
+        flags = TypeFlags(name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
         position: Position

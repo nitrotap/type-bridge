@@ -2,7 +2,7 @@
 
 import pytest
 
-from type_bridge import Entity, Flag, Integer, Key, SchemaManager, String, TypeFlags
+from type_bridge import Card, Entity, Flag, Integer, Key, SchemaManager, String, TypeFlags
 
 
 @pytest.mark.integration
@@ -18,7 +18,7 @@ def test_update_entity_add_optional_attribute(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         email: Email | None = None
 
@@ -57,7 +57,7 @@ def test_update_entity_modify_existing_attribute(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age
 
@@ -94,9 +94,9 @@ def test_update_entity_with_multi_value_attribute_append(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
-        tags: list[Tag] = []
+        tags: list[Tag] = Flag(Card(min=0))
 
     schema_manager = SchemaManager(clean_db)
     schema_manager.register(Person)
@@ -134,7 +134,7 @@ def test_update_preserves_other_attributes(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age
         email: Email
@@ -176,12 +176,12 @@ def test_update_with_inherited_attributes(clean_db):
         pass
 
     class BasePerson(Entity):
-        flags = TypeFlags(type_name="base_person")
+        flags = TypeFlags(name="base_person")
         name: Name = Flag(Key)
         age: Age
 
     class Employee(BasePerson):
-        flags = TypeFlags(type_name="employee")
+        flags = TypeFlags(name="employee")
         salary: Salary
 
     schema_manager = SchemaManager(clean_db)
@@ -219,7 +219,7 @@ def test_update_entity_remove_optional_attribute(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         notes: Notes | None = None
 
@@ -256,7 +256,7 @@ def test_update_multiple_entities_separately(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         score: Score
 
@@ -299,9 +299,9 @@ def test_update_entity_clears_multi_value_attribute(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
-        skills: list[Skill] = []
+        skills: list[Skill] = Flag(Card(min=0))
 
     schema_manager = SchemaManager(clean_db)
     schema_manager.register(Person)

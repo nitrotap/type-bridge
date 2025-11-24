@@ -363,6 +363,10 @@ def main():
     else:
         print("Database 'crud_demo' preserved.")
         print()
+        print("Next steps:")
+        print("  • crud_05_filter.py - Advanced filtering with query expressions")
+        print("  • crud_06_aggregate.py - Aggregations and group-by queries")
+        print()
         print("To restart the tutorial:")
         print("  1. Manually delete the database, or")
         print("  2. Run crud_01_define.py (it will delete and recreate)")

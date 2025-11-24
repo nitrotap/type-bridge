@@ -18,7 +18,7 @@ def test_schema_creation_and_sync(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age | None
 
@@ -48,7 +48,7 @@ def test_schema_update_safe_changes(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     # Create initial schema
@@ -61,7 +61,7 @@ def test_schema_update_safe_changes(clean_db):
         pass
 
     class PersonWithAge(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age | None  # New optional attribute
 

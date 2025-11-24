@@ -19,7 +19,7 @@ def test_datetimetz_insert(clean_db):
         pass
 
     class Event(Entity):
-        flags = TypeFlags(type_name="event_tz")
+        flags = TypeFlags(name="event_tz")
         name: EventName = Flag(Key)
         updated_at: UpdatedAt
 
@@ -55,7 +55,7 @@ def test_datetimetz_fetch(clean_db):
         pass
 
     class Event(Entity):
-        flags = TypeFlags(type_name="event_tz_fetch")
+        flags = TypeFlags(name="event_tz_fetch")
         name: EventName = Flag(Key)
         updated_at: UpdatedAt
 
@@ -97,7 +97,7 @@ def test_datetimetz_update(clean_db):
         pass
 
     class Event(Entity):
-        flags = TypeFlags(type_name="event_tz_update")
+        flags = TypeFlags(name="event_tz_update")
         name: EventName = Flag(Key)
         updated_at: UpdatedAt
 
@@ -138,7 +138,7 @@ def test_datetimetz_delete(clean_db):
         pass
 
     class Event(Entity):
-        flags = TypeFlags(type_name="event_tz_delete")
+        flags = TypeFlags(name="event_tz_delete")
         name: EventName = Flag(Key)
         updated_at: UpdatedAt
 

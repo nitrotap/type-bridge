@@ -23,7 +23,7 @@ integration/
 │   ├── relations/          # Relation CRUD tests (6 tests)
 │   │   ├── test_insert.py  # Relation insert
 │   │   └── test_fetch.py   # Relation fetch by role/attribute
-│   ├── attributes/         # Attribute type CRUD tests (45 tests)
+│   ├── attributes/         # Attribute type CRUD tests (54 tests)
 │   │   ├── test_boolean.py    # Boolean CRUD (4 tests)
 │   │   ├── test_integer.py    # Integer CRUD (4 tests)
 │   │   ├── test_string.py     # String CRUD (4 tests)
@@ -33,7 +33,8 @@ integration/
 │   │   ├── test_datetimetz.py # DateTimeTZ CRUD (4 tests)
 │   │   ├── test_decimal.py    # Decimal CRUD (4 tests)
 │   │   ├── test_duration.py   # Duration CRUD (4 tests)
-│   │   └── test_multi_value.py # Multi-value attributes (9 tests)
+│   │   ├── test_multi_value.py # Multi-value attributes (9 tests)
+│   │   └── test_multivalue_escaping.py # String escaping edge cases (9 tests)
 │   └── interop/            # Type interoperability tests (23 tests)
 │       ├── test_mixed_entity.py  # Mixed type entities (6 tests)
 │       ├── test_mixed_queries.py # Mixed type queries (8 tests)
@@ -52,10 +53,10 @@ integration/
 | **Schema** | 7 | 16 | Schema operations, conflicts, inheritance, all types |
 | **Entity CRUD** | 4 | 12 | Insert, fetch, update, delete operations |
 | **Relation CRUD** | 2 | 6 | Relation insert and fetch operations |
-| **Attribute CRUD** | 10 | 45 | CRUD for all 9 types + multi-value |
+| **Attribute CRUD** | 11 | 54 | CRUD for all 9 types + multi-value + escaping |
 | **Interoperability** | 3 | 23 | Mixed types, queries, real-world combinations |
 | **Queries** | 4 | 8 | Match, filters, pagination, role players |
-| **Total** | **30** | **110** | Complete integration test coverage |
+| **Total** | **31** | **119** | Complete integration test coverage |
 
 ## Running Integration Tests
 
@@ -222,6 +223,6 @@ Integration tests are slower than unit tests due to:
 - Network I/O
 - Transaction commits
 
-**Typical execution time**: 30-60 seconds for all 110 tests
+**Typical execution time**: 30-60 seconds for all 119 tests
 
 Use unit tests for fast iteration, integration tests for comprehensive validation.

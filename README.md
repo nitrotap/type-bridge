@@ -22,6 +22,7 @@ A modern, Pythonic ORM for [TypeDB](https://github.com/typedb/typedb) with an At
 - **Data Validation**: Automatic type checking and coercion via Pydantic, including keyword validation
 - **JSON Support**: Seamless JSON serialization/deserialization
 - **CRUD Operations**: Full CRUD with fetching API (get, filter, all, update) for entities and relations
+- **Chainable Operations**: Filter, delete, and bulk update with method chaining and lambda functions
 - **Query Builder**: Pythonic interface for building TypeQL queries
 
 ## Installation
@@ -66,20 +67,38 @@ class UpdatedAt(DateTimeTZ):  # Timezone-aware datetime
     pass
 ```
 
+**Configuring Attribute Type Names:**
+
+```python
+from type_bridge import AttributeFlags, TypeNameCase
+
+# Option 1: Explicit name override
+class Name(String):
+    flags = AttributeFlags(name="person_name")
+# TypeDB: attribute person_name, value string;
+
+# Option 2: Case formatting
+class UserEmail(String):
+    flags = AttributeFlags(case=TypeNameCase.SNAKE_CASE)
+# TypeDB: attribute user_email, value string;
+```
+
 ### 2. Define Entities
 
 ```python
 from type_bridge import Entity, TypeFlags, Flag, Key, Card
 
 class Person(Entity):
-    flags = TypeFlags(type_name="person")  # Optional, defaults to lowercase class name
+    flags = TypeFlags(name="person")  # Optional, defaults to lowercase class name
 
     # Use Flag() for key/unique markers and Card for cardinality
     name: Name = Flag(Key)                   # @key (implies @card(1..1))
     age: Age | None = None                   # @card(0..1) - optional field (explicit default)
     email: Email                             # @card(1..1) - default cardinality
-    tags: list[Tag] = Flag(Card(min=2))      # @card(2..) - two or more
+    tags: list[Tag] = Flag(Card(min=2))      # @card(2..) - two or more (unordered set)
 ```
+
+> **Note**: `list[Type]` represents an **unordered set** in TypeDB. TypeDB has no list type - order is never preserved.
 
 ### 3. Create Instances
 
@@ -134,7 +153,7 @@ Employment.manager(db).insert(employment)
 from type_bridge import Card, Flag
 
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
 
     # Cardinality options:
     name: Name                              # @card(1..1) - exactly one (default)
@@ -150,7 +169,7 @@ class Person(Entity):
 from type_bridge import Relation, TypeFlags, Role
 
 class Employment(Relation):
-    flags = TypeFlags(type_name="employment")
+    flags = TypeFlags(name="employment")
 
     # Define roles with type-safe Role[T] syntax
     employee: Role[Person] = Role("employee", Person)
@@ -200,7 +219,7 @@ TypeBridge is built on Pydantic v2, giving you powerful features:
 
 ```python
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name = Flag(Key)
     age: Age
 
@@ -243,7 +262,7 @@ TypeBridge uses a two-tier testing approach with **100% test pass rate**:
 
 ```bash
 # Unit tests (fast, no external dependencies) - DEFAULT
-uv run pytest                              # Run 284 unit tests (0.3s)
+uv run pytest                              # Run 291 unit tests (0.3s)
 uv run pytest tests/unit/attributes/ -v   # Test all 9 attribute types
 uv run pytest tests/unit/core/ -v         # Test core functionality
 uv run pytest tests/unit/flags/ -v        # Test flag system
@@ -254,7 +273,7 @@ uv run pytest tests/unit/expressions/ -v  # Test query expressions
 ./test-integration.sh                     # Starts Docker, runs tests, stops Docker
 
 # Option 2: Use existing TypeDB server
-USE_DOCKER=false uv run pytest -m integration -v  # Run 138 integration tests (~18s)
+USE_DOCKER=false uv run pytest -m integration -v  # Run 147 integration tests (~18s)
 
 # Run specific integration test categories
 uv run pytest tests/integration/crud/entities/ -v      # Entity CRUD tests
@@ -263,7 +282,7 @@ uv run pytest tests/integration/queries/ -v           # Query expression tests
 uv run pytest tests/integration/schema/ -v            # Schema operation tests
 
 # All tests
-uv run pytest -m "" -v                    # Run all 422 tests
+uv run pytest -m "" -v                    # Run all 438 tests
 ./test.sh                                 # Run full test suite with detailed output
 ./check.sh                                # Run linting and type checking
 ```
@@ -300,7 +319,7 @@ uv run pytest -m "" -v                    # Run all 422 tests
 - ✅ **Zero type errors**: Pyright passes with 0 errors, 0 warnings, 0 informations
 
 ### Testing & Quality
-- ✅ **422 comprehensive tests** (284 unit, 138 integration) - 100% pass rate
+- ✅ **438 comprehensive tests** (291 unit, 147 integration) - 100% pass rate
 - ✅ Docker integration for automated test setup
 - ✅ Zero errors from Ruff and Pyright
 

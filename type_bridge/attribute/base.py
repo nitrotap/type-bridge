@@ -101,16 +101,28 @@ class Attribute(ABC):
         super().__init_subclass__(**kwargs)
 
         # Import here to avoid circular dependency
-        from type_bridge.attribute.flags import TypeNameCase, format_type_name
+        from type_bridge.attribute.flags import AttributeFlags, TypeNameCase, format_type_name
 
         # Determine the attribute name for this subclass
-        if cls.attr_name is not None:
-            # Explicit attr_name takes precedence
+        # Priority: flags.name > attr_name > flags.case > class.case > default CLASS_NAME
+        flags = getattr(cls, "flags", None)
+        if isinstance(flags, AttributeFlags) and flags.name is not None:
+            # flags.name has highest priority
+            computed_name = flags.name
+        elif cls.attr_name is not None:
+            # Explicit attr_name takes precedence over formatting
             computed_name = cls.attr_name
         else:
+            # Determine case formatting
+            # Priority: flags.case > class.case > default CLASS_NAME
+            if isinstance(flags, AttributeFlags) and flags.case is not None:
+                case = flags.case
+            elif cls.case is not None:
+                case = cls.case
+            else:
+                case = TypeNameCase.CLASS_NAME
+
             # Apply case formatting to class name
-            # Use the class's case if set, otherwise default to CLASS_NAME
-            case = cls.case if cls.case is not None else TypeNameCase.CLASS_NAME
             computed_name = format_type_name(cls.__name__, case)
 
         # Always set the attribute name for each new subclass (don't inherit from parent)

@@ -17,7 +17,7 @@ def test_insert_single_entity(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age | None
 
@@ -48,7 +48,7 @@ def test_insert_many(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age | None
 
@@ -81,7 +81,7 @@ def test_insert_with_optional_attributes(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age | None
 

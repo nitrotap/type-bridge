@@ -21,12 +21,12 @@ def test_filter_with_unowned_attribute_raises_error(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age  # Person owns age
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
         # Company does NOT own age
 
@@ -62,13 +62,13 @@ def test_filter_with_multiple_unowned_attributes(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age
         salary: Salary
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
         # Company does NOT own age or salary
 
@@ -104,7 +104,7 @@ def test_filter_validation_error_message_includes_available_types(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         email: Email
         # Person does NOT own age
@@ -141,12 +141,12 @@ def test_filter_with_inherited_attributes_passes(clean_db):
         pass
 
     class BasePerson(Entity):
-        flags = TypeFlags(type_name="base_person")
+        flags = TypeFlags(name="base_person")
         name: Name = Flag(Key)
         age: Age
 
     class Employee(BasePerson):
-        flags = TypeFlags(type_name="employee")
+        flags = TypeFlags(name="employee")
         # Inherits name and age from BasePerson
 
     schema_manager = SchemaManager(clean_db)
@@ -184,7 +184,7 @@ def test_filter_ownership_check_on_chained_calls(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age
         # Person does NOT own salary
@@ -219,7 +219,7 @@ def test_filter_with_owned_attribute_succeeds(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age
 

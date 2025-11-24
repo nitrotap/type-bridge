@@ -51,16 +51,16 @@ Register entity and relation types before generating schema:
 from type_bridge import Entity, Relation, TypeFlags, Role
 
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name = Flag(Key)
     age: Age | None = None
 
 class Company(Entity):
-    flags = TypeFlags(type_name="company")
+    flags = TypeFlags(name="company")
     name: Name = Flag(Key)
 
 class Employment(Relation):
-    flags = TypeFlags(type_name="employment")
+    flags = TypeFlags(name="employment")
     employee: Role[Person] = Role("employee", Person)
     employer: Role[Company] = Role("employer", Company)
     position: Position
@@ -128,7 +128,7 @@ schema_manager.sync_schema()  # ✅ Creates schema
 
 # Modify your models (remove an attribute - BREAKING CHANGE)
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name = Flag(Key)
     # age attribute removed!
 
@@ -177,7 +177,7 @@ old_schema = schema_manager.collect_schema_info()
 
 # Modify your models
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name = Flag(Key)
     age: Age | None = None
     email: Email = Flag(Unique)  # ✅ New attribute added!
@@ -449,7 +449,7 @@ class Email(String):
     pass
 
 class User(Entity):
-    flags = TypeFlags(type_name="user")
+    flags = TypeFlags(name="user")
     user_id: UserID = Flag(Key)
     username: Username
     email: Email = Flag(Unique)
@@ -480,7 +480,7 @@ except SchemaConflictError as e:
 
 # 7. Later: Modify models
 class User(Entity):
-    flags = TypeFlags(type_name="user")
+    flags = TypeFlags(name="user")
     user_id: UserID = Flag(Key)
     username: Username
     email: Email = Flag(Unique)

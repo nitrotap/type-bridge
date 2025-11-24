@@ -13,6 +13,7 @@ from typing import (
 )
 
 from pydantic import ConfigDict
+from pydantic._internal._model_construction import ModelMetaclass
 
 from type_bridge.attribute import AttributeFlags, TypeFlags
 from type_bridge.models.base import TypeDBType
@@ -27,8 +28,67 @@ if TYPE_CHECKING:
 R = TypeVar("R", bound="Relation")
 
 
+class RelationMeta(ModelMetaclass):
+    """
+    Metaclass for Relation that enables class-level field access for query building.
+
+    Intercepts class-level attribute access to return FieldRef instances
+    for defined fields, enabling syntax like Employment.position.eq(Position("Engineer")).
+    """
+
+    def __new__(
+        mcs, name: str, bases: tuple[type, ...], namespace: dict[str, Any], **kwargs: Any
+    ) -> type:
+        """
+        Create a new Relation class.
+
+        Removes any non-default field values from namespace before Pydantic processes it.
+        This prevents Pydantic from capturing spurious defaults.
+        """
+        import warnings
+
+        # Now call parent __new__ (ModelMetaclass)
+        # The smart __getattribute__ below will prevent FieldRef from being
+        # captured as defaults during Pydantic's field collection
+        # Suppress Pydantic's field shadowing warnings - field shadowing is intentional
+        # in TypeBridge when child relations override parent attributes
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message=".*shadows an attribute.*", category=UserWarning
+            )
+            return super().__new__(mcs, name, bases, namespace, **kwargs)
+
+    def __getattribute__(cls, name: str) -> Any:
+        """
+        Intercept class-level attribute access.
+
+        For owned attributes AFTER initialization is complete, return FieldRef instances.
+        During Pydantic initialization, return the actual descriptor.
+        """
+        # Check if this is a field and if we should return FieldRef
+        try:
+            owned_attrs = super().__getattribute__("_owned_attrs")
+            pydantic_complete = super().__getattribute__("__pydantic_complete__")
+
+            # Only return FieldRef if:
+            # 1. Field is in owned_attrs (it's one of our fields)
+            # 2. Pydantic setup is complete (__pydantic_complete__ is True)
+            if name in owned_attrs and pydantic_complete:
+                from type_bridge.fields import FieldDescriptor
+
+                attr_info = owned_attrs[name]
+                descriptor = FieldDescriptor(field_name=name, attr_type=attr_info.typ)
+                return descriptor.__get__(None, cls)
+        except AttributeError:
+            # _owned_attrs or __pydantic_complete__ not defined yet
+            pass
+
+        # For all other cases, use normal access
+        return super().__getattribute__(name)
+
+
 @dataclass_transform(kw_only_default=True, field_specifiers=(AttributeFlags,))
-class Relation(TypeDBType):
+class Relation(TypeDBType, metaclass=RelationMeta):
     """Base class for TypeDB relations with Pydantic validation.
 
     Relations can own attributes and have role players.

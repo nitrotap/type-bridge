@@ -19,7 +19,7 @@ def test_date_insert(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person_date")
+        flags = TypeFlags(name="person_date")
         name: Name = Flag(Key)
         birth_date: BirthDate
 
@@ -52,7 +52,7 @@ def test_date_fetch(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person_date_fetch")
+        flags = TypeFlags(name="person_date_fetch")
         name: Name = Flag(Key)
         birth_date: BirthDate
 
@@ -88,7 +88,7 @@ def test_date_update(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person_date_update")
+        flags = TypeFlags(name="person_date_update")
         name: Name = Flag(Key)
         birth_date: BirthDate
 
@@ -126,7 +126,7 @@ def test_date_delete(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person_date_delete")
+        flags = TypeFlags(name="person_date_delete")
         name: Name = Flag(Key)
         birth_date: BirthDate
 

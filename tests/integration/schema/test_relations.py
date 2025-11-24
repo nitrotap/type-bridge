@@ -23,18 +23,18 @@ def test_schema_with_relations(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     class Position(String):
         pass
 
     class Employment(Relation):
-        flags = TypeFlags(type_name="employment")
+        flags = TypeFlags(name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
         position: Position

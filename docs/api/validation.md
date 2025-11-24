@@ -22,7 +22,7 @@ class Age(Integer):
     pass
 
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name
     age: Age
 
@@ -65,7 +65,7 @@ Convert entities to JSON using Pydantic's serialization:
 from type_bridge import Entity, TypeFlags, String, Integer, Boolean
 
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name
     age: Age
     is_active: IsActive
@@ -156,7 +156,7 @@ class Age(Integer):
     pass
 
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name
     age: Age
 
@@ -184,7 +184,7 @@ class Priority(Integer):
     pass
 
 class Task(Entity):
-    flags = TypeFlags(type_name="task")
+    flags = TypeFlags(name="task")
 
     # Type checker sees Literal and provides autocomplete/warnings
     status: Literal["pending", "active", "completed"] | Status
@@ -300,7 +300,7 @@ class Age(Integer):
     pass
 
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name
     age: Age
 
@@ -446,7 +446,7 @@ class IsVerified(Boolean):
 
 # Define entity with validation
 class User(Entity):
-    flags = TypeFlags(type_name="user")
+    flags = TypeFlags(name="user")
 
     user_id: UserID = Flag(Key)
     username: Username

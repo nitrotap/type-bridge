@@ -21,7 +21,7 @@ def test_schema_diff_no_changes(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     schema1 = SchemaInfo()
@@ -55,11 +55,11 @@ def test_schema_diff_detect_added_entities(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     schema1 = SchemaInfo()
@@ -95,11 +95,11 @@ def test_schema_diff_detect_removed_entities(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     schema1 = SchemaInfo()
@@ -138,7 +138,7 @@ def test_schema_diff_detect_added_attributes(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     schema1 = SchemaInfo()
@@ -177,7 +177,7 @@ def test_schema_diff_detect_removed_attributes(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     schema1 = SchemaInfo()
@@ -213,15 +213,15 @@ def test_schema_diff_detect_added_relations(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     class Employment(Relation):
-        flags = TypeFlags(type_name="employment")
+        flags = TypeFlags(name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
 
@@ -260,15 +260,15 @@ def test_schema_diff_detect_removed_relations(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     class Employment(Relation):
-        flags = TypeFlags(type_name="employment")
+        flags = TypeFlags(name="employment")
         employee: Role[Person] = Role("employee", Person)
         employer: Role[Company] = Role("employer", Company)
 
@@ -311,11 +311,11 @@ def test_schema_diff_summary_formatting(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
 
     class Company(Entity):
-        flags = TypeFlags(type_name="company")
+        flags = TypeFlags(name="company")
         name: Name = Flag(Key)
 
     schema1 = SchemaInfo()

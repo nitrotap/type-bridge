@@ -22,7 +22,7 @@ class Score(Double):
 
 # Test entity
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name = Flag(Key)
     age: Age
     score: Score
@@ -306,7 +306,7 @@ class TestFieldDescriptorValidation:
 
         # Create person with explicit None for age (optional field)
         class OptionalAgePerson(Entity):
-            flags = TypeFlags(type_name="person2")
+            flags = TypeFlags(name="person2")
             name: Name = Flag(Key)
             age: Age | None
 

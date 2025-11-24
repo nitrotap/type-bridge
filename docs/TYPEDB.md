@@ -188,7 +188,7 @@ Relations require explicit role mapping:
 
 ```python
 class Employment(Relation):
-    flags = TypeFlags(type_name="employment")
+    flags = TypeFlags(name="employment")
 
     # Explicit role definitions with types
     employee: Role[Person] = Role("employee", Person)

@@ -91,7 +91,7 @@ def test_card_with_list_types():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)  # @key @card(1,1)
         tags: list[Tag] = Flag(Card(min=2))  # @card(2,∞)
         jobs: list[Job] = Flag(Card(1, 5))  # @card(1,5)
@@ -130,7 +130,7 @@ def test_card_validation_rejects_non_list():
     ):
 
         class InvalidPerson(Entity):
-            flags = TypeFlags(type_name="invalid_person")
+            flags = TypeFlags(name="invalid_person")
             age: Age = Flag(Card(min=0, max=1))  # Should fail!
 
     # Should also reject Card on union types with None
@@ -139,12 +139,12 @@ def test_card_validation_rejects_non_list():
     ):
 
         class InvalidPerson2(Entity):
-            flags = TypeFlags(type_name="invalid_person2")
+            flags = TypeFlags(name="invalid_person2")
             phone: Phone | None = Flag(Card(min=0, max=1))  # Should fail! Use Optional instead
 
     # Verify that Phone | None works WITHOUT Card
     class ValidPerson(Entity):
-        flags = TypeFlags(type_name="valid_person")
+        flags = TypeFlags(name="valid_person")
         phone: Phone | None  # This is fine - treated as @card(0,1)
 
     owned = ValidPerson.get_owned_attributes()
@@ -166,7 +166,7 @@ def test_list_requires_card():
     ):
 
         class InvalidPerson(Entity):
-            flags = TypeFlags(type_name="invalid_person")
+            flags = TypeFlags(name="invalid_person")
             tags: list[Tag]  # Should fail! Must use Flag(Card(...))
 
     # Should also fail without any default value
@@ -175,12 +175,12 @@ def test_list_requires_card():
     ):
 
         class InvalidPerson2(Entity):
-            flags = TypeFlags(type_name="invalid_person2")
+            flags = TypeFlags(name="invalid_person2")
             tags: list[Tag] = Flag(Key)  # Should fail! Key doesn't provide Card
 
     # Verify that list[Type] with Flag(Card(...)) works
     class ValidPerson(Entity):
-        flags = TypeFlags(type_name="valid_person")
+        flags = TypeFlags(name="valid_person")
         tags: list[Tag] = Flag(Card(min=1))  # This is correct
 
     owned = ValidPerson.get_owned_attributes()
@@ -204,7 +204,7 @@ def test_entity_creation():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)  # @key @card(1,1)
         age: Age | None  # @card(0,1) - using Optional
         email: Email | None  # @card(0,1) - using union syntax
@@ -246,7 +246,7 @@ def test_entity_instance():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name
         age: Age
 
@@ -276,7 +276,7 @@ def test_entity_schema_generation():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)  # @key with default card(1,1)
         age: Age | None  # @card(0,1) - Optional syntax
         email: Email | None  # @card(0,1) - Union syntax
@@ -299,7 +299,7 @@ def test_entity_insert_query():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name
         age: Age
 
@@ -319,11 +319,11 @@ def test_relation_creation():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name
 
     class Friendship(Relation):
-        flags = TypeFlags(type_name="friendship")
+        flags = TypeFlags(name="friendship")
 
         friend1: Role[Person] = Role("friend", Person)
         friend2: Role[Person] = Role("friend", Person)
@@ -344,11 +344,11 @@ def test_relation_with_attributes():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name
 
     class Friendship(Relation):
-        flags = TypeFlags(type_name="friendship")
+        flags = TypeFlags(name="friendship")
 
         friend1: Role[Person] = Role("friend", Person)
         friend2: Role[Person] = Role("friend", Person)
@@ -370,11 +370,11 @@ def test_relation_schema_generation():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name
 
     class Friendship(Relation):
-        flags = TypeFlags(type_name="friendship")
+        flags = TypeFlags(name="friendship")
 
         friend1: Role[Person] = Role("friend", Person)
         friend2: Role[Person] = Role("friend", Person)

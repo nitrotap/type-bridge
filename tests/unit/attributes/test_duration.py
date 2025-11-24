@@ -65,7 +65,7 @@ def test_duration_in_entity():
         pass
 
     class Event(Entity):
-        flags = TypeFlags(type_name="event")
+        flags = TypeFlags(name="event")
         name: EventName = Flag(Key)
         cadence: EventCadence
 
@@ -87,7 +87,7 @@ def test_duration_iso8601_formatting():
         pass
 
     class Task(Entity):
-        flags = TypeFlags(type_name="task")
+        flags = TypeFlags(name="task")
         interval: Interval
 
     # Test various durations
@@ -323,7 +323,7 @@ def test_duration_optional_attribute():
         pass
 
     class Job(Entity):
-        flags = TypeFlags(type_name="job")
+        flags = TypeFlags(name="job")
         name: JobName = Flag(Key)
         timeout: Timeout | None
 
@@ -347,7 +347,7 @@ def test_duration_multi_value_attribute():
         pass
 
     class Schedule(Entity):
-        flags = TypeFlags(type_name="schedule")
+        flags = TypeFlags(name="schedule")
         intervals: list[Interval] = Flag(Card(min=1))
 
     # Create with multiple durations
@@ -367,7 +367,7 @@ def test_duration_pydantic_validation():
         pass
 
     class Event(Entity):
-        flags = TypeFlags(type_name="event")
+        flags = TypeFlags(name="event")
         cadence: Cadence
 
     # Test with Duration instance (with months)

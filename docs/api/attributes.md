@@ -50,6 +50,58 @@ person = Person(name=Name("Alice"), email=Email("alice@example.com"))
 
 **TypeQL**: `attribute name, value string;`
 
+#### Special Characters and Escaping
+
+TypeBridge automatically handles special characters in string values when generating TypeQL queries. You never need to manually escape strings in your Python code.
+
+**Automatic escaping behavior:**
+
+```python
+# Quotes are escaped automatically
+person = Person(
+    name=Name("Alice"),
+    tags=[Tag('skill "Python"'), Tag('role "Engineer"')]
+)
+# Generates TypeQL: has Tag "skill \"Python\"", has Tag "role \"Engineer\""
+
+# Backslashes are escaped automatically
+fileset = FileSet(
+    name=Name("Files"),
+    paths=[Path("C:\\Users\\Alice"), Path("D:\\Projects\\App")]
+)
+# Generates TypeQL: has Path "C:\\Users\\Alice", has Path "D:\\Projects\\App"
+
+# Mixed escaping works correctly
+doc = Document(
+    name=Name("README"),
+    notes=[Description(r'Path: "C:\Program Files\App"')]
+)
+# Generates TypeQL: has Description "Path: \"C:\\Program Files\\App\""
+
+# Single quotes don't need escaping (TypeQL uses double quotes)
+person = Person(
+    name=Name("Bob"),
+    tags=[Tag("it's"), Tag("can't"), Tag("won't")]
+)
+# Single quotes preserved as-is: has Tag "it's", has Tag "can't"
+
+# Unicode is fully supported
+article = Article(
+    name=Name("Article"),
+    tags=[Tag("café"), Tag("日本語"), Tag("emoji😀")]
+)
+# Unicode preserved without escaping
+```
+
+**Escaping rules:**
+- Backslashes (`\`) are escaped to `\\`
+- Double quotes (`"`) are escaped to `\"`
+- Single quotes (`'`) are NOT escaped (TypeQL uses double quotes for strings)
+- Unicode characters are preserved without escaping
+- Escape order: backslashes first, then quotes (important for correct output)
+
+**Note:** Escaping happens automatically during query generation. You never need to manually escape strings in your Python code - just pass them as normal Python strings.
+
 ### Integer
 
 64-bit signed integers (renamed from `Long` in TypeDB 2.x).
@@ -346,6 +398,84 @@ total = d1 + d2  # P1M15D
 - Addition order matters: `P1M + P1D` ≠ `P1D + P1M` (calendar arithmetic)
 - Month addition respects calendar (Jan 31 + 1 month = Feb 29 if leap year)
 - Duration with DateTimeTZ respects DST and timezone changes
+
+## Configuring Attribute Type Names
+
+By default, attribute type names match the Python class name exactly (e.g., `class PersonName` → `PersonName`). You can override this using `AttributeFlags`:
+
+### Using AttributeFlags.name
+
+Explicitly set the TypeDB attribute type name:
+
+```python
+from type_bridge import AttributeFlags, String
+
+class Name(String):
+    flags = AttributeFlags(name="name")
+
+# TypeDB: attribute name, value string;
+```
+
+**Use cases**:
+- Interop with existing TypeDB schemas using lowercase names
+- Match legacy naming conventions
+- Simplify migration from manual TypeQL
+
+### Using AttributeFlags.case
+
+Apply case formatting to the class name:
+
+```python
+from type_bridge import AttributeFlags, String, TypeNameCase
+
+class PersonName(String):
+    flags = AttributeFlags(case=TypeNameCase.SNAKE_CASE)
+# TypeDB: attribute person_name, value string;
+
+class UserEmail(String):
+    flags = AttributeFlags(case=TypeNameCase.LOWERCASE)
+# TypeDB: attribute useremail, value string;
+```
+
+**Available cases**:
+- `TypeNameCase.CLASS_NAME` - Preserve as-is (default)
+- `TypeNameCase.LOWERCASE` - All lowercase
+- `TypeNameCase.SNAKE_CASE` - snake_case conversion
+- `TypeNameCase.KEBAB_CASE` - kebab-case conversion
+
+### Priority Order
+
+When determining the attribute type name, TypeBridge uses this priority:
+
+1. **`flags.name`** (highest) - Explicit name override
+2. **`attr_name`** - Class-level `attr_name = "..."`
+3. **`flags.case`** - Case formatting from flags
+4. **`case`** - Class-level `case = TypeNameCase.SNAKE_CASE`
+5. **Default** - Preserve class name as-is
+
+Example showing all options:
+
+```python
+# Option 1: Explicit name (highest priority)
+class Name(String):
+    flags = AttributeFlags(name="person_name")
+
+# Option 2: Class-level attr_name
+class Email(String):
+    attr_name = "email_address"
+
+# Option 3: Case formatting via flags
+class UserStatus(String):
+    flags = AttributeFlags(case=TypeNameCase.SNAKE_CASE)  # -> user_status
+
+# Option 4: Class-level case
+class CompanyName(String):
+    case = TypeNameCase.LOWERCASE  # -> companyname
+
+# Option 5: Default (preserve class name)
+class Age(Integer):
+    pass  # -> Age
+```
 
 ## Best Practices
 

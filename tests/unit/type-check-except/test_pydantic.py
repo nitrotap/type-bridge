@@ -21,7 +21,7 @@ def test_pydantic_validation():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name
         age: Age
 
@@ -53,7 +53,7 @@ def test_pydantic_validation_on_assignment():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name
         age: Age
 
@@ -84,7 +84,7 @@ def test_pydantic_json_serialization():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name
         age: Age
 
@@ -110,7 +110,7 @@ def test_pydantic_json_deserialization():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name
         age: Age
 
@@ -146,7 +146,7 @@ def test_pydantic_model_copy():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name
         age: Age
 
@@ -170,7 +170,7 @@ def test_pydantic_with_optional_fields():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name
         email: Email | None  # Optional field (PEP 604 syntax)
 
@@ -195,7 +195,7 @@ def test_pydantic_with_default_values():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name
         age: Age | None = Age(0)  # Default value (properly wrapped)
 
@@ -221,7 +221,7 @@ def test_pydantic_type_coercion():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name
         age: Age
 
@@ -254,7 +254,7 @@ def test_pydantic_validation_errors():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name
         age: Age
 

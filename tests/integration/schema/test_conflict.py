@@ -18,7 +18,7 @@ def test_schema_conflict_detection(clean_db):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age
 
@@ -29,7 +29,7 @@ def test_schema_conflict_detection(clean_db):
 
     # Modify schema - remove age attribute
     class PersonModified(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         # age attribute removed!
 

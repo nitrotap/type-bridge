@@ -17,7 +17,7 @@ def test_update_single_value_attribute(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age | None
 
@@ -54,7 +54,7 @@ def test_update_multi_value_attribute(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person2")
+        flags = TypeFlags(name="person2")
         name: Name = Flag(Key)
         tags: list[Tag] = Flag(Card(min=1))
 

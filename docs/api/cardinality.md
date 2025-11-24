@@ -126,6 +126,29 @@ skills: list[Skill] = Flag(Card(min=2, max=10))  # @card(2..10) - 2 to 10
 tags: list[Tag] = Flag(Card(min=0))  # @card(0..)
 ```
 
+### ⚠️ Important: No Lists in TypeDB - Only Sets
+
+**TypeDB does not have a list type**. Multi-value attributes are **unordered sets**. TypeBridge uses `list[Type]` syntax for convenience, but the order is never preserved.
+
+```python
+# You write this in Python:
+person = Person(tags=[Tag("python"), Tag("rust"), Tag("go")])
+manager.insert(person)
+
+# But TypeDB stores it as an unordered set
+# When you fetch, order is NEVER guaranteed:
+fetched = manager.get(name="Alice")[0]
+# fetched.tags might be: [Tag("rust"), Tag("go"), Tag("python")]
+# or any other order - it's completely unpredictable
+```
+
+**Key points**:
+- TypeDB only has **sets**, not lists
+- `list[Type]` is just Python syntax - internally it's a set
+- Order is never preserved or guaranteed
+- Order may differ between queries, restarts, or database operations
+- Do not write code that depends on order
+
 ## Special Annotations
 
 ### Key Annotation
@@ -275,7 +298,7 @@ class Tag(String):
     pass
 
 class User(Entity):
-    flags = TypeFlags(type_name="user")
+    flags = TypeFlags(name="user")
 
     # Key: exactly one, unique
     user_id: UserID = Flag(Key)
@@ -326,7 +349,7 @@ entity user,
 from type_bridge import Relation, TypeFlags, Role, Card
 
 class Friendship(Relation):
-    flags = TypeFlags(type_name="friendship")
+    flags = TypeFlags(name="friendship")
 
     # Exactly 2 friends (symmetric relation)
     friend: Role[Person] = Role("friend", Person, Card(2, 2))
@@ -355,7 +378,7 @@ relation friendship,
 from type_bridge import Entity, TypeFlags, Flag, Key, Unique, Card
 
 class Product(Entity):
-    flags = TypeFlags(type_name="product")
+    flags = TypeFlags(name="product")
 
     # Key: product_id (exactly one, unique)
     product_id: ProductID = Flag(Key)
@@ -473,6 +496,26 @@ class User(Entity):
     email: Email = Flag(Unique)       # Secondary identifier
     username: Username = Flag(Unique) # Secondary identifier
 ```
+
+### 5. Remember: TypeDB Has No Lists - Only Sets
+
+**TypeDB only has sets**. Multi-value attributes are always unordered:
+
+```python
+# Python syntax uses list[Type], but it's a set in TypeDB
+class Person(Entity):
+    tags: list[Tag] = Flag(Card(min=1))  # This is a SET, not a list!
+
+# Order is NEVER preserved
+person = manager.get(name="Alice")[0]
+# person.tags order is unpredictable and may change
+```
+
+**Key points**:
+- TypeDB has no list type - only unordered sets
+- `list[Type]` is Python syntax only - it's a set underneath
+- Never write code that depends on order
+- Sort in application code if you need ordering temporarily
 
 ## Deprecated APIs
 

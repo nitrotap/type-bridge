@@ -41,7 +41,7 @@ class Age(Integer):
 
 # 2. Define entity with ownership
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name = Flag(Key)
     age: Age | None = None  # Optional field
 
@@ -77,7 +77,7 @@ Clean API with `TypeFlags`:
 
 ```python
 class Person(Entity):
-    flags = TypeFlags(type_name="person")  # Clean API
+    flags = TypeFlags(name="person")  # Clean API
 ```
 
 ### 3. Use Flag System for Annotations

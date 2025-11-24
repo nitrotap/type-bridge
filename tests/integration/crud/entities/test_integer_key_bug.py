@@ -37,7 +37,7 @@ class Description(String):
 class IntegerKeyEntity(Entity):
     """Entity with Integer key (regression test for bug)."""
 
-    flags = TypeFlags(type_name="integer_key_entity")
+    flags = TypeFlags(name="integer_key_entity")
     id: EntityId = Flag(Key)
     description: Description
 
@@ -45,7 +45,7 @@ class IntegerKeyEntity(Entity):
 class StringKeyEntity(Entity):
     """Entity with String key (control - should always work)."""
 
-    flags = TypeFlags(type_name="string_key_entity")
+    flags = TypeFlags(name="string_key_entity")
     key: EntityKey = Flag(Key)
     description: Description
 

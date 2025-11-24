@@ -20,7 +20,7 @@ def test_query_with_multiple_filters(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person3")
+        flags = TypeFlags(name="person3")
         name: Name = Flag(Key)
         age: Age | None
         city: City | None
@@ -59,7 +59,7 @@ def test_query_with_multi_value_attributes(db_with_schema):
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person4")
+        flags = TypeFlags(name="person4")
         name: Name = Flag(Key)
         tags: list[Tag] = Flag(Card(min=1))
 

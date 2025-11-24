@@ -15,7 +15,7 @@ class TestInheritanceEdgeCases:
         with pytest.raises(ValueError, match="conflicts with TypeDB built-in type"):
 
             class BadEntity(tbg.Entity):
-                flags = TypeFlags(type_name="entity")  # Explicit collision
+                flags = TypeFlags(name="entity")  # Explicit collision
 
     def test_builtin_type_name_collision_relation(self):
         """Test that using 'relation' as a type name raises an error."""
@@ -23,7 +23,7 @@ class TestInheritanceEdgeCases:
         with pytest.raises(ValueError, match="conflicts with TypeDB built-in type"):
 
             class BadRelation(tbg.Relation):
-                flags = TypeFlags(type_name="relation")  # Explicit collision
+                flags = TypeFlags(name="relation")  # Explicit collision
 
     def test_builtin_type_name_collision_attribute(self):
         """Test that using 'attribute' as an attribute name raises an error."""
@@ -39,7 +39,7 @@ class TestInheritanceEdgeCases:
         with pytest.raises(ValueError, match="conflicts with TypeDB built-in type"):
 
             class Thing(tbg.Entity):
-                flags = TypeFlags(type_name="thing")  # Explicit collision
+                flags = TypeFlags(name="thing")  # Explicit collision
 
     def test_intermediate_base_class_without_flags(self):
         """Test multi-level inheritance with intermediate class."""
@@ -47,13 +47,13 @@ class TestInheritanceEdgeCases:
         # Should work if we use abstract=True
 
         class BaseEntity(tbg.Entity):
-            flags = TypeFlags(abstract=True, type_name="base_entity")
+            flags = TypeFlags(abstract=True, name="base_entity")
 
         class Name(String):
             pass
 
         class ConcreteEntity(BaseEntity):
-            flags = TypeFlags(type_name="concrete_entity")
+            flags = TypeFlags(name="concrete_entity")
             name: Name
 
         # Should generate correct schema
@@ -71,26 +71,26 @@ class TestInheritanceEdgeCases:
         """Test that intermediate class with default name gets validated."""
 
         # This should raise an error because the class name is "Entity"
-        # which would default to type_name="Entity" (which lowercases to "entity", collision)
+        # which would default to name="Entity" (which lowercases to "entity", collision)
         with pytest.raises(ValueError, match="'Entity'.*conflicts with TypeDB built-in"):
             # Intentionally name the class "Entity" to trigger the edge case
             class Entity(tbg.Entity):
-                pass  # No flags - would default to type_name="Entity" (CLASS_NAME)
+                pass  # No flags - would default to name="Entity" (CLASS_NAME)
 
     def test_multi_level_inheritance_chain(self):
         """Test deep inheritance chain works correctly."""
 
         class Animal(tbg.Entity):
-            flags = TypeFlags(abstract=True, type_name="animal")
+            flags = TypeFlags(abstract=True, name="animal")
 
         class Mammal(Animal):
-            flags = TypeFlags(abstract=True, type_name="mammal")
+            flags = TypeFlags(abstract=True, name="mammal")
 
         class Name(String):
             pass
 
         class Dog(Mammal):
-            flags = TypeFlags(type_name="dog")
+            flags = TypeFlags(name="dog")
             name: Name
 
         # Check supertype chain
@@ -133,7 +133,7 @@ class TestInheritanceEdgeCases:
         with pytest.raises(ValueError, match="'Relation'.*conflicts with TypeDB built-in"):
 
             class Relation(tbg.Relation):
-                pass  # Would default to type_name="Relation" (CLASS_NAME)
+                pass  # Would default to name="Relation" (CLASS_NAME)
 
     def test_case_sensitivity_in_builtin_check(self):
         """Test that built-in type check is case-insensitive to match TypeDB behavior."""
@@ -146,12 +146,12 @@ class TestInheritanceEdgeCases:
         with pytest.raises(ValueError, match="conflicts with TypeDB built-in"):
 
             class ENTITY(tbg.Entity):
-                flags = TypeFlags(type_name="ENTITY")  # Still conflicts (case-insensitive)
+                flags = TypeFlags(name="ENTITY")  # Still conflicts (case-insensitive)
                 name: Name
 
         # But these should be allowed (different names)
         class EntityType(tbg.Entity):
-            flags = TypeFlags(type_name="entity_type")  # Has suffix - safe
+            flags = TypeFlags(name="entity_type")  # Has suffix - safe
             name: Name
 
         # Should not raise errors
@@ -182,34 +182,34 @@ class TestComplexInheritanceHierarchy:
 
         # Level 1: Abstract base
         class ASTNode(tbg.Entity):
-            flags = TypeFlags(type_name="ast-node", abstract=True)
+            flags = TypeFlags(name="ast-node", abstract=True)
             node_id: NodeId = Flag(Key)
 
         # Level 2: Abstract statement
         class Statement(ASTNode):
-            flags = TypeFlags(type_name="statement", abstract=True)
+            flags = TypeFlags(name="statement", abstract=True)
             line_number: LineNumber
 
         # Level 3: Concrete statements
         class LetStatement(Statement):
-            flags = TypeFlags(type_name="let-statement")
+            flags = TypeFlags(name="let-statement")
             var_name: VarName
             type_annotation: TypeAnnotation | None
 
         class ReturnStatement(Statement):
-            flags = TypeFlags(type_name="return-statement")
+            flags = TypeFlags(name="return-statement")
 
         # Level 2: Abstract expression (sibling to Statement)
         class Expression(ASTNode):
-            flags = TypeFlags(type_name="expression", abstract=True)
+            flags = TypeFlags(name="expression", abstract=True)
 
         # Level 3: Concrete expressions
         class BinaryExpr(Expression):
-            flags = TypeFlags(type_name="binary-expr")
+            flags = TypeFlags(name="binary-expr")
             operator: Operator
 
         class LiteralExpr(Expression):
-            flags = TypeFlags(type_name="literal-expr")
+            flags = TypeFlags(name="literal-expr")
 
         # Verify inheritance chain
         assert ASTNode.get_supertype() is None
@@ -284,39 +284,39 @@ class TestComplexInheritanceHierarchy:
             pass
 
         class Person(tbg.Entity):
-            flags = TypeFlags(type_name="person")
+            flags = TypeFlags(name="person")
             name: Name
 
         # Level 1: Abstract base relation
         class Interaction(tbg.Relation):
-            flags = TypeFlags(type_name="interaction", abstract=True)
+            flags = TypeFlags(name="interaction", abstract=True)
             participant: Role[Person] = Role("participant", Person)
             rel_id: RelId = Flag(Key)
 
         # Level 2: Abstract communication
         class Communication(Interaction):
-            flags = TypeFlags(type_name="communication", abstract=True)
+            flags = TypeFlags(name="communication", abstract=True)
             timestamp: Timestamp
 
         # Level 3: Concrete communications
         class DirectMessage(Communication):
-            flags = TypeFlags(type_name="direct-message")
+            flags = TypeFlags(name="direct-message")
             sender: Role[Person] = Role("sender", Person)
             receiver: Role[Person] = Role("receiver", Person)
             message: Message
 
         class GroupChat(Communication):
-            flags = TypeFlags(type_name="group-chat")
+            flags = TypeFlags(name="group-chat")
             members: Role[Person] = Role("members", Person)
 
         # Level 2: Abstract collaboration (sibling to Communication)
         class Collaboration(Interaction):
-            flags = TypeFlags(type_name="collaboration", abstract=True)
+            flags = TypeFlags(name="collaboration", abstract=True)
             priority: Priority | None
 
         # Level 3: Concrete collaboration
         class Project(Collaboration):
-            flags = TypeFlags(type_name="project")
+            flags = TypeFlags(name="project")
             team_member: Role[Person] = Role("team-member", Person)
 
         # Verify inheritance chain
@@ -382,12 +382,12 @@ class TestComplexInheritanceHierarchy:
 
         # Abstract TypeDB entity that also inherits from Python base
         class Resource(Timestamped):
-            flags = TypeFlags(type_name="resource", abstract=True)
+            flags = TypeFlags(name="resource", abstract=True)
             id: Id = Flag(Key)
 
         # Concrete entity
         class User(Resource):
-            flags = TypeFlags(type_name="user")
+            flags = TypeFlags(name="user")
             name: Name
             email: Email
 
@@ -437,11 +437,11 @@ class TestInheritanceAttributePropagation:
             pass
 
         class Animal(tbg.Entity):
-            flags = TypeFlags(abstract=True, type_name="animal")
+            flags = TypeFlags(abstract=True, name="animal")
             name: Name
 
         class Dog(Animal):
-            flags = TypeFlags(type_name="dog")
+            flags = TypeFlags(name="dog")
             age: Age
 
         # Check owned attributes - only DIRECT attributes, not inherited

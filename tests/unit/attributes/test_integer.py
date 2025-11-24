@@ -33,7 +33,7 @@ def test_integer_in_entity():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age
 
@@ -48,7 +48,7 @@ def test_integer_insert_query():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         age: Age
 
     person = Person(age=Age(30))
@@ -67,7 +67,7 @@ def test_integer_edge_cases():
         pass
 
     class Counter(Entity):
-        flags = TypeFlags(type_name="counter")
+        flags = TypeFlags(name="counter")
         count: Total
 
     # Test with zero
@@ -96,7 +96,7 @@ def test_integer_optional_attribute():
         pass
 
     class Person(Entity):
-        flags = TypeFlags(type_name="person")
+        flags = TypeFlags(name="person")
         name: Name = Flag(Key)
         age: Age | None
 

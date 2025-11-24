@@ -24,7 +24,7 @@ class TokenNote(String):
 class Token(Entity):
     """Abstract base class for all logical tokens."""
 
-    flags = TypeFlags(type_name="token", abstract=True)
+    flags = TypeFlags(name="token", abstract=True)
     text: TokenText = Flag(Key)
     note: TokenNote | None = None  # Optional attribute for testing updates
 
@@ -33,19 +33,19 @@ class Token(Entity):
 class Symptom(Token):
     """Observed behavior or symptom."""
 
-    flags = TypeFlags(type_name="symptom")
+    flags = TypeFlags(name="symptom")
 
 
 class Problem(Token):
     """Identified problem."""
 
-    flags = TypeFlags(type_name="problem")
+    flags = TypeFlags(name="problem")
 
 
 class Hypothesis(Token):
     """Proposed hypothesis."""
 
-    flags = TypeFlags(type_name="hypothesis")
+    flags = TypeFlags(name="hypothesis")
 
 
 # Another entity for relations
@@ -56,7 +56,7 @@ class IssueKey(String):
 class Issue(Entity):
     """Simple issue entity."""
 
-    flags = TypeFlags(type_name="issue")
+    flags = TypeFlags(name="issue")
     key: IssueKey = Flag(Key)
 
 
@@ -64,7 +64,7 @@ class Issue(Entity):
 class TokenOrigin(Relation):
     """Token was extracted from an issue."""
 
-    flags = TypeFlags(type_name="token_origin")
+    flags = TypeFlags(name="token_origin")
     token: Role[Token] = Role("token", Token)  # Abstract type in role!
     issue: Role[Issue] = Role("issue", Issue)
 
@@ -77,7 +77,7 @@ class Confidence(Integer):
 class TokenOriginWithConfidence(Relation):
     """Token origin with confidence score."""
 
-    flags = TypeFlags(type_name="token_origin_conf")
+    flags = TypeFlags(name="token_origin_conf")
     token: Role[Token] = Role("token", Token)
     issue: Role[Issue] = Role("issue", Issue)
     confidence: Confidence | None = None

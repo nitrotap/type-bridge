@@ -36,7 +36,7 @@ def test_multi_value_boolean(clean_db):
         pass
 
     class Config(Entity):
-        flags = TypeFlags(type_name="config_bool")
+        flags = TypeFlags(name="config_bool")
         name: Name = Flag(Key)
         features: list[Feature] = Flag(Card(min=1))
 
@@ -67,7 +67,7 @@ def test_multi_value_integer(clean_db):
         pass
 
     class Student(Entity):
-        flags = TypeFlags(type_name="student_scores")
+        flags = TypeFlags(name="student_scores")
         name: Name = Flag(Key)
         scores: list[Score] = Flag(Card(min=1, max=5))
 
@@ -100,7 +100,7 @@ def test_multi_value_string(clean_db):
         pass
 
     class Article(Entity):
-        flags = TypeFlags(type_name="article_tags")
+        flags = TypeFlags(name="article_tags")
         name: Name = Flag(Key)
         tags: list[Tag] = Flag(Card(min=1))
 
@@ -135,7 +135,7 @@ def test_multi_value_double(clean_db):
         pass
 
     class Experiment(Entity):
-        flags = TypeFlags(type_name="experiment_measures")
+        flags = TypeFlags(name="experiment_measures")
         name: Name = Flag(Key)
         measurements: list[Measurement] = Flag(Card(min=2))
 
@@ -169,7 +169,7 @@ def test_multi_value_date(clean_db):
         pass
 
     class Project(Entity):
-        flags = TypeFlags(type_name="project_dates")
+        flags = TypeFlags(name="project_dates")
         name: Name = Flag(Key)
         milestones: list[EventDate] = Flag(Card(min=1))
 
@@ -207,7 +207,7 @@ def test_multi_value_datetime(clean_db):
         pass
 
     class Log(Entity):
-        flags = TypeFlags(type_name="log_timestamps")
+        flags = TypeFlags(name="log_timestamps")
         name: Name = Flag(Key)
         timestamps: list[Timestamp] = Flag(Card(min=1))
 
@@ -245,7 +245,7 @@ def test_multi_value_datetimetz(clean_db):
         pass
 
     class Cluster(Entity):
-        flags = TypeFlags(type_name="cluster_syncs")
+        flags = TypeFlags(name="cluster_syncs")
         name: Name = Flag(Key)
         sync_times: list[SyncTime] = Flag(Card(min=1))
 
@@ -282,7 +282,7 @@ def test_multi_value_decimal(clean_db):
         pass
 
     class Product(Entity):
-        flags = TypeFlags(type_name="product_prices")
+        flags = TypeFlags(name="product_prices")
         name: Name = Flag(Key)
         price_history: list[Price] = Flag(Card(min=1))
 
@@ -320,7 +320,7 @@ def test_multi_value_duration(clean_db):
         pass
 
     class Schedule(Entity):
-        flags = TypeFlags(type_name="schedule_intervals")
+        flags = TypeFlags(name="schedule_intervals")
         name: Name = Flag(Key)
         intervals: list[Interval] = Flag(Card(min=1))
 

@@ -2,6 +2,219 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [Unreleased]
+
+### 🏗️ Refactoring
+
+#### Modularized CRUD Operations
+- **Refactored monolithic `crud.py` (3008 lines) into modular structure**
+  - Split into 11 focused modules under `crud/` directory
+  - Entity operations: `crud/entity/` with manager, query, and group_by modules
+  - Relation operations: `crud/relation/` with manager, query, and group_by modules
+  - Shared utilities: `crud/utils.py` for `format_value` and `is_multi_value_attribute`
+  - Base definitions: `crud/base.py` for type variables
+- **Benefits**:
+  - Eliminated code duplication (shared utilities now have single implementations)
+  - Improved maintainability (files are now 200-800 lines each)
+  - Better code organization and discoverability
+  - Preserved backward compatibility (all imports still work)
+- **Impact**: No breaking changes, all existing code continues to work
+
+#### Modularized Models
+- **Previously refactored `models.py` into modular structure**
+  - Split into `models/` directory with base, entity, relation, role, and utils modules
+  - Improved separation of concerns and maintainability
+
+### 🐛 Bug Fixes
+
+#### String Attribute Escaping in Multi-Value Attributes
+- **Fixed proper escaping of special characters in multi-value string attributes**
+  - Backslashes are now properly escaped: `\` → `\\`
+  - Double quotes are properly escaped: `"` → `\"`
+  - Escape order matters: backslashes first, then quotes
+  - Location: `type_bridge/query.py`, `type_bridge/crud.py`, `type_bridge/models/base.py`
+- **Impact**: Multi-value string attributes with quotes or backslashes now work correctly in insert/update operations
+- **Examples**:
+  - Quotes: `Tag('skill "Python"')` → TypeQL: `has Tag "skill \"Python\""`
+  - Backslashes: `Path("C:\\Users\\Alice")` → TypeQL: `has Path "C:\\Users\\Alice"`
+  - Mixed: `Description(r'Path: "C:\Program Files"')` → TypeQL: `has Description "Path: \"C:\\Program Files\""`
+
+### 🧪 Testing
+
+#### Escaping Test Coverage Added
+- **Created comprehensive string escaping test suite**
+  - 7 unit tests for multi-value string escaping patterns
+  - 9 integration tests verifying end-to-end escaping behavior
+  - Location: `tests/unit/attributes/test_multivalue_escaping.py`, `tests/integration/crud/attributes/test_multivalue_escaping.py`
+- **Test coverage includes**:
+  - Quotes in strings: `'skill "Python"'`
+  - Backslashes in paths: `C:\Users\Alice`
+  - Mixed escaping: `"C:\Program Files\App"`
+  - Empty strings and special characters
+  - Unicode characters (café, 日本語, emoji😀)
+  - Single quotes (not escaped in TypeQL)
+  - Relations with multi-value escaping
+  - Batch operations: `insert_many()`, `update_with()`
+
+### 📦 Key Files Modified
+
+- `tests/unit/attributes/test_multivalue_escaping.py` - New unit test suite (7 tests)
+- `tests/integration/crud/attributes/test_multivalue_escaping.py` - New integration test suite (9 tests)
+
+## [0.6.0] - 2025-11-24
+
+### 🚀 New Features
+
+#### Chainable Delete and Update Operations
+- **Added `EntityQuery.delete()` for chainable deletion**
+  - Delete entities after complex filtering: `manager.filter(Age.gt(Age(65))).delete()`
+  - Builds TypeQL delete query from both dict-based and expression-based filters
+  - Single atomic transaction with automatic rollback on error
+  - Returns count of deleted entities (0 if no matches)
+  - Location: `type_bridge/crud.py:626-676`
+
+- **Added `EntityQuery.update_with(func)` for functional bulk updates**
+  - Update multiple entities using lambda or named functions
+  - Example: `manager.filter(Age.gt(Age(30))).update_with(lambda p: setattr(p, 'age', Age(p.age.value + 1)))`
+  - Fetches matching entities, applies function, updates all in single transaction
+  - Returns list of updated entities (empty list if no matches)
+  - Error handling: Stops immediately and raises error if function fails on any entity
+  - All updates in single atomic transaction (all-or-nothing)
+  - Location: `type_bridge/crud.py:678-730`
+
+- **Helper methods added**
+  - `_build_update_query(entity)`: Builds TypeQL update query for single entity
+  - `_is_multi_value_attribute(flags)`: Checks attribute cardinality
+  - Reuses existing EntityManager logic for consistency
+
+#### Benefits
+1. **Chainable API**: Natural method chaining for complex operations
+2. **Type-safe**: Full integration with expression-based filtering
+3. **Atomic transactions**: All operations are all-or-nothing
+4. **Functional updates**: Clean lambda/function-based bulk updates
+5. **Consistent API**: Works seamlessly with existing filter() method
+
+#### AttributeFlags Configuration for Attribute Type Names
+- **Added `AttributeFlags.name` field**
+  - Explicitly override attribute type name: `flags = AttributeFlags(name="person_name")`
+  - Use case: Interop with existing TypeDB schemas, legacy naming conventions
+  - Location: `type_bridge/attribute/flags.py:229`
+
+- **Added `AttributeFlags.case` field**
+  - Apply case formatting to attribute type names: `flags = AttributeFlags(case=TypeNameCase.SNAKE_CASE)`
+  - Supports: CLASS_NAME (default), LOWERCASE, SNAKE_CASE, KEBAB_CASE
+  - Use case: Consistent naming conventions across large schemas
+  - Location: `type_bridge/attribute/flags.py:230`
+
+- **Updated `Attribute.__init_subclass__` to use AttributeFlags**
+  - Priority: flags.name > attr_name > flags.case > class.case > default CLASS_NAME
+  - Respects both explicit name and case formatting
+  - Location: `type_bridge/attribute/base.py:108-126`
+
+#### Benefits
+1. **Flexible naming**: Support for legacy schemas and naming conventions
+2. **Consistent API**: Mirrors TypeFlags.name pattern for entities/relations
+3. **Migration friendly**: Easier interop with existing TypeDB databases
+4. **Developer choice**: Explicit name or automatic case formatting
+
+### 📚 Documentation
+
+#### API Documentation Updated
+- **Updated `docs/api/crud.md`** with comprehensive new sections:
+  - Chainable Delete section with examples and behavior explanation
+  - Bulk Update with Function section demonstrating lambda and named function usage
+  - Updated EntityQuery method signatures
+  - Added "New in v0.6.0" markers for discoverability
+  - Error handling and empty results behavior documented
+
+- **Updated `docs/api/attributes.md`** with new section:
+  - "Configuring Attribute Type Names" section with comprehensive examples
+  - Documents AttributeFlags.name for explicit type name overrides
+  - Documents AttributeFlags.case for automatic case formatting
+  - Shows priority order and all configuration options
+  - Use cases and best practices
+
+- **Updated `docs/INTERNALS.md`**:
+  - Updated AttributeFlags dataclass documentation
+  - Added name and case fields with usage examples
+  - Updated cardinality field names (card_min, card_max)
+
+#### README Updated
+- **Added "Chainable Operations" to features list**
+  - Highlights filter, delete, and bulk update capabilities
+  - Location: `README.md`
+
+#### New Example Created
+- **Created `examples/advanced/crud_07_chainable_operations.py`**
+  - Comprehensive demonstration of chainable delete and update
+  - Shows lambda functions, named functions, and complex multi-attribute updates
+  - Demonstrates atomic transaction behavior with rollback examples
+  - Interactive tutorial format with step-by-step explanations
+
+### 🧪 Testing
+
+#### Integration Tests Added
+- **Created `tests/integration/crud/entities/test_chainable.py`** with 9 comprehensive tests:
+  1. `test_chainable_delete_with_expression_filter` - Basic delete with expressions
+  2. `test_chainable_delete_with_multiple_filters` - Multiple filter combinations
+  3. `test_chainable_delete_returns_zero_for_no_matches` - Empty results handling
+  4. `test_chainable_delete_with_range_filter` - Range queries (gte/lt)
+  5. `test_update_with_lambda_increments_age` - Lambda function updates
+  6. `test_update_with_function_modifies_status` - Named function updates
+  7. `test_update_with_returns_empty_list_for_no_matches` - Empty results handling
+  8. `test_update_with_complex_function_multiple_attributes` - Multi-attribute updates
+  9. `test_update_with_atomic_transaction` - Transaction rollback verification
+
+#### Test Results
+- **All 9 tests passing** ✅
+- Tests verify:
+  - Correct entity deletion with expression filters
+  - Accurate counts returned
+  - Proper transaction boundaries (atomic behavior)
+  - Error propagation and rollback
+  - Empty result handling
+  - Multi-attribute updates
+  - Lambda and function-based updates
+
+### 📦 Key Files Modified
+
+- `type_bridge/crud.py` - Added delete() and update_with() to EntityQuery class
+- `docs/api/crud.md` - Updated API documentation with new methods
+- `README.md` - Added chainable operations to features list
+- `examples/advanced/crud_07_chainable_operations.py` - New comprehensive example
+- `tests/integration/crud/entities/test_chainable.py` - New integration test suite
+
+### 💡 Usage Examples
+
+#### Chainable Delete
+```python
+# Delete all persons over 65
+count = Person.manager(db).filter(Age.gt(Age(65))).delete()
+
+# Delete with multiple filters
+count = manager.filter(
+    Age.lt(Age(18)),
+    Status.eq(Status("inactive"))
+).delete()
+```
+
+#### Chainable Update with Lambda
+```python
+# Increment age for all persons over 30
+updated = manager.filter(Age.gt(Age(30))).update_with(
+    lambda person: setattr(person, 'age', Age(person.age.value + 1))
+)
+```
+
+#### Chainable Update with Function
+```python
+def promote(person):
+    person.status = Status("senior")
+    person.salary = Salary(int(person.salary.value * 1.1))
+
+promoted = manager.filter(Age.gte(Age(35))).update_with(promote)
+```
+
 ## [0.5.1] - 2025-11-20
 
 ### 🐛 Bug Fixes

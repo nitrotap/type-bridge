@@ -23,28 +23,28 @@ from type_bridge import Entity, Relation, String, TypeFlags, Flag, Key
 
 class ISBN(String):
     """Abstract ISBN attribute."""
-    flags = TypeFlags(type_name="isbn", abstract=True)
+    flags = TypeFlags(name="isbn", abstract=True)
 
 class ISBN10(ISBN):
     """Concrete ISBN-10."""
-    flags = TypeFlags(type_name="isbn-10")
+    flags = TypeFlags(name="isbn-10")
 
 class ISBN13(ISBN):
     """Concrete ISBN-13."""
-    flags = TypeFlags(type_name="isbn-13")
+    flags = TypeFlags(name="isbn-13")
 
 class Book(Entity):
     """Abstract book entity."""
-    flags = TypeFlags(type_name="book", abstract=True)
+    flags = TypeFlags(name="book", abstract=True)
     isbn: ISBN = Flag(Key)
 
 class Paperback(Book):
     """Concrete paperback book."""
-    flags = TypeFlags(type_name="paperback")
+    flags = TypeFlags(name="paperback")
 
 class Hardback(Book):
     """Concrete hardback book."""
-    flags = TypeFlags(type_name="hardback")
+    flags = TypeFlags(name="hardback")
 ```
 
 ### Inherited Attributes
@@ -87,21 +87,21 @@ Define common attributes once on an abstract parent:
 ```python
 class Token(Entity):
     """Abstract base for all token types."""
-    flags = TypeFlags(type_name="token", abstract=True)
+    flags = TypeFlags(name="token", abstract=True)
     text: TokenText = Flag(Key)
     confidence: Confidence | None
 
 class Symptom(Token):
     """Concrete symptom token."""
-    flags = TypeFlags(type_name="symptom")
+    flags = TypeFlags(name="symptom")
 
 class Problem(Token):
     """Concrete problem token."""
-    flags = TypeFlags(type_name="problem")
+    flags = TypeFlags(name="problem")
 
 class Hypothesis(Token):
     """Concrete hypothesis token."""
-    flags = TypeFlags(type_name="hypothesis")
+    flags = TypeFlags(name="hypothesis")
 ```
 
 **Benefits**:
@@ -116,7 +116,7 @@ Use abstract types in role definitions for flexibility:
 ```python
 class TokenOrigin(Relation):
     """Links tokens to their source documents."""
-    flags = TypeFlags(type_name="token_origin")
+    flags = TypeFlags(name="token_origin")
     token: Role[Token] = Role("token", Token)  # Abstract type!
     document: Role[Document] = Role("document", Document)
 
@@ -148,13 +148,13 @@ class Publishing(Relation):
 # ✅ GOOD: Nested relations with unified interface
 class Locating(Relation):
     """Abstract location relation."""
-    flags = TypeFlags(type_name="locating", abstract=True)
+    flags = TypeFlags(name="locating", abstract=True)
     relates located
     relates location
 
 class CityLocation(Locating):
     """City is located in country."""
-    flags = TypeFlags(type_name="city_location")
+    flags = TypeFlags(name="city_location")
 
 class Publishing(Relation):
     """Publishing plays 'located' role in Locating."""

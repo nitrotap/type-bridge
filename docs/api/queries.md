@@ -6,6 +6,8 @@ Complete reference for query expressions, filtering, aggregations, and paginatio
 
 TypeBridge provides a fully type-safe expression-based query API for advanced filtering, aggregations, and boolean logic. All expressions are validated at compile-time by type checkers and execute efficiently on the database.
 
+**New in v0.6.0**: Chainable delete and update operations now support all expression-based filters. See [Chainable Operations](#chainable-operations) and [CRUD Operations](crud.md) for details.
+
 ## Field References
 
 Access entity fields at the class level to get type-safe field references for query building:
@@ -23,7 +25,7 @@ class Email(String):
     pass
 
 class Person(Entity):
-    flags = TypeFlags(type_name="person")
+    flags = TypeFlags(name="person")
     name: Name = Flag(Key)
     age: Age
     email: Email
@@ -513,7 +515,7 @@ class Performance(Double):
     pass
 
 class Employee(Entity):
-    flags = TypeFlags(type_name="employee")
+    flags = TypeFlags(name="employee")
     email: Email = Flag(Key)
     age: Age
     salary: Salary
@@ -634,6 +636,57 @@ results = manager.filter(
     Person.department.eq(Department("Engineering"))
 ).execute()
 ```
+
+## Chainable Operations
+
+**New in v0.6.0**: Expression-based filters can now be combined with chainable delete and update operations.
+
+### Chainable Delete
+
+Delete entities matching complex filter expressions:
+
+```python
+# Delete all persons over 65
+count = manager.filter(Age.gt(Age(65))).delete()
+
+# Delete with multiple expression filters
+count = manager.filter(
+    Age.lt(Age(18)),
+    Status.eq(Status("inactive"))
+).delete()
+
+# Delete with range filters
+count = manager.filter(
+    Age.gte(Age(18)),
+    Age.lt(Age(21))
+).delete()
+```
+
+### Chainable Update with Functions
+
+Update multiple entities using lambda or named functions:
+
+```python
+# Increment age using lambda
+updated = manager.filter(Age.gt(Age(30))).update_with(
+    lambda person: setattr(person, 'age', Age(person.age.value + 1))
+)
+
+# Complex updates with named function
+def promote(person):
+    person.status = Status("senior")
+    person.salary = Salary(int(person.salary.value * 1.1))
+
+promoted = manager.filter(Age.gte(Age(35))).update_with(promote)
+```
+
+**Benefits**:
+- Works with all expression types (comparisons, strings, boolean logic)
+- Single atomic transaction (all-or-nothing)
+- Returns count (delete) or list of entities (update_with)
+- Type-safe and validated at runtime
+
+For detailed documentation, see [CRUD Operations - Chainable Delete](crud.md#chainable-delete) and [CRUD Operations - Bulk Update](crud.md#bulk-update-with-function).
 
 ## See Also
 

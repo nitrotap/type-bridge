@@ -36,7 +36,7 @@ def test_boolean_in_entity():
         pass
 
     class User(Entity):
-        flags = TypeFlags(type_name="user")
+        flags = TypeFlags(name="user")
         is_active: IsActive
         name: Name = Flag(Key)
 
@@ -51,7 +51,7 @@ def test_boolean_insert_query():
         pass
 
     class User(Entity):
-        flags = TypeFlags(type_name="user")
+        flags = TypeFlags(name="user")
         is_active: IsActive
 
     # Test with True value
@@ -107,7 +107,7 @@ def test_multi_value_boolean_insert_query():
         pass
 
     class Config(Entity):
-        flags = TypeFlags(type_name="config")
+        flags = TypeFlags(name="config")
         feature_flags: list[FeatureFlag] = Flag(Card(min=1))
 
     # Create entity with multiple boolean values

@@ -47,11 +47,11 @@ class TestBaseFlag:
 
         # Create concrete entities
         class XX(Entity):
-            flags = TypeFlags(type_name="xx")
+            flags = TypeFlags(name="xx")
             name: Name
 
         class YY(XX):
-            flags = TypeFlags(type_name="yy")
+            flags = TypeFlags(name="yy")
 
         # XX should not have Entity as supertype (Entity is base class)
         assert XX.get_supertype() is None  # Skips base class, no other parents
@@ -85,7 +85,7 @@ class TestBaseFlag:
 
         # Concrete entity
         class ConcreteEntity(AnotherBase):
-            flags = TypeFlags(type_name="concrete")
+            flags = TypeFlags(name="concrete")
             name: Name
 
         # Should skip all base classes
@@ -115,7 +115,7 @@ class TestBaseFlag:
             pass
 
         class AbstractEntity(tbg.Entity):
-            flags = TypeFlags(type_name="abstract_entity", abstract=True)
+            flags = TypeFlags(name="abstract_entity", abstract=True)
             name: Name
 
         # Abstract entities still generate schema (they appear in TypeDB)
@@ -135,7 +135,7 @@ class TestBaseFlag:
             name: Name
 
         class Child(BaseWithAttrs):
-            flags = TypeFlags(type_name="child")
+            flags = TypeFlags(name="child")
 
         # Base class doesn't generate schema
         assert BaseWithAttrs.to_schema_definition() is None
@@ -157,7 +157,7 @@ class TestBaseFlag:
             pass
 
         class Person(tbg.Entity):
-            flags = TypeFlags(type_name="person")
+            flags = TypeFlags(name="person")
             name: Name
 
         # Base relation
@@ -166,7 +166,7 @@ class TestBaseFlag:
 
         # Concrete relation
         class Friendship(Relation):
-            flags = TypeFlags(type_name="friendship")
+            flags = TypeFlags(name="friendship")
             friend1: Role[Person] = Role("friend1", Person)
             friend2: Role[Person] = Role("friend2", Person)
 
@@ -194,11 +194,11 @@ class TestBaseFlag:
 
         # Concrete entities
         class Person(Entity):
-            flags = TypeFlags(type_name="person")
+            flags = TypeFlags(name="person")
             name: Name
 
         class Company(Person):
-            flags = TypeFlags(type_name="company")
+            flags = TypeFlags(name="company")
 
         # Create schema manager
         schema_manager = SchemaManager(Database("localhost:1729", "test"))
@@ -221,7 +221,7 @@ class TestBaseFlag:
             pass
 
         class NormalEntity(tbg.Entity):
-            flags = TypeFlags(type_name="normal")
+            flags = TypeFlags(name="normal")
             name: Name
 
         assert NormalEntity.is_base() is False
@@ -239,7 +239,7 @@ class TestBaseFlag:
 
         # Non-base abstract
         class LivingThing(Entity):
-            flags = TypeFlags(type_name="living_thing", abstract=True)
+            flags = TypeFlags(name="living_thing", abstract=True)
             name: Name
 
         # Another base
@@ -248,7 +248,7 @@ class TestBaseFlag:
 
         # Concrete
         class Animal(AnotherBase):
-            flags = TypeFlags(type_name="animal")
+            flags = TypeFlags(name="animal")
 
         # Animal should skip base classes and find living_thing
         assert Animal.get_supertype() == "living_thing"
