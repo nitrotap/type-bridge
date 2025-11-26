@@ -189,8 +189,8 @@ class QueryBuilder:
         # Basic entity match
         pattern_parts = [f"{var} isa {model_class.get_type_name()}"]
 
-        # Add attribute filters
-        owned_attrs = model_class.get_owned_attributes()
+        # Add attribute filters (including inherited attributes)
+        owned_attrs = model_class.get_all_attributes()
         for field_name, field_value in filters.items():
             if field_name in owned_attrs:
                 attr_info = owned_attrs[field_name]

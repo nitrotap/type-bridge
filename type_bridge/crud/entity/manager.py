@@ -215,8 +215,8 @@ class EntityManager[E: Entity]:
         query = Query()
         pattern_parts = [f"$e isa {self.model_class.get_type_name()}"]
 
-        # Get owned attributes to map field names to attribute type names
-        owned_attrs = self.model_class.get_owned_attributes()
+        # Get all attributes (including inherited) to map field names to attribute type names
+        owned_attrs = self.model_class.get_all_attributes()
         for field_name, field_value in filters.items():
             if field_name in owned_attrs:
                 attr_info = owned_attrs[field_name]

@@ -2,6 +2,39 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [0.6.2] - 2025-11-26
+
+### 🐛 Bug Fixes
+
+#### Inherited Attribute Filter Bug
+- **Fixed filters on inherited attributes being silently ignored**
+  - Root cause: `get_owned_attributes()` was used instead of `get_all_attributes()` in filter operations
+  - Affected methods: `EntityManager.delete()`, `EntityQuery.delete()`, `QueryBuilder.match_entity()`
+  - Example: `Dog.manager(db).get(name=LivingName("Buddy"))` now works when `name` is inherited from parent `Living` class
+  - Location: `type_bridge/crud/entity/query.py:215`, `type_bridge/crud/entity/manager.py:219`, `type_bridge/query.py:193`
+- **Impact**: Dictionary-based filters (`get()`, `delete()`) now correctly handle inherited attributes in subtype queries
+
+### 🧪 Testing
+
+#### Inherited Attribute Filter Tests
+- **Created unit tests** (`tests/unit/core/test_inherited_attribute_filter.py`) with 9 tests:
+  - `get_owned_attributes()` vs `get_all_attributes()` behavior verification
+  - `QueryBuilder.match_entity()` with inherited/owned/mixed attribute filters
+  - Deep inheritance chain (grandparent → parent → child) attribute access
+- **Created integration tests** (`tests/integration/crud/test_inherited_attribute_filter.py`) with 5 tests:
+  - `get()` with inherited key attribute
+  - `delete()` with inherited attribute filter
+  - Combined inherited + owned attribute filters
+- **Test Results**: 304 unit tests passing, integration tests require TypeDB
+
+### 📦 Key Files Modified
+
+- `type_bridge/crud/entity/query.py` - Fixed `delete()` to use `get_all_attributes()`
+- `type_bridge/crud/entity/manager.py` - Fixed `delete()` to use `get_all_attributes()`
+- `type_bridge/query.py` - Fixed `match_entity()` to use `get_all_attributes()`
+- `tests/unit/core/test_inherited_attribute_filter.py` - New unit test suite (9 tests)
+- `tests/integration/crud/test_inherited_attribute_filter.py` - New integration test suite (5 tests)
+
 ## [0.6.0] - 2025-11-24
 
 ### 🚀 New Features

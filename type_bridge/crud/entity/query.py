@@ -212,7 +212,7 @@ class EntityQuery[E: Entity]:
         pattern_parts = [f"$e isa {self.model_class.get_type_name()}"]
 
         # Add dictionary-based filters (exact match)
-        owned_attrs = self.model_class.get_owned_attributes()
+        owned_attrs = self.model_class.get_all_attributes()
         for field_name, field_value in self.filters.items():
             if field_name in owned_attrs:
                 attr_info = owned_attrs[field_name]

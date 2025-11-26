@@ -262,7 +262,7 @@ TypeBridge uses a two-tier testing approach with **100% test pass rate**:
 
 ```bash
 # Unit tests (fast, no external dependencies) - DEFAULT
-uv run pytest                              # Run 291 unit tests (0.3s)
+uv run pytest                              # Run 304 unit tests (0.3s)
 uv run pytest tests/unit/attributes/ -v   # Test all 9 attribute types
 uv run pytest tests/unit/core/ -v         # Test core functionality
 uv run pytest tests/unit/flags/ -v        # Test flag system
@@ -282,7 +282,7 @@ uv run pytest tests/integration/queries/ -v           # Query expression tests
 uv run pytest tests/integration/schema/ -v            # Schema operation tests
 
 # All tests
-uv run pytest -m "" -v                    # Run all 438 tests
+uv run pytest -m "" -v                    # Run all tests
 ./test.sh                                 # Run full test suite with detailed output
 ./check.sh                                # Run linting and type checking
 ```
