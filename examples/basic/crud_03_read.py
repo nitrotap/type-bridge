@@ -8,8 +8,9 @@ This example demonstrates:
 - RelationManager.get() with role player and attribute filters
 - Query result counting
 
-NOTE: Advanced filtering (range queries, comparisons, complex WHERE clauses) is WIP.
-      Current workaround: Fetch all and filter in Python.
+Advanced filtering (range comparisons, string ops, boolean logic) is supported via
+expression filters; this part focuses on the basics. See crud_05_filter.py for the
+full expression tutorial.
 
 Prerequisites: Run crud_01_define.py and crud_02_insert.py first.
 """
@@ -137,8 +138,8 @@ def demonstrate_get_with_filters(db: Database):
     print()
     print("The get() method filters entities by attribute values.")
     print()
-    print("⚠️  NOTE: Advanced filtering (range queries, comparisons, etc.) is WIP.")
-    print("   Currently supports exact match filtering only.")
+    print("Advanced filtering with expressions is available (see crud_05_filter.py).")
+    print("Here we demo basic exact-match filters with get().")
     print()
 
     person_manager = Person.manager(db)
@@ -160,12 +161,11 @@ def demonstrate_get_with_filters(db: Database):
         print(f"  ✓ Found: {bob.name.value}")
     print()
 
-    # Get persons older than 30 (note: range queries are WIP)
-    print("⚠️  WIP: Range queries (age > 30, score >= 90, etc.) are not yet supported.")
-    print("Workaround: Fetch all and filter in Python:")
+    # Get persons older than 30 using comparison expressions
+    print("Range queries (age > 30, score >= 90, etc.) are supported via expressions:")
+    print("  person_manager.filter(Age.gt(Age(30))).execute()")
     print()
-    all_persons = person_manager.all()
-    older_persons = [p for p in all_persons if p.age and p.age.value > 30]
+    older_persons = person_manager.filter(Age.gt(Age(30))).execute()
     print(f"  Persons older than 30: {len(older_persons)}")
     for person in older_persons:
         age_val = person.age.value if person.age else 0
@@ -181,8 +181,7 @@ def demonstrate_filter_chaining(db: Database):
     print()
     print("The filter() method returns a chainable query object.")
     print()
-    print("⚠️  NOTE: Filter criteria (WHERE clauses) are WIP.")
-    print("   Currently supports limit(), offset(), first(), count() without filters.")
+    print("Filter criteria can include expressions; this step highlights pagination helpers.")
     print()
 
     person_manager = Person.manager(db)
@@ -259,8 +258,7 @@ def demonstrate_complex_queries(db: Database):
     print()
     print("Combining Python filtering with TypeBridge queries.")
     print()
-    print("⚠️  NOTE: Complex TypeQL queries (aggregations, subqueries, etc.) are WIP.")
-    print("   Current workaround: Fetch all and filter in Python.")
+    print("For complex expression filtering, see crud_05_filter.py and crud_06_aggregate.py.")
     print()
 
     person_manager = Person.manager(db)

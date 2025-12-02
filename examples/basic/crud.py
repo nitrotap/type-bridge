@@ -52,11 +52,12 @@ def run_part(part_number: int, script_name: str, description: str):
         else:
             module = __import__(module_name)
 
-        # Run the main function
-        if hasattr(module, "main"):
-            module.main()
+        # Run the main function (guard against non-callable attributes)
+        main_fn = getattr(module, "main", None)
+        if callable(main_fn):
+            main_fn()
         else:
-            print(f"❌ Error: {script_name} doesn't have a main() function")
+            print(f"❌ Error: {script_name} doesn't have a callable main() function")
             return False
 
         return True
@@ -199,7 +200,7 @@ def main():
             print("  • Querying relations by role players")
             print("  • Complex query patterns")
             print()
-            print("⚠️  Note: Advanced filtering (range queries, comparisons) is WIP")
+            print("Note: Advanced filtering (range queries, comparisons) is covered in Part 5 (crud_05_filter.py)")
             print()
             wait_for_continue()
 

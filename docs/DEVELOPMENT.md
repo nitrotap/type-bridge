@@ -39,10 +39,10 @@ Development dependencies include:
 
 ### Integration Tests with TypeDB
 
-Integration tests require a TypeDB 3.5.5 server. The project includes Docker configuration for automated setup.
+Integration tests are validated against TypeDB 3.7.0-rc0. The project includes Docker/Podman configuration for automated setup.
 
 **Requirements:**
-- Docker and Docker Compose installed
+- Docker or Podman with Compose support installed
 - Port 1729 available (TypeDB server)
 
 **Docker is managed automatically** by the test fixtures. Simply run:
