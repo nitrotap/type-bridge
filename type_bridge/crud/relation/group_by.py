@@ -80,7 +80,7 @@ class RelationGroupByQuery[R: Relation]:
         for role_name, role in self.model_class._roles.items():
             role_var = f"${role_name}"
             role_parts.append(f"{role.role_name}: {role_var}")
-            role_info[role_name] = (role_var, role.player_entity_type)
+            role_info[role_name] = (role_var, role.player_entity_types)
 
         roles_str = ", ".join(role_parts)
         match_clauses = [f"$r isa {self.model_class.get_type_name()} ({roles_str})"]
@@ -95,7 +95,7 @@ class RelationGroupByQuery[R: Relation]:
         # Add role player filter clauses
         for role_name, player_entity in role_player_filters.items():
             role_var = f"${role_name}"
-            entity_class = role_info[role_name][1]
+            entity_class = player_entity.__class__
 
             player_owned_attrs = entity_class.get_all_attributes()
             for field_name, attr_info in player_owned_attrs.items():

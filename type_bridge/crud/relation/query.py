@@ -129,11 +129,11 @@ class RelationQuery[R: Relation]:
 
         # Build match clause with inline role players
         role_parts = []
-        role_info = {}  # role_name -> (var, entity_class)
+        role_info = {}  # role_name -> (var, allowed_entity_classes)
         for role_name, role in self.model_class._roles.items():
             role_var = f"${role_name}"
             role_parts.append(f"{role.role_name}: {role_var}")
-            role_info[role_name] = (role_var, role.player_entity_type)
+            role_info[role_name] = (role_var, role.player_entity_types)
 
         roles_str = ", ".join(role_parts)
         match_clauses = [f"$r isa {self.model_class.get_type_name()} ({roles_str})"]
@@ -148,7 +148,7 @@ class RelationQuery[R: Relation]:
         # Add role player filter clauses
         for role_name, player_entity in role_player_filters.items():
             role_var = f"${role_name}"
-            entity_class = role_info[role_name][1]
+            entity_class = player_entity.__class__
 
             # Match the role player by their key attributes (including inherited)
             player_owned_attrs = entity_class.get_all_attributes()
@@ -185,7 +185,7 @@ class RelationQuery[R: Relation]:
                 fetch_items.append(f'"{attr_name}": $r.{attr_name}')
 
         # Add each role player as nested object
-        for role_name, (role_var, entity_class) in role_info.items():
+        for role_name, (role_var, allowed_entity_classes) in role_info.items():
             fetch_items.append(f'"{role_name}": {{\n    {role_var}.*\n  }}')
 
         fetch_body = ",\n  ".join(fetch_items)
@@ -259,9 +259,20 @@ class RelationQuery[R: Relation]:
             relation = self.model_class(**attrs)
 
             # Extract role players from nested objects in result
-            for role_name, (role_var, entity_class) in role_info.items():
+            for role_name, (role_var, allowed_entity_classes) in role_info.items():
                 if role_name in result and isinstance(result[role_name], dict):
                     player_data = result[role_name]
+                    # Choose entity class based on key attributes present; fallback to first allowed
+                    entity_class = allowed_entity_classes[0]
+                    for candidate in allowed_entity_classes:
+                        key_attr_names = [
+                            attr_info.typ.get_attribute_name()
+                            for attr_info in candidate.get_all_attributes().values()
+                            if attr_info.flags.is_key
+                        ]
+                        if any(key in player_data for key in key_attr_names):
+                            entity_class = candidate
+                            break
                     # Extract player attributes (including inherited)
                     player_attrs = {}
                     for field_name, attr_info in entity_class.get_all_attributes().items():
@@ -368,11 +379,11 @@ class RelationQuery[R: Relation]:
         # Build match clause with role players
         query = Query()
         role_parts = []
-        role_info = {}  # role_name -> (var, entity_class)
+        role_info = {}  # role_name -> (var, allowed_entity_classes)
         for role_name, role in self.model_class._roles.items():
             role_var = f"${role_name}"
             role_parts.append(f"{role.role_name}: {role_var}")
-            role_info[role_name] = (role_var, role.player_entity_type)
+            role_info[role_name] = (role_var, role.player_entity_types)
 
         roles_str = ", ".join(role_parts)
 
@@ -393,7 +404,15 @@ class RelationQuery[R: Relation]:
         # Add role player filter clauses
         for role_name, player_entity in role_player_filters.items():
             role_var = f"${role_name}"
-            entity_class = role_info[role_name][1]
+            allowed_entity_classes = role_info[role_name][1]
+
+            # Determine the matching entity class for this player
+            entity_class = player_entity.__class__
+            if not isinstance(player_entity, allowed_entity_classes):
+                allowed_names = ", ".join(cls.__name__ for cls in allowed_entity_classes)
+                raise TypeError(
+                    f"Role '{role_name}' expects types ({allowed_names}), got {entity_class.__name__}"
+                )
 
             # Match the role player by their key attributes (including inherited)
             player_owned_attrs = entity_class.get_all_attributes()
