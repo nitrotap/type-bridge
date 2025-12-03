@@ -25,6 +25,13 @@ def docker_typedb():
     Yields:
         None (container runs in background)
     """
+    # Build compose commands based on container tool
+    compose_base = (
+        [CONTAINER_TOOL, "compose"]
+        if CONTAINER_TOOL not in ("docker-compose", "podman-compose")
+        else [CONTAINER_TOOL]
+    )
+
     # Check if we should use Docker (default: yes, unless USE_DOCKER=false)
     use_docker = os.getenv("USE_DOCKER", "true").lower() != "false"
 
@@ -38,13 +45,6 @@ def docker_typedb():
 
     # Start Docker container
     try:
-        # Build compose commands based on container tool
-        compose_base = (
-            [CONTAINER_TOOL, "compose"]
-            if CONTAINER_TOOL not in ("docker-compose", "podman-compose")
-            else [CONTAINER_TOOL]
-        )
-
         # Stop any existing container
         subprocess.run(
             [*compose_base, "down"],
