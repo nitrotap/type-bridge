@@ -107,6 +107,41 @@ class Employment(Relation):
 - `Role[EntityType]`: Type hint for role player type
 - `Role("role_name", EntityType)`: Role definition with TypeDB role name and player type
 
+## Multi-player Roles
+
+A single role can be playable by multiple entity types without introducing an artificial supertype:
+
+```python
+class Document(Entity):
+    flags = TypeFlags(name="document")
+    name: Name = Flag(Key)
+
+class Email(Entity):
+    flags = TypeFlags(name="email")
+    name: Name = Flag(Key)
+
+class Trace(Relation):
+    flags = TypeFlags(name="trace")
+    origin: Role[Document | Email] = Role.multi("origin", Document, Email)
+```
+
+- **Type hint**: Use a PEP 604 union for IDE/type-checker support (e.g., `Role[Document | Email]`).
+- **API**: `Role.multi("role_name", TypeA, TypeB, ...)` requires at least two player types; otherwise it raises `ValueError`.
+- **Runtime validation**: Assigning an instance of a disallowed type raises `TypeError`.
+- **Schema emission**: Generates multiple `plays` entries for the single role:
+
+```typeql
+relation trace,
+    relates origin;
+
+document plays trace:origin;
+email plays trace:origin;
+```
+
+### CRUD and queries
+- Filtering or deleting by a multi-player role uses the actual player’s key attributes and works across all allowed entity types.
+- Role uniqueness rules still apply: keep role names distinct (TypeDB requirement).
+
 ## TypeFlags Configuration
 
 Configure relation metadata using `TypeFlags`:

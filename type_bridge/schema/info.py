@@ -211,10 +211,10 @@ class SchemaInfo:
 
                 # Add role player definitions
                 for role_name, role in relation_model._roles.items():
-                    player_type = role.player_type
-                    lines.append(
-                        f"{player_type} plays {relation_model.get_type_name()}:{role.role_name};"
-                    )
+                    for player_type in role.player_types:
+                        lines.append(
+                            f"{player_type} plays {relation_model.get_type_name()}:{role.role_name};"
+                        )
                 lines.append("")
 
         return "\n".join(lines)

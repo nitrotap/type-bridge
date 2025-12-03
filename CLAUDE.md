@@ -102,7 +102,7 @@ tests/
 ## Dependencies
 
 The project requires:
-- `typedb-driver==3.5.5`: Official Python driver for TypeDB connectivity
+- `typedb-driver==3.7.0`: Official Python driver for TypeDB connectivity
 - `pydantic>=2.0`: For validation and type coercion
 - Uses Python's built-in type hints and dataclass-like patterns
 

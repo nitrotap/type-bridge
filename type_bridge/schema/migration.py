@@ -78,7 +78,11 @@ class MigrationManager:
         """
         lines = ["define", f"relation {relation_name}"]
 
+        seen_roles: set[str] = set()
         for role_name, _ in roles:
+            if role_name in seen_roles:
+                continue
+            seen_roles.add(role_name)
             lines.append(f"    relates {role_name}")
 
         if attributes:

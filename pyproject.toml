@@ -23,7 +23,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "typedb-driver>=3.7.0rc3",
+    "typedb-driver>=3.7.0",
     "pydantic>=2.12.4",
     "isodate==0.7.2",
 ]
@@ -61,7 +61,6 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-asyncio_mode = "auto"
 markers = [
     "integration: marks tests as integration tests (require running TypeDB)",
     "unit: marks tests as unit tests (fast, no external dependencies)",
