@@ -44,12 +44,16 @@ class Role[T: "Entity"]:
             if typ not in unique_types:
                 unique_types.append(typ)
 
+        if not unique_types:
+            # Should be impossible because player_type is required, but keeps type checkers happy
+            raise ValueError("Role requires at least one player type")
+
         self.player_entity_types: tuple[type[T], ...] = tuple(unique_types)
-        # Backwards compatibility for existing single-player attributes
-        self.player_entity_type = self.player_entity_types[0]
+        first_entity_type = unique_types[0]
+        self.player_entity_type = first_entity_type
         # Get type name from the entity class(es)
         self.player_types = tuple(pt.get_type_name() for pt in self.player_entity_types)
-        self.player_type = self.player_types[0]
+        self.player_type = first_entity_type.get_type_name()
         self.attr_name: str | None = None
 
     def __set_name__(self, owner: type, name: str) -> None:
@@ -113,9 +117,10 @@ class Role[T: "Entity"]:
             entity_types = (Any,)
 
         # Create a schema that accepts any of the entity types
-        python_schema = core_schema.is_instance_schema(
-            entity_types if len(entity_types) > 1 else entity_types[0]
-        )
+        if len(entity_types) == 1:
+            python_schema = core_schema.is_instance_schema(entity_types[0])
+        else:
+            python_schema = core_schema.is_instance_schema(entity_types)
 
         return core_schema.no_info_after_validator_function(
             lambda x: x,  # Just pass through the entity instance
