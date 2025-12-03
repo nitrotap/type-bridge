@@ -200,7 +200,9 @@ def main():
             print("  • Querying relations by role players")
             print("  • Complex query patterns")
             print()
-            print("Note: Advanced filtering (range queries, comparisons) is covered in Part 5 (crud_05_filter.py)")
+            print(
+                "Note: Advanced filtering (range queries, comparisons) is covered in Part 5 (crud_05_filter.py)"
+            )
             print()
             wait_for_continue()
 
