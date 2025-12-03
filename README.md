@@ -3,7 +3,7 @@
 [![CI](https://github.com/ds1sqe/type-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/ds1sqe/type-bridge/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/type-bridge.svg)](https://pypi.org/project/type-bridge/)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
-[![TypeDB 3.x](https://img.shields.io/badge/TypeDB-3.x-orange.svg)](https://github.com/typedb/typedb)
+[![TypeDB 3.7.0-rc0](https://img.shields.io/badge/TypeDB-3.7.0--rc0-orange.svg)](https://github.com/typedb/typedb)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 A modern, Pythonic ORM for [TypeDB](https://github.com/typedb/typedb) with an Attribute-based API that aligns with TypeDB's type system.
@@ -290,8 +290,8 @@ uv run pytest -m "" -v                    # Run all tests
 ## Requirements
 
 - Python 3.13+
-- TypeDB 3.x server (fully compatible)
-- typedb-driver==3.5.5
+- TypeDB 3.7.0-rc0 server (fully compatible)
+- typedb-driver>=3.7.0rc3
 - pydantic>=2.0.0
 - isodate==0.7.2 (for Duration type support)
 

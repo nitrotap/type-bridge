@@ -23,7 +23,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "typedb-driver>=3.5.5",
+    "typedb-driver>=3.7.0rc3",
     "pydantic>=2.12.4",
     "isodate==0.7.2",
 ]

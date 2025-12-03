@@ -1,6 +1,7 @@
 """Pytest fixtures for integration tests."""
 
 import os
+import shutil
 import subprocess
 import time
 
@@ -11,7 +12,8 @@ from type_bridge import Credentials, Database, TypeDB
 
 # Test database configuration
 TEST_DB_NAME = "type_bridge_test"
-TEST_DB_ADDRESS = "localhost:1729"
+# Allow overriding the address/port via env when a local TypeDB is already running.
+TEST_DB_ADDRESS = os.getenv("TYPEBRIDGE_TYPEDB_ADDRESS", "localhost:1729")
 
 
 @pytest.fixture(scope="session")
@@ -32,18 +34,22 @@ def docker_typedb():
     # Get project root directory
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
-    # Start Docker container
+    # Prefer Podman if available; fall back to Docker
+    engine = "podman" if shutil.which("podman") else "docker"
+    compose_cmd = [engine, "compose"]
+
+    # Start container
     try:
         # Stop any existing container
         subprocess.run(
-            ["docker", "compose", "down"],
+            compose_cmd + ["down"],
             cwd=project_root,
             capture_output=True,
         )
 
         # Start container
         subprocess.run(
-            ["docker", "compose", "up", "-d"],
+            compose_cmd + ["up", "-d"],
             cwd=project_root,
             check=True,
             capture_output=True,
@@ -53,7 +59,7 @@ def docker_typedb():
         max_retries = 30
         for i in range(max_retries):
             result = subprocess.run(
-                ["docker", "inspect", "--format={{.State.Health.Status}}", "typedb_test"],
+                [engine, "inspect", "--format={{.State.Health.Status}}", "typedb_test"],
                 capture_output=True,
                 text=True,
             )
@@ -66,9 +72,9 @@ def docker_typedb():
         yield
 
     finally:
-        # Stop Docker container
+        # Stop container
         subprocess.run(
-            ["docker", "compose", "down"],
+            compose_cmd + ["down"],
             cwd=project_root,
             capture_output=True,
         )

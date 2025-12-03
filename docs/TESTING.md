@@ -255,17 +255,17 @@ uv run pytest tests/integration/crud/relations/test_abstract_roles.py -v
 ### Docker Setup for Integration Tests
 
 **Requirements:**
-- Docker and Docker Compose installed
+- Docker or Podman with Compose installed
 - Port 1729 available (TypeDB server)
 
 **Configuration:**
 
-The project includes `docker-compose.yml` for TypeDB 3.5.5:
+The project includes `docker-compose.yml` for TypeDB 3.7.0-rc0:
 
 ```yaml
 services:
   typedb:
-    image: vaticle/typedb:3.5.5
+    image: typedb/typedb:3.7.0-rc0
     ports:
       - "1729:1729"
     volumes:
