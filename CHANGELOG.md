@@ -2,7 +2,26 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
-## [0.6.2] - 2025-11-26
+## [0.6.3] - 2025-12-04
+
+### 🚀 New Features
+
+#### Multi-Player Roles
+- **Added `Role.multi()` for roles playable by multiple entity types**
+  - Syntax: `origin: Role[Document | Email] = Role.multi("origin", Document, Email)`
+  - Eliminates need for artificial supertype hierarchies
+  - Generates multiple `plays` declarations in TypeQL schema
+  - Location: `type_bridge/models/role.py`
+- **Full CRUD support for multi-role relations**
+  - Filter by specific player type: `manager.get(origin=doc)`
+  - Chainable operations work with multi-roles
+  - Batch insert with mixed player types supported
+- **Runtime validation**: TypeError if wrong player type assigned
+- **Pydantic integration**: Union types provide IDE/type-checker support
+
+#### TypeDB 3.7 Compatibility
+- **Verified compatibility with TypeDB 3.7.0-rc0**
+- Updated documentation to reflect tested TypeDB version
 
 ### 🐛 Bug Fixes
 
@@ -16,6 +35,17 @@ All notable changes to TypeBridge will be documented in this file.
 
 ### 🧪 Testing
 
+#### Multi-Role Tests
+- **Multi-role integration tests** (`tests/integration/crud/relations/test_multi_role.py`) - 37 tests
+  - Insert relations with different role player types
+  - Filter by multi-role players
+  - Delete filtered by multi-role
+  - Chainable `update_with` operations
+  - Multi-role with 3+ entity types
+- **Multi-role unit tests** (`tests/unit/core/test_multi_role_players.py`)
+  - Role.multi() API validation
+  - Type safety and runtime validation
+
 #### Inherited Attribute Filter Tests
 - **Created unit tests** (`tests/unit/core/test_inherited_attribute_filter.py`) with 9 tests:
   - `get_owned_attributes()` vs `get_all_attributes()` behavior verification
@@ -25,15 +55,19 @@ All notable changes to TypeBridge will be documented in this file.
   - `get()` with inherited key attribute
   - `delete()` with inherited attribute filter
   - Combined inherited + owned attribute filters
-- **Test Results**: 304 unit tests passing, integration tests require TypeDB
 
 ### 📦 Key Files Modified
 
+- `type_bridge/models/role.py` - Added `Role.multi()` and multi-player support
+- `type_bridge/schema/info.py` - Generate multiple `plays` declarations
+- `type_bridge/crud/relation/manager.py` - Multi-role query handling
+- `type_bridge/crud/relation/query.py` - Multi-role filtering support
+- `docs/api/relations.md` - Added "Multi-player Roles" documentation
 - `type_bridge/crud/entity/query.py` - Fixed `delete()` to use `get_all_attributes()`
 - `type_bridge/crud/entity/manager.py` - Fixed `delete()` to use `get_all_attributes()`
 - `type_bridge/query.py` - Fixed `match_entity()` to use `get_all_attributes()`
-- `tests/unit/core/test_inherited_attribute_filter.py` - New unit test suite (9 tests)
-- `tests/integration/crud/test_inherited_attribute_filter.py` - New integration test suite (5 tests)
+- `tests/integration/crud/relations/test_multi_role.py` - New multi-role test suite (37 tests)
+- `tests/unit/core/test_multi_role_players.py` - New multi-role unit tests
 
 ## [0.6.0] - 2025-11-24
 

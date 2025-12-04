@@ -26,7 +26,7 @@ from type_bridge.schema import MigrationManager, SchemaManager
 from type_bridge.session import Database
 from type_bridge.typedb_driver import Credentials, TransactionType, TypeDB
 
-__version__ = "0.1.0"
+__version__ = "0.6.3"
 
 __all__ = [
     # Database and session
