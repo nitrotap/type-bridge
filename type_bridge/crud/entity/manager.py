@@ -56,6 +56,84 @@ class EntityManager[E: Entity]:
 
         return entity
 
+    def put(self, entity: E) -> E:
+        """Put an entity instance into the database (insert if not exists).
+
+        Uses TypeQL's PUT clause to ensure idempotent insertion. If the entity
+        already exists (matching all attributes), no changes are made. If it doesn't
+        exist, it's inserted.
+
+        Args:
+            entity: Entity instance to put
+
+        Returns:
+            The entity instance
+
+        Example:
+            # Create typed entity instance
+            person = Person(
+                name=Name("Alice"),
+                age=Age(30),
+                email=Email("alice@example.com")
+            )
+            # First call inserts, subsequent calls are idempotent
+            Person.manager(db).put(person)
+            Person.manager(db).put(person)  # No duplicate created
+        """
+        # Build PUT query similar to insert, but use "put" instead of "insert"
+        pattern = entity.to_insert_query("$e")
+        query = f"put\n{pattern};"
+
+        with self.db.transaction("write") as tx:
+            tx.execute(query)
+            tx.commit()
+
+        return entity
+
+    def put_many(self, entities: list[E]) -> list[E]:
+        """Put multiple entities into the database (insert if not exists).
+
+        Uses TypeQL's PUT clause with all-or-nothing semantics:
+        - If ALL entities match existing data, nothing is inserted
+        - If ANY entity doesn't match, ALL entities in the pattern are inserted
+
+        This means if one entity already exists, attempting to put it with new entities
+        may cause a key constraint violation.
+
+        Args:
+            entities: List of entity instances to put
+
+        Returns:
+            List of entity instances
+
+        Example:
+            persons = [
+                Person(name="Alice", email="alice@example.com"),
+                Person(name="Bob", email="bob@example.com"),
+            ]
+            # First call inserts all, subsequent identical calls are idempotent
+            Person.manager(db).put_many(persons)
+        """
+        if not entities:
+            return []
+
+        # Build a single TypeQL PUT query with multiple patterns
+        put_patterns = []
+        for i, entity in enumerate(entities):
+            # Use unique variable names for each entity
+            var = f"$e{i}"
+            pattern = entity.to_insert_query(var)
+            put_patterns.append(pattern)
+
+        # Combine all patterns into a single put query
+        query = "put\n" + ";\n".join(put_patterns) + ";"
+
+        with self.db.transaction("write") as tx:
+            tx.execute(query)
+            tx.commit()
+
+        return entities
+
     def insert_many(self, entities: list[E]) -> list[E]:
         """Insert multiple entities into the database in a single transaction.
 

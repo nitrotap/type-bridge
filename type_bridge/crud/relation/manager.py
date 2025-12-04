@@ -128,6 +128,270 @@ class RelationManager[R: Relation]:
 
         return relation
 
+    def put(self, relation: R) -> R:
+        """Put a typed relation instance into the database (insert if not exists).
+
+        Uses TypeQL's PUT clause to ensure idempotent insertion. If the relation
+        already exists (matching role players and attributes), no changes are made.
+        If it doesn't exist, it's inserted.
+
+        Args:
+            relation: Typed relation instance with role players and attributes
+
+        Returns:
+            The relation instance
+
+        Example:
+            # Typed construction
+            employment = Employment(
+                employee=person,
+                employer=company,
+                position="Engineer",
+                salary=100000
+            )
+            # First call inserts, subsequent calls are idempotent
+            employment_manager.put(employment)
+            employment_manager.put(employment)  # No duplicate created
+        """
+        # Extract role players from relation instance
+        roles = self.model_class._roles
+        role_players = {}
+        for role_name, role in roles.items():
+            entity = relation.__dict__.get(role_name)
+            if entity is not None:
+                role_players[role_name] = entity
+
+        # Build match clause for role players
+        match_parts = []
+        for role_name, entity in role_players.items():
+            # Get key attributes from the entity (including inherited attributes)
+            entity_type_name = entity.__class__.get_type_name()
+            key_attrs = {
+                field_name: attr_info
+                for field_name, attr_info in entity.__class__.get_all_attributes().items()
+                if attr_info.flags.is_key
+            }
+
+            # Match entity by its key attribute
+            for field_name, attr_info in key_attrs.items():
+                value = getattr(entity, field_name)
+                attr_class = attr_info.typ
+                attr_name = attr_class.get_attribute_name()
+                formatted_value = format_value(value)
+                match_parts.append(
+                    f"${role_name} isa {entity_type_name}, has {attr_name} {formatted_value}"
+                )
+                break  # Only use first key attribute
+
+        # Build put clause (same as insert clause but with "put" keyword)
+        relation_type_name = self.model_class.get_type_name()
+        role_parts = [
+            f"{roles[role_name].role_name}: ${role_name}" for role_name in role_players.keys()
+        ]
+        relation_pattern = f"({', '.join(role_parts)}) isa {relation_type_name}"
+
+        # Add attributes (including inherited)
+        attr_parts = []
+        for field_name, attr_info in self.model_class.get_all_attributes().items():
+            value = getattr(relation, field_name, None)
+            if value is not None:
+                attr_class = attr_info.typ
+                attr_name = attr_class.get_attribute_name()
+
+                # Handle lists (multi-value attributes)
+                if isinstance(value, list):
+                    for item in value:
+                        # Extract value from Attribute instance
+                        if hasattr(item, "value"):
+                            item = item.value
+                        # Use format_value to ensure proper escaping
+                        formatted = format_value(item)
+                        attr_parts.append(f"has {attr_name} {formatted}")
+                else:
+                    # Extract value from Attribute instance
+                    if hasattr(value, "value"):
+                        value = value.value
+                    # Use format_value to ensure proper escaping
+                    formatted = format_value(value)
+                    attr_parts.append(f"has {attr_name} {formatted}")
+
+        # Combine relation pattern with attributes
+        if attr_parts:
+            put_pattern = relation_pattern + ", " + ", ".join(attr_parts)
+        else:
+            put_pattern = relation_pattern
+
+        # Build full query with match for role players, then put for the relation
+        match_clause = "match\n" + ";\n".join(match_parts) + ";"
+        put_clause = "put\n" + put_pattern + ";"
+        query = match_clause + "\n" + put_clause
+
+        with self.db.transaction("write") as tx:
+            tx.execute(query)
+            tx.commit()
+
+        return relation
+
+    def put_many(self, relations: list[R]) -> list[R]:
+        """Put multiple relations into the database (insert if not exists).
+
+        Uses TypeQL's PUT clause with all-or-nothing semantics:
+        - If ALL relations match existing data, nothing is inserted
+        - If ANY relation doesn't match, ALL relations in the pattern are inserted
+
+        Args:
+            relations: List of relation instances to put
+
+        Returns:
+            List of relation instances
+
+        Example:
+            employments = [
+                Employment(
+                    position="Engineer",
+                    salary=100000,
+                    employee=alice,
+                    employer=tech_corp
+                ),
+                Employment(
+                    position="Manager",
+                    salary=120000,
+                    employee=bob,
+                    employer=tech_corp
+                ),
+            ]
+            # First call inserts all, subsequent identical calls are idempotent
+            Employment.manager(db).put_many(employments)
+        """
+        if not relations:
+            return []
+
+        # Build query
+        query = Query()
+
+        # Collect all unique role players to match
+        all_players = {}  # key: (entity_type, key_attr_values) -> player_var
+        player_counter = 0
+
+        # First pass: collect all unique players from all relation instances
+        for relation in relations:
+            # Extract role players from instance
+            for role_name, role in self.model_class._roles.items():
+                player_entity = relation.__dict__.get(role_name)
+                if player_entity is None:
+                    continue
+                # Create unique key for this player based on key attributes (including inherited)
+                player_type = player_entity.get_type_name()
+                owned_attrs = player_entity.get_all_attributes()
+
+                key_values = []
+                for field_name, attr_info in owned_attrs.items():
+                    if attr_info.flags.is_key:
+                        value = getattr(player_entity, field_name, None)
+                        if value is not None:
+                            attr_name = attr_info.typ.get_attribute_name()
+                            key_values.append((attr_name, value))
+
+                player_key = (player_type, tuple(sorted(key_values)))
+
+                if player_key not in all_players:
+                    player_var = f"$player{player_counter}"
+                    player_counter += 1
+                    all_players[player_key] = player_var
+
+                    # Build match clause for this player
+                    match_parts = [f"{player_var} isa {player_type}"]
+                    for attr_name, value in key_values:
+                        formatted_value = format_value(value)
+                        match_parts.append(f"has {attr_name} {formatted_value}")
+
+                    query.match(", ".join(match_parts))
+
+        # Second pass: build put patterns for relations (same as insert_many but with "put")
+        put_patterns = []
+
+        for i, relation in enumerate(relations):
+            # Map role players to their variables
+            role_var_map = {}
+            for role_name, role in self.model_class._roles.items():
+                player_entity = relation.__dict__.get(role_name)
+                if player_entity is None:
+                    raise ValueError(f"Missing role player for role: {role_name}")
+
+                # Find the player variable (including inherited attributes)
+                player_type = player_entity.get_type_name()
+                owned_attrs = player_entity.get_all_attributes()
+
+                key_values = []
+                for field_name, attr_info in owned_attrs.items():
+                    if attr_info.flags.is_key:
+                        value = getattr(player_entity, field_name, None)
+                        if value is not None:
+                            attr_name = attr_info.typ.get_attribute_name()
+                            key_values.append((attr_name, value))
+
+                player_key = (player_type, tuple(sorted(key_values)))
+                player_var = all_players[player_key]
+                role_var_map[role_name] = (player_var, role.role_name)
+
+            # Build put pattern for this relation
+            role_players_str = ", ".join(
+                [f"{role_name}: {var}" for var, role_name in role_var_map.values()]
+            )
+            put_pattern = f"({role_players_str}) isa {self.model_class.get_type_name()}"
+
+            # Extract and add attributes from relation instance (including inherited)
+            attr_parts = []
+            all_attrs = self.model_class.get_all_attributes()
+            for field_name, attr_info in all_attrs.items():
+                if hasattr(relation, field_name):
+                    attr_value = getattr(relation, field_name)
+                    if attr_value is None:
+                        continue
+
+                    typeql_attr_name = attr_info.typ.get_attribute_name()
+
+                    # Handle multi-value attributes (lists)
+                    if isinstance(attr_value, list):
+                        # Extract raw values from each Attribute instance in the list
+                        for item in attr_value:
+                            if hasattr(item, "value"):
+                                raw_value = item.value
+                            else:
+                                raw_value = item
+                            formatted_value = format_value(raw_value)
+                            attr_parts.append(f"has {typeql_attr_name} {formatted_value}")
+                    else:
+                        # Single-value attribute - extract raw value from Attribute instance
+                        if hasattr(attr_value, "value"):
+                            attr_value = attr_value.value
+                        formatted_value = format_value(attr_value)
+                        attr_parts.append(f"has {typeql_attr_name} {formatted_value}")
+
+            if attr_parts:
+                put_pattern += ", " + ", ".join(attr_parts)
+
+            put_patterns.append(put_pattern)
+
+        # Build the query with "put" instead of "insert"
+        if query._match_clauses:
+            # If we have match clauses, build match section and put section separately
+            match_body = "; ".join(query._match_clauses)
+            match_section = f"match\n{match_body};"
+            put_section = ";\n".join(put_patterns)
+            query_str = f"{match_section}\nput\n{put_section};"
+        else:
+            # No match clauses, just put patterns
+            put_section = ";\n".join(put_patterns)
+            query_str = f"put\n{put_section};"
+
+        # Execute the query
+        with self.db.transaction("write") as tx:
+            tx.execute(query_str)
+            tx.commit()
+
+        return relations
+
     def insert_many(self, relations: list[R]) -> list[R]:
         """Insert multiple relations into the database in a single transaction.
 

@@ -2,6 +2,85 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [0.6.4] - 2025-12-04
+
+### 🚀 New Features
+
+#### CRUD PUT Operations (Idempotent Insert)
+- **Added `EntityManager.put()` for idempotent entity insertion**
+  - Inserts entity only if it doesn't already exist
+  - Safe to call multiple times without creating duplicates
+  - Uses TypeQL's PUT clause for atomic match-or-insert semantics
+  - Location: `type_bridge/crud/entity/manager.py`
+
+- **Added `EntityManager.put_many()` for bulk idempotent insertion**
+  - All-or-nothing semantics: entire pattern must match or all is inserted
+  - Efficient batch operations for data synchronization
+
+- **Added `RelationManager.put()` for idempotent relation insertion**
+  - Same PUT semantics for relations with role players
+  - Prevents duplicate relationships
+  - Location: `type_bridge/crud/relation/manager.py`
+
+- **Added `RelationManager.put_many()` for bulk relation PUT**
+  - Batch idempotent insertion for relations
+
+#### Use Cases
+- Data import scripts (safe re-runs)
+- Ensuring reference data exists
+- Synchronization with external systems
+- Idempotent API endpoints
+
+### 📚 Documentation
+
+- **Updated `docs/api/crud.md`** with PUT operations section
+  - Comparison table: INSERT vs PUT behavior
+  - All-or-nothing semantics explanation
+  - Usage examples for entities and relations
+
+- **Added `examples/basic/crud_08_put.py`** tutorial
+  - Demonstrates PUT vs INSERT differences
+  - Shows idempotent behavior patterns
+
+### 🧪 Testing
+
+- **Added entity PUT integration tests** (`tests/integration/crud/entities/test_put.py`)
+  - Single put, bulk put_many
+  - Idempotency verification
+  - All-or-nothing behavior
+
+- **Added relation PUT integration tests** (`tests/integration/crud/relations/test_put.py`)
+  - Relation put operations
+  - Role player handling
+
+### 📦 Key Files Modified
+
+- `type_bridge/crud/entity/manager.py` - Added `put()`, `put_many()`
+- `type_bridge/crud/relation/manager.py` - Added `put()`, `put_many()`
+- `docs/api/crud.md` - PUT documentation
+- `examples/basic/crud_08_put.py` - New tutorial
+- `tests/integration/crud/entities/test_put.py` - Entity PUT tests
+- `tests/integration/crud/relations/test_put.py` - Relation PUT tests
+- `README.md` - Updated features
+
+### 💡 Usage Examples
+
+```python
+# Single PUT (idempotent insert)
+alice = Person(name=Name("Alice"), age=Age(30))
+person_manager.put(alice)
+person_manager.put(alice)  # No duplicate created
+
+# Bulk PUT
+persons = [Person(name=Name("Bob")), Person(name=Name("Carol"))]
+person_manager.put_many(persons)
+person_manager.put_many(persons)  # No duplicates
+
+# Relation PUT
+employment = Employment(employee=alice, employer=techcorp)
+employment_manager.put(employment)
+```
+
 ## [0.6.3] - 2025-12-04
 
 ### 🚀 New Features

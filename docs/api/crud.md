@@ -40,6 +40,12 @@ class EntityManager[E: Entity]:
     def insert_many(self, entities: list[E]) -> list[E]:
         """Insert multiple entities (bulk operation)."""
 
+    def put(self, entity: E) -> E:
+        """Put a single entity (idempotent insert)."""
+
+    def put_many(self, entities: list[E]) -> list[E]:
+        """Put multiple entities (idempotent bulk operation)."""
+
     def get(self, **filters) -> list[E]:
         """Get entities matching attribute filters."""
 
@@ -94,6 +100,31 @@ person_manager.insert_many(persons)
 **Performance tip**: Use `insert_many()` for multiple entities - it's significantly faster than calling `insert()` multiple times.
 
 **Note on special characters**: TypeBridge automatically escapes special characters in string attributes (quotes, backslashes) when generating TypeQL queries. You don't need to manually escape values - just pass them as normal Python strings.
+
+## PUT Operations (Idempotent Insert)
+
+PUT operations are idempotent - they insert only if the pattern doesn't exist, making them safe to run multiple times.
+
+| Operation | Behavior |
+|-----------|----------|
+| **INSERT** | Always creates new instances |
+| **PUT** | Idempotent - inserts only if doesn't exist |
+
+```python
+# Single PUT
+alice = Person(name=Name("Alice"), age=Age(30))
+person_manager.put(alice)
+person_manager.put(alice)  # No duplicate created
+
+# Bulk PUT
+persons = [Person(name=Name("Bob"), age=Age(25)), ...]
+person_manager.put_many(persons)
+person_manager.put_many(persons)  # No duplicates
+```
+
+**Use cases**: Data import scripts, ensuring reference data exists, synchronization with external systems.
+
+**All-or-nothing semantics**: PUT matches the entire pattern - if ANY part doesn't match, ALL is inserted. Use `put_many()` when entities either all exist or all don't exist together.
 
 ## Read Operations
 
@@ -396,6 +427,12 @@ class RelationManager[R: Relation]:
     def insert_many(self, relations: list[R]) -> list[R]:
         """Insert multiple relations (bulk operation)."""
 
+    def put(self, relation: R) -> R:
+        """Put a single relation (idempotent insert)."""
+
+    def put_many(self, relations: list[R]) -> list[R]:
+        """Put multiple relations (idempotent bulk operation)."""
+
     def get(self, **filters) -> list[R]:
         """Get relations matching attribute/role player filters."""
 
@@ -434,6 +471,22 @@ employments = [
     Employment(employee=charlie, employer=techcorp, position=Position("Manager"), salary=Salary(130000)),
 ]
 employment_manager.insert_many(employments)
+```
+
+### PUT Relations (Idempotent Insert)
+
+PUT operations for relations work the same as entities - idempotent and safe to run multiple times:
+
+```python
+# Single PUT
+employment = Employment(employee=alice, employer=techcorp, position=Position("Engineer"))
+employment_manager.put(employment)
+employment_manager.put(employment)  # No duplicate
+
+# Bulk PUT
+employments = [Employment(employee=alice, employer=techcorp, ...), ...]
+employment_manager.put_many(employments)
+employment_manager.put_many(employments)  # No duplicates
 ```
 
 ### Fetch Relations

@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [develop]
+    branches: [master, develop]
   pull_request:
-    branches: [develop]
+    branches: [master, develop]
 
 jobs:
   # Code quality: linting and formatting (parallel)

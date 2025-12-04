@@ -67,6 +67,13 @@ Complete tutorial series covering fundamental operations:
    - Understanding delete return values
    - Deletion best practices
 
+8. **crud_08_put.py** - PUT Operations (Idempotent Insert)
+   - Understanding PUT vs INSERT semantics
+   - Single and bulk PUT operations
+   - All-or-nothing behavior
+   - Use cases for idempotent operations
+   - Data loading and synchronization patterns
+
 **Prerequisites**: Running TypeDB server on localhost:1729
 
 **Run the series**:
@@ -78,6 +85,7 @@ uv run python examples/basic/crud_04_update.py
 uv run python examples/basic/crud_05_filter.py
 uv run python examples/basic/crud_06_aggregate.py
 uv run python examples/basic/crud_07_delete.py
+uv run python examples/basic/crud_08_put.py
 ```
 
 ### 2. Pattern Examples
@@ -200,6 +208,7 @@ Advanced features and techniques:
 |---------|----------|
 | Schema Definition | crud_01_define, schema_01_manager |
 | Insert Operations | crud_02_insert |
+| Put Operations | crud_08_put |
 | Read/Query | crud_03_read, crud_05_filter, query_01_expressions |
 | Update Operations | crud_04_update, crud_07_chainable_operations |
 | Delete Operations | crud_07_delete, crud_07_chainable_operations |
@@ -351,6 +360,9 @@ schema_mgr.sync_schema()
 person_mgr = Person.manager(db)
 alice = Person(name=Name("Alice"), age=Age(30))
 person_mgr.insert(alice)
+
+# PUT (Idempotent Insert)
+person_mgr.put(alice)  # Safe to run multiple times
 
 # Read
 persons = person_mgr.all()
