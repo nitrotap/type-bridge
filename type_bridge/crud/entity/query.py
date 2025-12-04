@@ -3,9 +3,11 @@
 import re
 from typing import TYPE_CHECKING, Any
 
+from typedb.driver import TransactionType
+
 from type_bridge.models import Entity
 from type_bridge.query import Query, QueryBuilder
-from type_bridge.session import Database
+from type_bridge.session import Database, Transaction
 
 from ..base import E
 from ..utils import format_value, is_multi_value_attribute
@@ -21,7 +23,13 @@ class EntityQuery[E: Entity]:
     Supports both dictionary filters (exact match) and expression-based filters.
     """
 
-    def __init__(self, db: Database, model_class: type[E], filters: dict[str, Any] | None = None):
+    def __init__(
+        self,
+        db: Database,
+        model_class: type[E],
+        filters: dict[str, Any] | None = None,
+        transaction: Transaction | None = None,
+    ):
         """Initialize entity query.
 
         Args:
@@ -32,6 +40,7 @@ class EntityQuery[E: Entity]:
         self.db = db
         self.model_class = model_class
         self.filters = filters or {}
+        self.transaction = transaction
         self._expressions: list[Any] = []  # Store Expression objects
         self._limit_value: int | None = None
         self._offset_value: int | None = None
@@ -144,8 +153,7 @@ class EntityQuery[E: Entity]:
         if self._offset_value is not None:
             query.offset(self._offset_value)
 
-        with self.db.transaction("read") as tx:
-            results = tx.execute(query.build())
+        results = self._execute(query.build(), TransactionType.READ)
 
         # Convert results to entity instances
         entities = []
@@ -233,9 +241,7 @@ class EntityQuery[E: Entity]:
         query.delete("$e")
 
         # Execute in single transaction
-        with self.db.transaction("write") as tx:
-            results = tx.execute(query.build())
-            tx.commit()
+        results = self._execute(query.build(), TransactionType.WRITE)
 
         return len(results) if results else 0
 
@@ -284,12 +290,15 @@ class EntityQuery[E: Entity]:
             func(entity)
 
         # Update all entities in a single transaction
-        with self.db.transaction("write") as tx:
+        if self.transaction:
             for entity in entities:
-                # Build update query for this entity
                 query_str = self._build_update_query(entity)
-                tx.execute(query_str)
-            tx.commit()
+                self.transaction.execute(query_str)
+        else:
+            with self.db.transaction(TransactionType.WRITE) as tx:
+                for entity in entities:
+                    query_str = self._build_update_query(entity)
+                    tx.execute(query_str)
 
         return entities
 
@@ -477,8 +486,7 @@ class EntityQuery[E: Entity]:
         match_clause = query.build().replace("fetch", "get").split("fetch")[0]
         reduce_query = f"{match_clause}\nreduce {', '.join(reduce_clauses)};"
 
-        with self.db.transaction("read") as tx:
-            results = tx.execute(reduce_query)
+        results = self._execute(reduce_query, TransactionType.READ)
 
         # Parse aggregation results
         # TypeDB 3.x reduce operator returns results as formatted strings
@@ -513,6 +521,14 @@ class EntityQuery[E: Entity]:
 
         return output
 
+    def _execute(self, query: str, tx_type: TransactionType) -> list[dict[str, Any]]:
+        """Execute a query using an existing transaction if available."""
+        if self.transaction:
+            return self.transaction.execute(query)
+
+        with self.db.transaction(tx_type) as tx:
+            return tx.execute(query)
+
     def group_by(self, *fields: Any) -> "GroupByQuery[E]":
         """Group entities by field values.
 
@@ -528,4 +544,11 @@ class EntityQuery[E: Entity]:
         # Import here to avoid circular dependency
         from .group_by import GroupByQuery
 
-        return GroupByQuery(self.db, self.model_class, self.filters, self._expressions, fields)
+        return GroupByQuery(
+            self.db,
+            self.model_class,
+            self.filters,
+            self._expressions,
+            fields,
+            transaction=self.transaction,
+        )

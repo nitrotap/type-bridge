@@ -2,9 +2,11 @@
 
 from typing import TYPE_CHECKING, Any
 
+from typedb.driver import TransactionType
+
 from type_bridge.models import Entity
 from type_bridge.query import Query, QueryBuilder
-from type_bridge.session import Database
+from type_bridge.session import Database, Transaction
 
 from ..base import E
 from ..utils import format_value, is_multi_value_attribute
@@ -20,7 +22,7 @@ class EntityManager[E: Entity]:
     Type-safe manager that preserves entity type information.
     """
 
-    def __init__(self, db: Database, model_class: type[E]):
+    def __init__(self, db: Database, model_class: type[E], transaction: Transaction | None = None):
         """Initialize entity manager.
 
         Args:
@@ -29,6 +31,7 @@ class EntityManager[E: Entity]:
         """
         self.db = db
         self.model_class = model_class
+        self.transaction = transaction
 
     def insert(self, entity: E) -> E:
         """Insert an entity instance into the database.
@@ -50,9 +53,7 @@ class EntityManager[E: Entity]:
         """
         query = QueryBuilder.insert_entity(entity)
 
-        with self.db.transaction("write") as tx:
-            tx.execute(query.build())
-            tx.commit()
+        self._execute(query.build(), TransactionType.WRITE)
 
         return entity
 
@@ -84,9 +85,7 @@ class EntityManager[E: Entity]:
         pattern = entity.to_insert_query("$e")
         query = f"put\n{pattern};"
 
-        with self.db.transaction("write") as tx:
-            tx.execute(query)
-            tx.commit()
+        self._execute(query, TransactionType.WRITE)
 
         return entity
 
@@ -128,9 +127,7 @@ class EntityManager[E: Entity]:
         # Combine all patterns into a single put query
         query = "put\n" + ";\n".join(put_patterns) + ";"
 
-        with self.db.transaction("write") as tx:
-            tx.execute(query)
-            tx.commit()
+        self._execute(query, TransactionType.WRITE)
 
         return entities
 
@@ -167,9 +164,7 @@ class EntityManager[E: Entity]:
         # Combine all patterns into a single insert query
         query = "insert\n" + ";\n".join(insert_patterns) + ";"
 
-        with self.db.transaction("write") as tx:
-            tx.execute(query)
-            tx.commit()
+        self._execute(query, TransactionType.WRITE)
 
         return entities
 
@@ -185,8 +180,7 @@ class EntityManager[E: Entity]:
         query = QueryBuilder.match_entity(self.model_class, **filters)
         query.fetch("$e")  # Fetch all attributes with $e.*
 
-        with self.db.transaction("read") as tx:
-            results = tx.execute(query.build())
+        results = self._execute(query.build(), TransactionType.READ)
 
         # Convert results to entity instances
         entities = []
@@ -244,7 +238,9 @@ class EntityManager[E: Entity]:
                             f"Available attribute types: {', '.join(t.__name__ for t in owned_attr_types)}"
                         )
 
-        query = EntityQuery(self.db, self.model_class, filters if filters else None)
+        query = EntityQuery(
+            self.db, self.model_class, filters if filters else None, transaction=self.transaction
+        )
         if expressions:
             query._expressions.extend(expressions)
         return query
@@ -270,7 +266,7 @@ class EntityManager[E: Entity]:
         # Import here to avoid circular dependency
         from .group_by import GroupByQuery
 
-        return GroupByQuery(self.db, self.model_class, {}, [], fields)
+        return GroupByQuery(self.db, self.model_class, {}, [], fields, transaction=self.transaction)
 
     def all(self) -> list[E]:
         """Get all entities of this type.
@@ -306,9 +302,7 @@ class EntityManager[E: Entity]:
         query.match(pattern)
         query.delete("$e")
 
-        with self.db.transaction("write") as tx:
-            results = tx.execute(query.build())
-            tx.commit()
+        results = self._execute(query.build(), TransactionType.WRITE)
 
         return len(results) if results else 0
 
@@ -468,9 +462,7 @@ class EntityManager[E: Entity]:
         # Combine and execute
         full_query = "\n".join(query_parts)
 
-        with self.db.transaction("write") as tx:
-            tx.execute(full_query)
-            tx.commit()
+        self._execute(full_query, TransactionType.WRITE)
 
         return entity
 
@@ -496,3 +488,11 @@ class EntityManager[E: Entity]:
                 is_multi_value = is_multi_value_attribute(attr_info.flags)
                 attrs[field_name] = [] if is_multi_value else None
         return attrs
+
+    def _execute(self, query: str, tx_type: TransactionType) -> list[dict[str, Any]]:
+        """Execute a query using existing transaction if provided."""
+        if self.transaction:
+            return self.transaction.execute(query)
+
+        with self.db.transaction(tx_type) as tx:
+            return tx.execute(query)

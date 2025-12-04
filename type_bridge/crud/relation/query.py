@@ -2,9 +2,11 @@
 
 from typing import TYPE_CHECKING, Any
 
+from typedb.driver import TransactionType
+
 from type_bridge.models import Relation
 from type_bridge.query import Query
-from type_bridge.session import Database
+from type_bridge.session import Database, Transaction
 
 from ..base import R
 from ..utils import format_value, is_multi_value_attribute
@@ -20,7 +22,13 @@ class RelationQuery[R: Relation]:
     Supports both dictionary filters (exact match) and expression-based filters.
     """
 
-    def __init__(self, db: Database, model_class: type[R], filters: dict[str, Any] | None = None):
+    def __init__(
+        self,
+        db: Database,
+        model_class: type[R],
+        filters: dict[str, Any] | None = None,
+        transaction: Transaction | None = None,
+    ):
         """Initialize relation query.
 
         Args:
@@ -31,6 +39,7 @@ class RelationQuery[R: Relation]:
         self.db = db
         self.model_class = model_class
         self.filters = filters or {}
+        self.transaction = transaction
         self._expressions: list[Any] = []  # Store Expression objects
         self._limit_value: int | None = None
         self._offset_value: int | None = None
@@ -226,8 +235,7 @@ class RelationQuery[R: Relation]:
         fetch_str = f"fetch {{\n  {fetch_body}\n}};"
         query_str = f"match\n{match_str}{sort_clause}{pagination_clause}\n{fetch_str}"
 
-        with self.db.transaction("read") as tx:
-            results = tx.execute(query_str)
+        results = self._execute(query_str, TransactionType.READ)
 
         # Convert results to relation instances
         relations = []
@@ -437,9 +445,7 @@ class RelationQuery[R: Relation]:
         query.delete("$r")
 
         # Execute in single transaction
-        with self.db.transaction("write") as tx:
-            results = tx.execute(query.build())
-            tx.commit()
+        results = self._execute(query.build(), TransactionType.WRITE)
 
         return len(results) if results else 0
 
@@ -503,12 +509,15 @@ class RelationQuery[R: Relation]:
             func(relation)
 
         # Update all relations in a single transaction
-        with self.db.transaction("write") as tx:
+        if self.transaction:
             for relation, original in zip(relations, original_values):
-                # Build update query for this relation using original values for matching
                 query_str = self._build_update_query(relation, original)
-                tx.execute(query_str)
-            tx.commit()
+                self.transaction.execute(query_str)
+        else:
+            with self.db.transaction(TransactionType.WRITE) as tx:
+                for relation, original in zip(relations, original_values):
+                    query_str = self._build_update_query(relation, original)
+                    tx.execute(query_str)
 
         return relations
 
@@ -782,8 +791,7 @@ class RelationQuery[R: Relation]:
         # Convert match to reduce query
         reduce_query = f"match\n{match_clause}\nreduce {', '.join(reduce_clauses)};"
 
-        with self.db.transaction("read") as tx:
-            results = tx.execute(reduce_query)
+        results = self._execute(reduce_query, TransactionType.READ)
 
         # Parse aggregation results
         if not results:
@@ -818,6 +826,14 @@ class RelationQuery[R: Relation]:
 
         return output
 
+    def _execute(self, query: str, tx_type: TransactionType) -> list[dict[str, Any]]:
+        """Execute a query using an existing transaction if available."""
+        if self.transaction:
+            return self.transaction.execute(query)
+
+        with self.db.transaction(tx_type) as tx:
+            return tx.execute(query)
+
     def group_by(self, *fields: Any) -> "RelationGroupByQuery[R]":
         """Group relations by field values.
 
@@ -834,5 +850,10 @@ class RelationQuery[R: Relation]:
         from .group_by import RelationGroupByQuery
 
         return RelationGroupByQuery(
-            self.db, self.model_class, self.filters, self._expressions, fields
+            self.db,
+            self.model_class,
+            self.filters,
+            self._expressions,
+            fields,
+            transaction=self.transaction,
         )

@@ -311,8 +311,18 @@ class Entity(TypeDBType, metaclass=EntityMeta):
             # person is inferred as Person type by type checkers
         """
         from type_bridge.crud import EntityManager
+        from type_bridge.session import Transaction, TransactionContext
 
-        return EntityManager(db, cls)
+        transaction = None
+        db_conn = db
+
+        if isinstance(db, TransactionContext):
+            transaction = db.transaction
+            db_conn = db.database
+        elif isinstance(db, Transaction):
+            transaction = db
+
+        return EntityManager(db_conn, cls, transaction=transaction)
 
     def insert(self: E, db: Database) -> E:
         """Insert this entity instance into the database.

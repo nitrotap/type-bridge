@@ -1,8 +1,6 @@
 """Session and transaction management for TypeDB."""
 
-from collections.abc import Iterator
-from contextlib import contextmanager
-from typing import Any
+from typing import Any, overload
 
 from typedb.driver import (
     Credentials,
@@ -101,31 +99,33 @@ class Database:
         """Check if database exists."""
         return self.driver.databases.contains(self.database_name)
 
-    @contextmanager
-    def transaction(self, transaction_type: str = "read") -> Iterator["Transaction"]:
-        """Create a transaction.
+    @overload
+    def transaction(self, transaction_type: TransactionType) -> "TransactionContext": ...
+
+    @overload
+    def transaction(self, transaction_type: str = "read") -> "TransactionContext": ...
+
+    def transaction(self, transaction_type: TransactionType | str = "read") -> "TransactionContext":
+        """Create a transaction context.
 
         Args:
-            transaction_type: Type of transaction ("read", "write", or "schema")
+            transaction_type: TransactionType or string ("read", "write", "schema")
 
-        Yields:
-            Transaction wrapper
+        Returns:
+            TransactionContext for use as a context manager
         """
-        # Map string to TransactionType
-        tx_type_map = {
+        tx_type_map: dict[str, TransactionType] = {
             "read": TransactionType.READ,
             "write": TransactionType.WRITE,
             "schema": TransactionType.SCHEMA,
         }
-        tx_type = tx_type_map.get(transaction_type, TransactionType.READ)
 
-        # Create transaction directly on driver
-        tx = self.driver.transaction(self.database_name, tx_type)
-        try:
-            yield Transaction(tx)
-        finally:
-            if tx.is_open():
-                tx.close()
+        if isinstance(transaction_type, str):
+            tx_type = tx_type_map.get(transaction_type, TransactionType.READ)
+        else:
+            tx_type = transaction_type
+
+        return TransactionContext(self, tx_type)
 
     def execute_query(self, query: str, transaction_type: str = "read") -> list[dict[str, Any]]:
         """Execute a query and return results.
@@ -139,7 +139,11 @@ class Database:
         """
         with self.transaction(transaction_type) as tx:
             results = tx.execute(query)
-            if transaction_type in ("write", "schema"):
+            if isinstance(transaction_type, str):
+                needs_commit = transaction_type in ("write", "schema")
+            else:
+                needs_commit = transaction_type in (TransactionType.WRITE, TransactionType.SCHEMA)
+            if needs_commit:
                 tx.commit()
             return results
 
@@ -204,3 +208,72 @@ class Transaction:
     def is_open(self) -> bool:
         """Check if transaction is open."""
         return self._tx.is_open()
+
+    def close(self) -> None:
+        """Close the transaction if open."""
+        if self._tx.is_open():
+            self._tx.close()
+
+
+class TransactionContext:
+    """Context manager for sharing a TypeDB transaction across operations."""
+
+    def __init__(self, db: Database, tx_type: TransactionType):
+        self.db = db
+        self.tx_type = tx_type
+        self._tx: Transaction | None = None
+
+    def __enter__(self) -> "TransactionContext":
+        self.db.connect()
+        raw_tx = self.db.driver.transaction(self.db.database_name, self.tx_type)
+        self._tx = Transaction(raw_tx)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        if self._tx is None:
+            return
+
+        if self._tx.is_open:
+            if exc_type is None:
+                if self.tx_type in (TransactionType.WRITE, TransactionType.SCHEMA):
+                    self._tx.commit()
+            else:
+                self._tx.rollback()
+
+        self._tx.close()
+
+    @property
+    def transaction(self) -> Transaction:
+        """Underlying transaction wrapper."""
+        if self._tx is None:
+            raise RuntimeError("TransactionContext not entered")
+        return self._tx
+
+    @property
+    def database(self) -> Database:
+        """Database backing this transaction."""
+        return self.db
+
+    def execute(self, query: str) -> list[dict[str, Any]]:
+        """Execute a query within the active transaction."""
+        return self.transaction.execute(query)
+
+    def commit(self) -> None:
+        """Commit the active transaction."""
+        self.transaction.commit()
+
+    def rollback(self) -> None:
+        """Rollback the active transaction."""
+        self.transaction.rollback()
+
+    def manager(self, model_cls: Any):
+        """Get an Entity/Relation manager bound to this transaction."""
+        from type_bridge.crud import EntityManager, RelationManager
+        from type_bridge.models import Entity, Relation
+
+        if issubclass(model_cls, Entity):
+            return EntityManager(self.db, model_cls, transaction=self.transaction)
+        if issubclass(model_cls, Relation):
+            return RelationManager(self.db, model_cls, transaction=self.transaction)
+
+        raise TypeError("manager() expects an Entity or Relation subclass")

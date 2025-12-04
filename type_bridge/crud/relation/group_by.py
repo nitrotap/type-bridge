@@ -2,8 +2,10 @@
 
 from typing import Any
 
+from typedb.driver import TransactionType
+
 from type_bridge.models import Relation
-from type_bridge.session import Database
+from type_bridge.session import Database, Transaction
 
 from ..utils import format_value
 
@@ -21,6 +23,7 @@ class RelationGroupByQuery[R: Relation]:
         filters: dict[str, Any],
         expressions: list[Any],
         group_fields: tuple[Any, ...],
+        transaction: Transaction | None = None,
     ):
         """Initialize grouped query.
 
@@ -36,6 +39,7 @@ class RelationGroupByQuery[R: Relation]:
         self.filters = filters
         self._expressions = expressions
         self.group_fields = group_fields
+        self.transaction = transaction
 
     def aggregate(self, *aggregates: Any) -> dict[Any, dict[str, Any]]:
         """Execute grouped aggregation.
@@ -147,8 +151,7 @@ class RelationGroupByQuery[R: Relation]:
         reduce_clause = ", ".join(reduce_clauses)
         reduce_query = f"match\n{match_clause}\nreduce {reduce_clause} groupby {group_clause};"
 
-        with self.db.transaction("read") as tx:
-            results = tx.execute(reduce_query)
+        results = self._execute(reduce_query, TransactionType.READ)
 
         # Parse grouped results
         import re
@@ -208,3 +211,11 @@ class RelationGroupByQuery[R: Relation]:
             output[group_key] = group_aggs
 
         return output
+
+    def _execute(self, query: str, tx_type: TransactionType) -> list[dict[str, Any]]:
+        """Execute a query using an existing transaction if provided."""
+        if self.transaction:
+            return self.transaction.execute(query)
+
+        with self.db.transaction(tx_type) as tx:
+            return tx.execute(query)

@@ -315,8 +315,18 @@ class Relation(TypeDBType, metaclass=RelationMeta):
             # employment is inferred as Employment type by type checkers
         """
         from type_bridge.crud import RelationManager
+        from type_bridge.session import Transaction, TransactionContext
 
-        return RelationManager(db, cls)
+        transaction = None
+        db_conn = db
+
+        if isinstance(db, TransactionContext):
+            transaction = db.transaction
+            db_conn = db.database
+        elif isinstance(db, Transaction):
+            transaction = db
+
+        return RelationManager(db_conn, cls, transaction=transaction)
 
     def to_insert_query(self, var: str = "$r") -> str:
         """Generate TypeQL insert query for this relation instance.
