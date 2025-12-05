@@ -119,6 +119,11 @@ person.to_dict(exclude_unset=True)
 # From raw data with optional mapping
 payload = {"display-id": "US-1", "name": "Roadmap"}
 item = Artifact.from_dict(payload, field_mapping={"display-id": "display_id"})
+
+# Round-trip with aliases preserved
+data = item.to_dict(by_alias=True)
+restored = Artifact.from_dict(data)
+assert restored == item
 ```
 
 Behavior:
@@ -126,6 +131,7 @@ Behavior:
 - `include`/`exclude` filter fields; `exclude_unset` hides fields never assigned.
 - `field_mapping` maps external keys to internal field names; `strict=False` ignores unknowns.
 - Empty strings/None are skipped during `from_dict`.
+- Backed by Pydantic `model_dump`/`model_construct` for consistent validation and alias handling.
 
 ## TypeFlags Configuration
 
