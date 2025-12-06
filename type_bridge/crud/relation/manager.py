@@ -859,8 +859,17 @@ class RelationManager[R: Relation]:
         if multi_value_updates:
             for attr_name, values in multi_value_updates.items():
                 keep_literals = [format_value(v) for v in dict.fromkeys(values)]
-                guard_lines = [f"not {{ ${attr_name} == {literal}; }};" for literal in keep_literals]
-                try_block = "\n".join(["try {", f"  $r has {attr_name} ${attr_name};", *[f"  {g}" for g in guard_lines], "};"])
+                guard_lines = [
+                    f"not {{ ${attr_name} == {literal}; }};" for literal in keep_literals
+                ]
+                try_block = "\n".join(
+                    [
+                        "try {",
+                        f"  $r has {attr_name} ${attr_name};",
+                        *[f"  {g}" for g in guard_lines],
+                        "};",
+                    ]
+                )
                 match_statements.append(try_block)
 
         # Add match statements to bind single-value attributes for deletion

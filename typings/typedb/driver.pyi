@@ -40,6 +40,7 @@ class Driver:
     databases: Any
     def transaction(self, database: str, tx_type: TransactionType) -> Transaction: ...
     def close(self) -> None: ...
+
 class TransactionType:
     READ: TransactionType
     WRITE: TransactionType

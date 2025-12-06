@@ -54,8 +54,8 @@ def test_entity_update_multi_value_uses_guards():
     expected_try = (
         "try {\n"
         f"  $e has {attr_name} {attr_var};\n"
-        f"  not {{ {attr_var} == \"keep\"; }};\n"
-        f"  not {{ {attr_var} == \"drop\"; }};\n"
+        f'  not {{ {attr_var} == "keep"; }};\n'
+        f'  not {{ {attr_var} == "drop"; }};\n'
         "};"
     )
     assert expected_try in query
@@ -90,8 +90,8 @@ def test_relation_update_multi_value_uses_guards():
     expected_try = (
         "try {\n"
         f"  $r has {attr_name} {attr_var};\n"
-        f"  not {{ {attr_var} == \"keep\"; }};\n"
-        f"  not {{ {attr_var} == \"old\"; }};\n"
+        f'  not {{ {attr_var} == "keep"; }};\n'
+        f'  not {{ {attr_var} == "old"; }};\n'
         "};"
     )
     assert expected_try in query
