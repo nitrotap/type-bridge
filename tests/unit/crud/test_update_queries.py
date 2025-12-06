@@ -1,6 +1,18 @@
 """Unit tests for update query generation to ensure multi-value diffs are guarded."""
 
-from type_bridge import Card, Entity, Flag, Key, Relation, Role, String, TypeFlags
+from typing import cast
+
+from type_bridge import (
+    Card,
+    Database,
+    Entity,
+    Flag,
+    Key,
+    Relation,
+    Role,
+    String,
+    TypeFlags,
+)
 from type_bridge.crud.entity.manager import EntityManager
 from type_bridge.crud.relation.manager import RelationManager
 
@@ -9,7 +21,7 @@ class _RecordingEntityManager(EntityManager):
     """Entity manager that records executed queries instead of hitting TypeDB."""
 
     def __init__(self, model_class):
-        super().__init__(object(), model_class)
+        super().__init__(cast(Database, object()), model_class)
         self.queries: list[str] = []
 
     def _execute(self, query, tx_type):  # type: ignore[override]
@@ -21,7 +33,7 @@ class _RecordingRelationManager(RelationManager):
     """Relation manager that records executed queries instead of hitting TypeDB."""
 
     def __init__(self, model_class):
-        super().__init__(object(), model_class)
+        super().__init__(cast(Database, object()), model_class)
         self.queries: list[str] = []
 
     def _execute(self, query, tx_type):  # type: ignore[override]
