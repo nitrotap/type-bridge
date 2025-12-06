@@ -1,6 +1,8 @@
 """Schema-related exceptions for TypeDB schema management."""
 
-from type_bridge.schema.diff import SchemaDiff
+from typing import cast
+
+from type_bridge.schema.diff import EntityChanges, RelationChanges, SchemaDiff
 
 
 class SchemaValidationError(Exception):
@@ -70,6 +72,7 @@ class SchemaConflictError(Exception):
         if self.diff.modified_entities:
             lines.append(f"⚠️  Modified Entities ({len(self.diff.modified_entities)}):")
             for entity, changes in self.diff.modified_entities.items():
+                changes = cast(EntityChanges, changes)
                 lines.append(f"   ~ {entity.__name__}")
                 if changes.added_attributes:
                     lines.append(f"     + added: {changes.added_attributes}")
@@ -85,16 +88,17 @@ class SchemaConflictError(Exception):
 
         if self.diff.modified_relations:
             lines.append(f"⚠️  Modified Relations ({len(self.diff.modified_relations)}):")
-            for relation, changes in self.diff.modified_relations.items():
+            for relation, relation_changes in self.diff.modified_relations.items():
+                rel_changes: RelationChanges = relation_changes
                 lines.append(f"   ~ {relation.__name__}")
-                if changes.added_roles:
-                    lines.append(f"     + added roles: {changes.added_roles}")
-                if changes.removed_roles:
-                    lines.append(f"     - removed roles: {changes.removed_roles}")
-                if changes.added_attributes:
-                    lines.append(f"     + added attributes: {changes.added_attributes}")
-                if changes.removed_attributes:
-                    lines.append(f"     - removed attributes: {changes.removed_attributes}")
+                if rel_changes.added_roles:
+                    lines.append(f"     + added roles: {rel_changes.added_roles}")
+                if rel_changes.removed_roles:
+                    lines.append(f"     - removed roles: {rel_changes.removed_roles}")
+                if rel_changes.added_attributes:
+                    lines.append(f"     + added attributes: {rel_changes.added_attributes}")
+                if rel_changes.removed_attributes:
+                    lines.append(f"     - removed attributes: {rel_changes.removed_attributes}")
             lines.append("")
 
         # Provide resolution suggestions

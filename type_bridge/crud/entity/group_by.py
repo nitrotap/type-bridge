@@ -34,13 +34,12 @@ class GroupByQuery[E: Entity]:
             expressions: Expression-based filters
             group_fields: Fields to group by
         """
+        self.transaction: Transaction | None = transaction
         if isinstance(db, Transaction):
             assert transaction is not None, "transaction is required when db is a Transaction"
             self.db: Database | None = None
-            self.transaction = transaction
         else:
             self.db = db
-            self.transaction = transaction
         self.model_class = model_class
         self.filters = filters
         self._expressions = expressions
@@ -135,7 +134,7 @@ class GroupByQuery[E: Entity]:
             ]
 
             # Separate group keys from aggregation values
-            group_keys = []
+            group_keys: list[Any] = []
             group_aggs = {}
 
             for var_name, value_str in all_matches:
@@ -162,7 +161,7 @@ class GroupByQuery[E: Entity]:
 
             # Create group key (single value or tuple)
             if len(group_keys) == 1:
-                group_key = group_keys[0]
+                group_key: Any = group_keys[0]
             else:
                 group_key = tuple(group_keys)
 

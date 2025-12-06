@@ -644,7 +644,7 @@ class RelationManager[R: Relation]:
 
         for result in results:
             # Extract relation attributes (including inherited)
-            attrs = {}
+            attrs: dict[str, Any] = {}
             for field_name, attr_info in all_attrs.items():
                 attr_class = attr_info.typ
                 attr_name = attr_class.get_attribute_name()
@@ -684,7 +684,7 @@ class RelationManager[R: Relation]:
                             entity_class = candidate
                             break
                     # Extract player attributes (including inherited)
-                    player_attrs = {}
+                    player_attrs: dict[str, Any] = {}
                     for field_name, attr_info in entity_class.get_all_attributes().items():
                         attr_class = attr_info.typ
                         attr_name = attr_class.get_attribute_name()

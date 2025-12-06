@@ -37,14 +37,13 @@ class EntityQuery[E: Entity]:
             model_class: Entity model class
             filters: Attribute filters (exact match) - optional, defaults to empty dict
         """
+        self.transaction: Transaction | None = transaction
         if isinstance(db, Transaction):
             # Existing transaction supplied; we won't open new ones from this query.
             assert transaction is not None, "transaction is required when db is a Transaction"
             self.db: Database | None = None
-            self.transaction = transaction
         else:
             self.db = db
-            self.transaction = transaction
         self.model_class = model_class
         self.filters = filters or {}
         self._expressions: list[Any] = []  # Store Expression objects

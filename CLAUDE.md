@@ -25,6 +25,8 @@ uv sync --extra dev
 uv run pytest                    # Unit tests (fast, no deps)
 ./test-integration.sh            # Integration tests (with Docker)
 
+Podman users: integration tests work with Podman too—set `CONTAINER_TOOL=podman` (or `podman-compose`) so the fixtures call `podman compose ...` instead of Docker. Either runtime works as long as a compatible *compose* subcommand is available and the TypeDB container can start.
+
 # Run examples
 uv run python examples/basic/crud_01_define.py
 ```

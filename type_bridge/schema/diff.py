@@ -148,15 +148,16 @@ class SchemaDiff:
 
         if self.modified_relations:
             lines.append(f"\nModified Relations ({len(self.modified_relations)}):")
-            for relation, changes in self.modified_relations.items():
+            for relation, rel_changes in self.modified_relations.items():
+                relation_changes: RelationChanges = rel_changes
                 lines.append(f"  ~ {relation.__name__}")
-                if changes.added_roles:
-                    lines.append(f"    added_roles: {changes.added_roles}")
-                if changes.removed_roles:
-                    lines.append(f"    removed_roles: {changes.removed_roles}")
-                if changes.added_attributes:
-                    lines.append(f"    added_attributes: {changes.added_attributes}")
-                if changes.removed_attributes:
-                    lines.append(f"    removed_attributes: {changes.removed_attributes}")
+                if relation_changes.added_roles:
+                    lines.append(f"    added_roles: {relation_changes.added_roles}")
+                if relation_changes.removed_roles:
+                    lines.append(f"    removed_roles: {relation_changes.removed_roles}")
+                if relation_changes.added_attributes:
+                    lines.append(f"    added_attributes: {relation_changes.added_attributes}")
+                if relation_changes.removed_attributes:
+                    lines.append(f"    removed_attributes: {relation_changes.removed_attributes}")
 
         return "\n".join(lines)

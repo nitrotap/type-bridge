@@ -70,11 +70,13 @@ class TypeDBType(BaseModel, ABC):
             type_name = cls._flags.name or format_type_name(cls.__name__, cls._flags.case)
 
             # Determine context based on class hierarchy
+            from typing import Literal
+
             from type_bridge.models.entity import Entity
             from type_bridge.models.relation import Relation
 
             if issubclass(cls, Relation):
-                context = "relation"
+                context: Literal["relation", "entity", "attribute", "role"] = "relation"
             elif issubclass(cls, Entity):
                 context = "entity"
             else:
@@ -278,9 +280,9 @@ class TypeDBType(BaseModel, ABC):
         elif isinstance(value, DecimalType):
             # TypeDB decimal literals require 'dec' suffix
             return f"{value}dec"
-        elif isinstance(value, (int, float)):
+        elif isinstance(value, int | float):
             return str(value)
-        elif isinstance(value, (IsodateDuration, timedelta)):
+        elif isinstance(value, IsodateDuration | timedelta):
             # TypeDB duration literals are unquoted ISO 8601 duration strings
             return isodate.duration_isoformat(value)
         elif isinstance(value, datetime_type):

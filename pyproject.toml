@@ -43,6 +43,17 @@ dev = [
     "pyright>=1.1.407",
 ]
 
+[tool.ty.environment]
+# Point ty to the project virtualenv for accurate import resolution
+python = ".venv"
+extra-paths = ["."]
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = false
+strict = false
+mypy_path = ["typings"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py313"
@@ -67,3 +78,8 @@ markers = [
 ]
 # By default, run only unit tests (exclude integration tests)
 addopts = "-m 'not integration'"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.0",
+]

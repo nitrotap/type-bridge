@@ -62,3 +62,20 @@ class ComparisonExpr[T: "Attribute"](Expression):
         )
 
         return pattern
+
+
+class AttributeExistsExpr[T: "Attribute"](Expression):
+    """Attribute presence/absence check expression."""
+
+    def __init__(self, attr_type: type[T], present: bool):
+        self.attr_type = attr_type
+        self.present = present
+
+    def to_typeql(self, var: str) -> str:
+        attr_type_name = self.attr_type.get_attribute_name()
+        attr_var = f"${attr_type_name.lower()}"
+
+        # Presence: simple has clause; Absence: negate a has clause block
+        if self.present:
+            return f"{var} has {attr_type_name} {attr_var}"
+        return f"not {{ {var} has {attr_type_name} {attr_var}; }}"
