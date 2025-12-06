@@ -615,10 +615,13 @@ class EntityManager[E: Entity]:
             entity_match_parts.append(f"has {attr_name} {formatted_value}")
         match_statements.append(", ".join(entity_match_parts) + ";")
 
-        # Add match statements to bind multi-value attributes for deletion
+        # Add match statements to bind multi-value attributes for deletion with optional guards
         if multi_value_updates:
-            for attr_name in multi_value_updates:
-                match_statements.append(f"$e has {attr_name} ${attr_name};")
+            for attr_name, values in multi_value_updates.items():
+                keep_literals = [format_value(v) for v in dict.fromkeys(values)]
+                guard_lines = [f"not {{ ${attr_name} == {literal}; }};" for literal in keep_literals]
+                try_block = "\n".join(["try {", f"  $e has {attr_name} ${attr_name};", *[f"  {g}" for g in guard_lines], "};"])
+                match_statements.append(try_block)
 
         # Add match statements to bind single-value attributes for deletion
         if single_value_deletes:
@@ -632,7 +635,7 @@ class EntityManager[E: Entity]:
         delete_parts = []
         if multi_value_updates:
             for attr_name in multi_value_updates:
-                delete_parts.append(f"${attr_name} of $e;")
+                delete_parts.append(f"try {{ ${attr_name} of $e; }};")
         if single_value_deletes:
             for attr_name in single_value_deletes:
                 delete_parts.append(f"${attr_name} of $e;")

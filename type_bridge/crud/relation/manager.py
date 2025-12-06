@@ -855,10 +855,13 @@ class RelationManager[R: Relation]:
         relation_match = f"$r isa {self.model_class.get_type_name()} ({roles_str});"
         match_statements.insert(0, relation_match)
 
-        # Add match statements to bind multi-value attributes for deletion
+        # Add match statements to bind multi-value attributes for deletion with optional guards
         if multi_value_updates:
-            for attr_name in multi_value_updates:
-                match_statements.append(f"$r has {attr_name} ${attr_name};")
+            for attr_name, values in multi_value_updates.items():
+                keep_literals = [format_value(v) for v in dict.fromkeys(values)]
+                guard_lines = [f"not {{ ${attr_name} == {literal}; }};" for literal in keep_literals]
+                try_block = "\n".join(["try {", f"  $r has {attr_name} ${attr_name};", *[f"  {g}" for g in guard_lines], "};"])
+                match_statements.append(try_block)
 
         # Add match statements to bind single-value attributes for deletion
         if single_value_deletes:
@@ -874,7 +877,7 @@ class RelationManager[R: Relation]:
         delete_parts = []
         if multi_value_updates:
             for attr_name in multi_value_updates:
-                delete_parts.append(f"${attr_name} of $r;")
+                delete_parts.append(f"try {{ ${attr_name} of $r; }};")
         if single_value_deletes:
             for attr_name in single_value_deletes:
                 delete_parts.append(f"${attr_name} of $r;")
