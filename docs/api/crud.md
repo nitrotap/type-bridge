@@ -40,6 +40,12 @@ class EntityManager[E: Entity]:
     def insert_many(self, entities: list[E]) -> list[E]:
         """Insert multiple entities (bulk operation)."""
 
+    def update(self, entity: E) -> E:
+        """Update a single entity."""
+
+    def update_many(self, entities: list[E]) -> list[E]:
+        """Update multiple entities in one transaction."""
+
     def put(self, entity: E) -> E:
         """Put a single entity (idempotent insert)."""
 
@@ -56,10 +62,10 @@ class EntityManager[E: Entity]:
         """Get all entities of this type."""
 
     def delete(self, **filters) -> int:
-        """Delete entities matching filters. Returns count."""
+        """Delete entities matching filters. Returns count (bulk)."""
 
-    def update(self, entity: E) -> E:
-        """Update entity in database."""
+    def delete_many(self, **filters) -> int:
+        """Bulk delete with support for __in filters."""
 
     # Managers can be bound to an existing Transaction/TransactionContext
     # Person.manager(tx) reuses the provided transaction
@@ -129,6 +135,8 @@ person_manager.insert_many(persons)
 
 **Performance tip**: Use `insert_many()` for multiple entities - it's significantly faster than calling `insert()` multiple times.
 
+Both `insert()` and `insert_many()` run in a single write transaction when a transaction/context is provided to the manager. Without one, each call opens exactly one write transaction (no per-entity commits).
+
 **Note on special characters**: TypeBridge automatically escapes special characters in string attributes (quotes, backslashes) when generating TypeQL queries. You don't need to manually escape values - just pass them as normal Python strings.
 
 ## PUT Operations (Idempotent Insert)
@@ -155,6 +163,8 @@ person_manager.put_many(persons)  # No duplicates
 **Use cases**: Data import scripts, ensuring reference data exists, synchronization with external systems.
 
 **All-or-nothing semantics**: PUT matches the entire pattern - if ANY part doesn't match, ALL is inserted. Use `put_many()` when entities either all exist or all don't exist together.
+
+Both `put()` and `put_many()` reuse a provided transaction/context; otherwise each call wraps a single write transaction (no per-entity commits inside a bulk call).
 
 ## Read Operations
 
@@ -200,6 +210,61 @@ first_person = person_manager.filter(name="Alice").first()
 
 if first_person:
     print(f"Found: {first_person.name}")
+
+### Django-style lookup suffixes
+
+`filter()` also accepts Django-style suffix operators that translate into TypeQL expressions:
+
+- `field__contains="sub"`
+- `field__startswith="pre"`
+- `field__endswith="suf"`
+- `field__regex="^A.*"`
+- `field__gt/gte/lt/lte=value`
+- `field__in=[v1, v2, v3]` (non-empty iterable)
+- `field__isnull=True|False`
+
+Example:
+
+```python
+people = person_manager.filter(name__startswith="Al", age__gt=30).execute()
+gmail = person_manager.filter(email__contains="@gmail.com").execute()
+nullable = person_manager.filter(age__isnull=True).execute()
+```
+
+More examples (TypeQL mapping shown for clarity):
+
+```python
+# contains/startswith/endswith/regex
+emails = person_manager.filter(email__contains="@acme.com")
+# -> has email like ".*@acme\\.com.*"
+
+prefixed = person_manager.filter(display_id__startswith="US-")
+# -> has display_id like "^US\\-.*"
+
+suffixed = person_manager.filter(name__endswith="son")
+# -> has name like ".*son$"
+
+regexed = person_manager.filter(city__regex="^New(\\s|-)York$")
+# -> has city like "^New(\\s|-)York$"
+
+# numeric comparisons
+seniors = person_manager.filter(age__gte=65)
+# -> has age >= 65
+
+# disjunction via __in (folded into OR)
+statuses = person_manager.filter(status__in=["active", "pending"])
+# -> { has status "active"; } or { has status "pending"; }
+
+# null checks (uses presence/absence of the attribute)
+missing_age = person_manager.filter(age__isnull=True)
+present_age = person_manager.filter(age__isnull=False)
+```
+
+Rules and validation:
+- Attribute names cannot contain `__` when using lookups.
+- `__in` requires a non-empty iterable; mixed raw values and Attribute instances are allowed.
+- String lookups (`contains`, `startswith`, `endswith`, `regex`) require `String` attributes.
+- `__isnull` requires a boolean.
 else:
     print("Not found")
 
@@ -334,6 +399,27 @@ promoted = person_manager.filter(
 print(f"Promoted {len(promoted)} persons")
 ```
 
+### Bulk Update with Entities (`update_many`)
+
+`update_many()` updates multiple entity instances in one write transaction while preserving the same per-entity semantics as `update()`:
+
+```python
+people = [
+    Person(name=Name("Alice"), age=Age(30)),
+    Person(name=Name("Bob"), age=Age(40)),
+]
+person_manager.insert_many(people)
+
+# Modify locally
+people[0].age = Age(31)
+people[1].age = Age(41)
+
+# Persist in one transaction
+person_manager.update_many(people)
+```
+
+`update_many()` reuses a provided transaction/context; otherwise it opens exactly one write transaction for the batch.
+
 **How `update_with()` works**:
 1. Fetches all entities matching the filter
 2. Applies the function to each entity in-place
@@ -426,6 +512,20 @@ assert count == 0
 - Returns count of deleted entities (0 if no matches)
 
 **Warning**: Delete operations are permanent and cannot be undone!
+
+### Bulk Delete with `delete_many`
+
+Use `delete_many()` for explicit bulk deletes and `__in` filters:
+
+```python
+# Delete multiple by key values
+deleted = person_manager.delete_many(name__in=["Alice", "Bob"])
+
+# Delete by attribute values
+deleted = person_manager.delete_many(status__in=[Status("inactive"), Status("banned")])
+```
+
+`delete_many()` reuses a provided transaction/context; otherwise it opens exactly one write transaction. For clarity, prefer `delete_many()` for batch deletions and instance-level delete (if implemented) for single-entity removal.
 
 ## RelationManager
 

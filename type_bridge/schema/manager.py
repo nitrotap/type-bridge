@@ -365,7 +365,7 @@ class SchemaManager:
         with self.db.transaction("read") as tx:
             results = tx.execute(query)
 
-        schema_info = {"entities": [], "relations": [], "attributes": []}
+        schema_info: dict[str, list[str]] = {"entities": [], "relations": [], "attributes": []}
 
         for result in results:
             # Parse result to categorize types

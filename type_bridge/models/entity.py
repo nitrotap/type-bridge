@@ -57,7 +57,7 @@ class EntityMeta(ModelMetaclass):
             )
             return super().__new__(mcs, name, bases, namespace, **kwargs)
 
-    def __getattribute__(cls, name: str) -> Any:
+    def __getattribute__(self, name: str) -> Any:
         """
         Intercept class-level attribute access.
 
@@ -77,7 +77,7 @@ class EntityMeta(ModelMetaclass):
 
                 attr_info = owned_attrs[name]
                 descriptor = FieldDescriptor(field_name=name, attr_type=attr_info.typ)
-                return descriptor.__get__(None, cls)
+                return descriptor.__get__(None, self.__class__)
         except AttributeError:
             # _owned_attrs or __pydantic_complete__ not defined yet
             pass
@@ -154,13 +154,14 @@ class Entity(TypeDBType, metaclass=EntityMeta):
                 # Stop at first non-base Entity class
                 break
 
+        hints: dict[str, Any]
         try:
             # Use include_extras=True to preserve Annotated metadata
             all_hints = get_type_hints(cls, include_extras=True)
             # Filter to only include direct annotations and base=True parent annotations
             hints = {k: v for k, v in all_hints.items() if k in direct_annotations}
         except Exception:
-            hints: dict[str, Any] = {
+            hints = {
                 k: v
                 for k, v in getattr(cls, "__annotations__", {}).items()
                 if k in direct_annotations

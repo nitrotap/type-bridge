@@ -183,6 +183,8 @@ class Card:
         - Card(max=5) → min=0, max=5 (defaults min to 0)
         - Card(min=0, max=10) → min=0, max=10
         """
+        self.min: int | None = None
+        self.max: int | None = None
         if args:
             # Positional arguments: Card(1, 5) or Card(2)
             if len(args) == 1:

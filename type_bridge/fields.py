@@ -5,7 +5,7 @@ This module provides field descriptors and references that enable type-safe
 query expressions like Person.age.gt(Age(30)).
 """
 
-from typing import TYPE_CHECKING, Any, TypeVar, overload
+from typing import TYPE_CHECKING, Any, TypeVar, cast, overload
 
 if TYPE_CHECKING:
     from type_bridge.attribute.base import Attribute
@@ -316,18 +316,24 @@ class FieldDescriptor[T: "Attribute"]:
 
         # Check if this is a String subclass
         if issubclass(self.attr_type, String):
-            return StringFieldRef(
-                field_name=self.field_name,
-                attr_type=self.attr_type,
-                entity_type=entity_type,
+            return cast(
+                FieldRef[T],
+                StringFieldRef(
+                    field_name=self.field_name,
+                    attr_type=self.attr_type,
+                    entity_type=entity_type,
+                ),
             )
 
         # Check if this is a numeric type
         if issubclass(self.attr_type, (Integer, Double, Decimal)):
-            return NumericFieldRef(
-                field_name=self.field_name,
-                attr_type=self.attr_type,
-                entity_type=entity_type,
+            return cast(
+                FieldRef[T],
+                NumericFieldRef(
+                    field_name=self.field_name,
+                    attr_type=self.attr_type,
+                    entity_type=entity_type,
+                ),
             )
 
         # Default to base FieldRef

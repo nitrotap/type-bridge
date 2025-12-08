@@ -7,7 +7,7 @@ from typing import Any
 import isodate
 from isodate import Duration as IsodateDuration
 
-from type_bridge.models import Entity
+from type_bridge.models import Entity, Relation
 
 
 class Query:
@@ -221,7 +221,7 @@ class QueryBuilder:
 
     @staticmethod
     def match_relation(
-        model_class: type, var: str = "$r", role_players: dict[str, str] | None = None
+        model_class: type[Relation], var: str = "$r", role_players: dict[str, str] | None = None
     ) -> Query:
         """Create a match query for a relation.
 
