@@ -72,7 +72,9 @@ def db(docker_typedb):
     Args:
         docker_typedb: Fixture that ensures Docker container is running
     """
-    database = Database(address="localhost:1729", database="test_expressions")
+    from tests.integration.conftest import TEST_DB_ADDRESS
+
+    database = Database(address=TEST_DB_ADDRESS, database="test_expressions")
     database.connect()
     yield database
     database.close()

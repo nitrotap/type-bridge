@@ -6,7 +6,7 @@ from typedb.driver import TransactionType
 
 from type_bridge.models import Relation
 from type_bridge.query import Query
-from type_bridge.session import Database, Transaction
+from type_bridge.session import Connection, ConnectionExecutor
 
 from ..base import R
 from ..utils import format_value, is_multi_value_attribute
@@ -22,16 +22,16 @@ class RelationManager[R: Relation]:
     Type-safe manager that preserves relation type information.
     """
 
-    def __init__(self, db: Database, model_class: type[R], transaction: Transaction | None = None):
+    def __init__(self, connection: Connection, model_class: type[R]):
         """Initialize relation manager.
 
         Args:
-            db: Database connection
+            connection: Database, Transaction, or TransactionContext
             model_class: Relation model class
         """
-        self.db = db
+        self._connection = connection
+        self._executor = ConnectionExecutor(connection)
         self.model_class = model_class
-        self.transaction = transaction
 
     def insert(self, relation: R) -> R:
         """Insert a typed relation instance into the database.
@@ -1063,20 +1063,14 @@ class RelationManager[R: Relation]:
                             f"Available attribute types: {', '.join(t.__name__ for t in owned_attr_types)}"
                         )
 
-        query = RelationQuery(
-            self.db, self.model_class, filters if filters else None, transaction=self.transaction
-        )
+        query = RelationQuery(self._connection, self.model_class, filters if filters else None)
         if expressions:
             query._expressions.extend(expressions)
         return query
 
     def _execute(self, query: str, tx_type: TransactionType) -> list[dict[str, Any]]:
         """Execute a query using an existing transaction when provided."""
-        if self.transaction:
-            return self.transaction.execute(query)
-
-        with self.db.transaction(tx_type) as tx:
-            return tx.execute(query)
+        return self._executor.execute(query, tx_type)
 
     def group_by(self, *fields: Any) -> "RelationGroupByQuery[R]":
         """Create a group-by query for aggregating by field values.
@@ -1099,6 +1093,4 @@ class RelationManager[R: Relation]:
         # Import here to avoid circular dependency
         from .group_by import RelationGroupByQuery
 
-        return RelationGroupByQuery(
-            self.db, self.model_class, {}, [], fields, transaction=self.transaction
-        )
+        return RelationGroupByQuery(self._connection, self.model_class, {}, [], fields)

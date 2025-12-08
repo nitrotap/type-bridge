@@ -21,7 +21,7 @@ from type_bridge.models.utils import ModelAttrInfo, extract_metadata
 
 if TYPE_CHECKING:
     from type_bridge.crud import EntityManager
-    from type_bridge.session import Database, Transaction, TransactionContext
+    from type_bridge.session import Connection
 
 # Type variable for self type
 E = TypeVar("E", bound="Entity")
@@ -291,12 +291,12 @@ class Entity(TypeDBType, metaclass=EntityMeta):
     @classmethod
     def manager(
         cls: type[E],
-        db: Database | Transaction | TransactionContext,
+        connection: Connection,
     ) -> EntityManager[E]:
         """Create an EntityManager for this entity type.
 
         Args:
-            db: Database connection or existing transaction/context
+            connection: Database, Transaction, or TransactionContext
 
         Returns:
             EntityManager instance for this entity type with proper type information
@@ -315,26 +315,14 @@ class Entity(TypeDBType, metaclass=EntityMeta):
             # person is inferred as Person type by type checkers
         """
         from type_bridge.crud import EntityManager
-        from type_bridge.session import Transaction, TransactionContext
 
-        transaction: Transaction | None = None
+        return EntityManager(connection, cls)
 
-        if isinstance(db, TransactionContext):
-            transaction = db.transaction
-            db_conn: Database | Transaction = db.database
-        elif isinstance(db, Transaction):
-            transaction = db
-            db_conn = db
-        else:
-            db_conn = db
-
-        return EntityManager(db_conn, cls, transaction=transaction)
-
-    def insert(self: E, db: Database) -> E:
+    def insert(self: E, connection: Connection) -> E:
         """Insert this entity instance into the database.
 
         Args:
-            db: Database connection
+            connection: Database, Transaction, or TransactionContext
 
         Returns:
             Self for chaining
@@ -343,10 +331,8 @@ class Entity(TypeDBType, metaclass=EntityMeta):
             person = Person(name=Name("Alice"), age=Age(30))
             person.insert(db)
         """
-        query = f"insert {self.to_insert_query()};"
-        with db.transaction("write") as tx:
-            tx.execute(query)
-            tx.commit()
+        manager = self.__class__.manager(connection)
+        manager.insert(self)
         return self
 
     @classmethod

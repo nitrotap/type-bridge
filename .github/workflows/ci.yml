@@ -163,4 +163,5 @@ jobs:
       - name: Run integration tests for ${{ matrix.test-group }}
         env:
           USE_DOCKER: false
+          TYPEDB_ADDRESS: localhost:1729
         run: uv run pytest tests/integration/${{ matrix.test-group }} -m integration -v --tb=short

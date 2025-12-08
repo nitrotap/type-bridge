@@ -9,7 +9,7 @@ from type_bridge.attribute.string import String
 from type_bridge.expressions import AttributeExistsExpr, Expression
 from type_bridge.models import Entity
 from type_bridge.query import QueryBuilder
-from type_bridge.session import Database, Transaction
+from type_bridge.session import Connection, ConnectionExecutor
 
 from ..base import E
 from ..utils import format_value, is_multi_value_attribute
@@ -27,22 +27,18 @@ class EntityManager[E: Entity]:
 
     def __init__(
         self,
-        db: Database | Transaction,
+        connection: Connection,
         model_class: type[E],
-        transaction: Transaction | None = None,
     ):
         """Initialize entity manager.
 
         Args:
-            db: Database connection (or Transaction when an existing transaction is supplied)
+            connection: Database, Transaction, or TransactionContext
             model_class: Entity model class
         """
-        if isinstance(db, Transaction):
-            # When a Transaction is passed, a matching transaction must be provided for execution.
-            assert transaction is not None, "transaction is required when db is a Transaction"
-        self.db = db
+        self._connection = connection
+        self._executor = ConnectionExecutor(connection)
         self.model_class = model_class
-        self.transaction = transaction
 
     def insert(self, entity: E) -> E:
         """Insert an entity instance into the database.
@@ -157,16 +153,14 @@ class EntityManager[E: Entity]:
         if not entities:
             return []
 
-        if self.transaction:
+        if self._executor.has_transaction:
             for entity in entities:
                 self.update(entity)
             return entities
 
-        if not isinstance(self.db, Database):
-            raise RuntimeError("Database is required when no transaction is provided")
-
-        with self.db.transaction(TransactionType.WRITE) as tx_ctx:
-            temp_manager = EntityManager(self.db, self.model_class, transaction=tx_ctx.transaction)
+        assert self._executor.database is not None
+        with self._executor.database.transaction(TransactionType.WRITE) as tx_ctx:
+            temp_manager = EntityManager(tx_ctx, self.model_class)
             for entity in entities:
                 temp_manager.update(entity)
 
@@ -286,10 +280,9 @@ class EntityManager[E: Entity]:
                         )
 
         query = EntityQuery(
-            self.db,
+            self._connection,
             self.model_class,
             base_filters if base_filters else None,
-            transaction=self.transaction,
         )
         if expressions:
             query._expressions.extend(expressions)
@@ -318,7 +311,7 @@ class EntityManager[E: Entity]:
         # Import here to avoid circular dependency
         from .group_by import GroupByQuery
 
-        return GroupByQuery(self.db, self.model_class, {}, [], fields, transaction=self.transaction)
+        return GroupByQuery(self._connection, self.model_class, {}, [], fields)
 
     def _parse_lookup_filters(self, filters: dict[str, Any]) -> tuple[dict[str, Any], list[Any]]:
         """Parse Django-style lookup filters into base filters and expressions."""
@@ -703,11 +696,4 @@ class EntityManager[E: Entity]:
 
     def _execute(self, query: str, tx_type: TransactionType) -> list[dict[str, Any]]:
         """Execute a query using existing transaction if provided."""
-        if self.transaction:
-            return self.transaction.execute(query)
-
-        if not isinstance(self.db, Database):
-            raise RuntimeError("Database is required when no transaction is provided")
-
-        with self.db.transaction(tx_type) as tx:
-            return tx.execute(query)
+        return self._executor.execute(query, tx_type)

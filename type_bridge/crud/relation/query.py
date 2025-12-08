@@ -6,7 +6,7 @@ from typedb.driver import TransactionType
 
 from type_bridge.models import Relation
 from type_bridge.query import Query
-from type_bridge.session import Database, Transaction
+from type_bridge.session import Connection, ConnectionExecutor
 
 from ..base import R
 from ..utils import format_value, is_multi_value_attribute
@@ -24,22 +24,21 @@ class RelationQuery[R: Relation]:
 
     def __init__(
         self,
-        db: Database,
+        connection: Connection,
         model_class: type[R],
         filters: dict[str, Any] | None = None,
-        transaction: Transaction | None = None,
     ):
         """Initialize relation query.
 
         Args:
-            db: Database connection
+            connection: Database, Transaction, or TransactionContext
             model_class: Relation model class
             filters: Attribute and role player filters (exact match) - optional
         """
-        self.db = db
+        self._connection = connection
+        self._executor = ConnectionExecutor(connection)
         self.model_class = model_class
         self.filters = filters or {}
-        self.transaction = transaction
         self._expressions: list[Any] = []  # Store Expression objects
         self._limit_value: int | None = None
         self._offset_value: int | None = None
@@ -509,12 +508,16 @@ class RelationQuery[R: Relation]:
             func(relation)
 
         # Update all relations in a single transaction
-        if self.transaction:
+        if self._executor.has_transaction:
+            tx = self._executor.transaction
+            assert tx is not None
             for relation, original in zip(relations, original_values):
                 query_str = self._build_update_query(relation, original)
-                self.transaction.execute(query_str)
+                tx.execute(query_str)
         else:
-            with self.db.transaction(TransactionType.WRITE) as tx:
+            db = self._executor.database
+            assert db is not None
+            with db.transaction(TransactionType.WRITE) as tx:
                 for relation, original in zip(relations, original_values):
                     query_str = self._build_update_query(relation, original)
                     tx.execute(query_str)
@@ -828,11 +831,7 @@ class RelationQuery[R: Relation]:
 
     def _execute(self, query: str, tx_type: TransactionType) -> list[dict[str, Any]]:
         """Execute a query using an existing transaction if available."""
-        if self.transaction:
-            return self.transaction.execute(query)
-
-        with self.db.transaction(tx_type) as tx:
-            return tx.execute(query)
+        return self._executor.execute(query, tx_type)
 
     def group_by(self, *fields: Any) -> "RelationGroupByQuery[R]":
         """Group relations by field values.
@@ -850,10 +849,9 @@ class RelationQuery[R: Relation]:
         from .group_by import RelationGroupByQuery
 
         return RelationGroupByQuery(
-            self.db,
+            self._connection,
             self.model_class,
             self.filters,
             self._expressions,
             fields,
-            transaction=self.transaction,
         )

@@ -1,8 +1,10 @@
 """Tests for roles playable by multiple entity types."""
 
+from typing import cast
+
 import pytest
 
-from type_bridge import Entity, Flag, Key, Relation, Role, String, TypeFlags
+from type_bridge import Database, Entity, Flag, Key, Relation, Role, String, TypeFlags
 from type_bridge.schema.info import SchemaInfo
 
 
@@ -127,7 +129,7 @@ def test_delete_filters_use_actual_role_player_type_for_multi_roles():
 
     bot = Bot(bot_id=BotId("b-1"))
 
-    Interaction.manager(fake_db).filter(actor=bot).delete()
+    Interaction.manager(cast(Database, fake_db)).filter(actor=bot).delete()
 
     assert recorder, "Expected delete to execute a query"
     built_query = recorder[0]

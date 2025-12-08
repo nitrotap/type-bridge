@@ -272,8 +272,68 @@ class TransactionContext:
         from type_bridge.models import Entity, Relation
 
         if issubclass(model_cls, Entity):
-            return EntityManager(self.db, model_cls, transaction=self.transaction)
+            return EntityManager(self.transaction, model_cls)
         if issubclass(model_cls, Relation):
-            return RelationManager(self.db, model_cls, transaction=self.transaction)
+            return RelationManager(self.transaction, model_cls)
 
         raise TypeError("manager() expects an Entity or Relation subclass")
+
+
+# Type alias for unified connection type
+Connection = Database | Transaction | TransactionContext
+
+
+class ConnectionExecutor:
+    """Delegate that handles query execution across connection types.
+
+    This class encapsulates the logic for executing queries against different
+    connection types (Database, Transaction, or TransactionContext), providing
+    a unified interface for CRUD operations.
+    """
+
+    def __init__(self, connection: Connection):
+        """Initialize the executor with a connection.
+
+        Args:
+            connection: Database, Transaction, or TransactionContext
+        """
+        if isinstance(connection, TransactionContext):
+            self._transaction: Transaction | None = connection.transaction
+            self._database: Database | None = None
+        elif isinstance(connection, Transaction):
+            self._transaction = connection
+            self._database = None
+        else:
+            self._transaction = None
+            self._database = connection
+
+    def execute(self, query: str, tx_type: TransactionType) -> list[dict[str, Any]]:
+        """Execute query, using existing transaction or creating a new one.
+
+        Args:
+            query: TypeQL query string
+            tx_type: Transaction type (used only when creating new transaction)
+
+        Returns:
+            List of result dictionaries
+        """
+        if self._transaction:
+            return self._transaction.execute(query)
+        assert self._database is not None
+        with self._database.transaction(tx_type) as tx:
+            return tx.execute(query)
+
+    @property
+    def has_transaction(self) -> bool:
+        """Check if using an existing transaction."""
+        return self._transaction is not None
+
+    @property
+    def database(self) -> Database | None:
+        """Get database if available (for creating new transactions)."""
+        return self._database
+
+    @property
+    def transaction(self) -> Transaction | None:
+        """Get transaction if available."""
+        return self._transaction

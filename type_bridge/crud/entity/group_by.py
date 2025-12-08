@@ -7,7 +7,7 @@ from typedb.driver import TransactionType
 
 from type_bridge.models import Entity
 from type_bridge.query import QueryBuilder
-from type_bridge.session import Database, Transaction
+from type_bridge.session import Connection, ConnectionExecutor
 
 
 class GroupByQuery[E: Entity]:
@@ -18,28 +18,22 @@ class GroupByQuery[E: Entity]:
 
     def __init__(
         self,
-        db: Database | Transaction | None,
+        connection: Connection,
         model_class: type[E],
         filters: dict[str, Any],
         expressions: list[Any],
         group_fields: tuple[Any, ...],
-        transaction: Transaction | None = None,
     ):
         """Initialize grouped query.
 
         Args:
-            db: Database connection
+            connection: Database, Transaction, or TransactionContext
             model_class: Entity model class
             filters: Dict-based filters
             expressions: Expression-based filters
             group_fields: Fields to group by
         """
-        self.transaction: Transaction | None = transaction
-        if isinstance(db, Transaction):
-            assert transaction is not None, "transaction is required when db is a Transaction"
-            self.db: Database | None = None
-        else:
-            self.db = db
+        self._executor = ConnectionExecutor(connection)
         self.model_class = model_class
         self.filters = filters
         self._expressions = expressions
@@ -171,11 +165,4 @@ class GroupByQuery[E: Entity]:
 
     def _execute(self, query: str, tx_type: TransactionType) -> list[dict[str, Any]]:
         """Execute a query using an existing transaction if provided."""
-        if self.transaction:
-            return self.transaction.execute(query)
-
-        if self.db is None:
-            raise RuntimeError("Database is required when no transaction is provided")
-
-        with self.db.transaction(tx_type) as tx:
-            return tx.execute(query)
+        return self._executor.execute(query, tx_type)
