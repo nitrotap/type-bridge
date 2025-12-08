@@ -23,13 +23,14 @@ from type_bridge.crud import EntityManager, RelationManager
 from type_bridge.models import Entity, Relation, Role, TypeDBType
 from type_bridge.query import Query, QueryBuilder
 from type_bridge.schema import MigrationManager, SchemaManager
-from type_bridge.session import Database, TransactionContext
+from type_bridge.session import Connection, Database, TransactionContext
 from type_bridge.typedb_driver import Credentials, TransactionType, TypeDB
 
 __version__ = "0.6.3"
 
 __all__ = [
     # Database and session
+    "Connection",
     "Database",
     "TransactionContext",
     # TypeDB driver (re-exported for convenience)

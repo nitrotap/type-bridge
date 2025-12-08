@@ -7,7 +7,7 @@ from typedb.driver import TransactionType
 
 from type_bridge.models import Entity
 from type_bridge.query import Query, QueryBuilder
-from type_bridge.session import Database, Transaction
+from type_bridge.session import Connection, ConnectionExecutor
 
 from ..base import E
 from ..utils import format_value, is_multi_value_attribute
@@ -25,25 +25,19 @@ class EntityQuery[E: Entity]:
 
     def __init__(
         self,
-        db: Database | Transaction,
+        connection: Connection,
         model_class: type[E],
         filters: dict[str, Any] | None = None,
-        transaction: Transaction | None = None,
     ):
         """Initialize entity query.
 
         Args:
-            db: Database connection
+            connection: Database, Transaction, or TransactionContext
             model_class: Entity model class
             filters: Attribute filters (exact match) - optional, defaults to empty dict
         """
-        self.transaction: Transaction | None = transaction
-        if isinstance(db, Transaction):
-            # Existing transaction supplied; we won't open new ones from this query.
-            assert transaction is not None, "transaction is required when db is a Transaction"
-            self.db: Database | None = None
-        else:
-            self.db = db
+        self._connection = connection
+        self._executor = ConnectionExecutor(connection)
         self.model_class = model_class
         self.filters = filters or {}
         self._expressions: list[Any] = []  # Store Expression objects
@@ -295,14 +289,13 @@ class EntityQuery[E: Entity]:
             func(entity)
 
         # Update all entities in a single transaction
-        if self.transaction:
+        if self._executor.has_transaction:
             for entity in entities:
                 query_str = self._build_update_query(entity)
-                self.transaction.execute(query_str)
+                self._executor.execute(query_str, TransactionType.WRITE)
         else:
-            if self.db is None:
-                raise RuntimeError("Database is required when no transaction is provided")
-            with self.db.transaction(TransactionType.WRITE) as tx:
+            assert self._executor.database is not None
+            with self._executor.database.transaction(TransactionType.WRITE) as tx:
                 for entity in entities:
                     query_str = self._build_update_query(entity)
                     tx.execute(query_str)
@@ -530,14 +523,7 @@ class EntityQuery[E: Entity]:
 
     def _execute(self, query: str, tx_type: TransactionType) -> list[dict[str, Any]]:
         """Execute a query using an existing transaction if available."""
-        if self.transaction:
-            return self.transaction.execute(query)
-
-        if self.db is None:
-            raise RuntimeError("Database is required when no transaction is provided")
-
-        with self.db.transaction(tx_type) as tx:
-            return tx.execute(query)
+        return self._executor.execute(query, tx_type)
 
     def group_by(self, *fields: Any) -> "GroupByQuery[E]":
         """Group entities by field values.
@@ -555,10 +541,9 @@ class EntityQuery[E: Entity]:
         from .group_by import GroupByQuery
 
         return GroupByQuery(
-            self.db,
+            self._connection,
             self.model_class,
             self.filters,
             self._expressions,
             fields,
-            transaction=self.transaction,
         )
