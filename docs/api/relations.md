@@ -157,6 +157,28 @@ class Employment(Relation):
     )
 ```
 
+### Implicit TypeFlags
+
+For simple relations, `TypeFlags` is automatically created if not specified:
+
+```python
+# These are equivalent:
+class Employment(Relation):
+    employee: Role[Person] = Role("employee", Person)
+    employer: Role[Company] = Role("employer", Company)
+
+class Employment(Relation):
+    flags = TypeFlags()  # Not necessary
+    employee: Role[Person] = Role("employee", Person)
+    employer: Role[Company] = Role("employer", Company)
+```
+
+**When explicit flags ARE needed:**
+- `abstract=True` - Abstract relations
+- `base=True` - Python-only base classes
+- Custom `name` - Override type name
+- Custom `case` - Non-default case formatting
+
 ## Relation with Attributes
 
 Relations can own attributes just like entities:

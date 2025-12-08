@@ -1,6 +1,6 @@
 # Testing Guide
 
-TypeBridge uses a comprehensive two-tier testing approach with **100% test pass rate (558/558 tests)**.
+TypeBridge uses a comprehensive two-tier testing approach with **100% test pass rate (588/588 tests)**.
 
 ## Table of Contents
 
@@ -19,14 +19,14 @@ TypeBridge employs a two-tier testing approach that balances speed, isolation, a
 - **Isolated**: Test individual components in isolation
 - **No TypeDB required**: Use mocks and in-memory validation
 - **Run by default**: `pytest` runs unit tests only
-- **309 tests total**: Organized by functionality
+- **323 tests total**: Organized by functionality
 
 ### Integration Tests
 - **Sequential**: Use `@pytest.mark.order()` for predictable execution order
 - **Real database**: Require running TypeDB 3.x server
 - **End-to-end**: Test complete workflows from schema to queries
 - **Explicit execution**: Must use `pytest -m integration`
-- **249 tests total**: Full CRUD, schema, and query coverage
+- **265 tests total**: Full CRUD, schema, and query coverage
 
 ## Unit Tests
 
@@ -61,6 +61,9 @@ tests/unit/
 │   ├── test_comparisons.py   # Comparison operators
 │   ├── test_string_ops.py    # String operations
 │   └── test_aggregations.py  # Aggregation functions
+├── crud/                     # CRUD operation unit tests
+│   ├── test_lookup_parser.py # Lookup filter parsing
+│   └── test_update_queries.py # Update query generation
 ├── validation/               # Validation tests
 │   ├── test_keywords.py      # Reserved word validation
 │   └── test_schema_validation.py # Duplicate attribute detection
@@ -72,7 +75,7 @@ tests/unit/
 
 ```bash
 # Run all unit tests (default)
-uv run pytest                              # All 309 unit tests (~0.3s)
+uv run pytest                              # All 323 unit tests (~0.3s)
 uv run pytest -v                           # With verbose output
 
 # Run specific test category
@@ -163,11 +166,13 @@ tests/integration/
 │   ├── test_aggregations.py  # Database-side aggregations
 │   ├── test_pagination.py    # Limit, offset, sort
 │   └── test_filtering.py     # Filter operations
-└── schema/                   # Schema operations
-    ├── test_creation.py      # Schema creation
-    ├── test_conflict.py      # Conflict detection
-    ├── test_migration.py     # Schema migrations
-    └── test_inheritance.py   # Inheritance hierarchies
+├── schema/                   # Schema operations
+│   ├── test_creation.py      # Schema creation
+│   ├── test_conflict.py      # Conflict detection
+│   ├── test_migration.py     # Schema migrations
+│   └── test_inheritance.py   # Inheritance hierarchies
+└── session/                  # Session and transaction tests
+    └── test_transaction_context.py # TransactionContext operations
 ```
 
 ### Running Integration Tests
@@ -178,7 +183,7 @@ Integration tests require a running TypeDB 3.x server.
 
 ```bash
 # Run integration tests with Docker (automatic setup)
-./test-integration.sh                     # All 249 integration tests
+./test-integration.sh                     # All 265 integration tests
 ./test-integration.sh -v                  # With verbose output
 
 # Docker is automatically:
@@ -306,7 +311,7 @@ docker compose down -v
 uv run pytest                              # All 309 unit tests
 
 # Integration tests only (requires TypeDB)
-./test-integration.sh                     # All 249 integration tests with Docker
+./test-integration.sh                     # All 265 integration tests with Docker
 
 # All tests (unit + integration)
 uv run pytest -m ""                       # All 558 tests

@@ -201,6 +201,53 @@ class UserAccount(Entity):
     flags = TypeFlags(case="kebab-case")  # Type name: "user-account"
 ```
 
+### Implicit TypeFlags
+
+For simple entities, `TypeFlags` is automatically created if not specified:
+
+```python
+# These are equivalent:
+class Person(Entity):
+    name: Name = Flag(Key)  # TypeFlags() is implicit
+
+class Person(Entity):
+    flags = TypeFlags()  # Explicit but not necessary
+    name: Name = Flag(Key)
+```
+
+**When explicit flags ARE needed:**
+- `abstract=True` - Abstract entities
+- `base=True` - Python-only base classes (see below)
+- Custom `name` - Override type name
+- Custom `case` - Non-default case formatting
+
+### Python-Only Base Classes (base=True)
+
+Use `base=True` for intermediate Python base classes that should NOT appear in the TypeDB schema:
+
+```python
+class SharedMixin(Entity):
+    flags = TypeFlags(base=True)  # Won't appear in TypeDB schema
+
+    def shared_method(self):
+        return "Shared functionality"
+
+class Person(SharedMixin):
+    # Gets Entity as supertype, skipping SharedMixin
+    name: Name = Flag(Key)
+```
+
+**Use cases:**
+- Shared methods and utility functions
+- Python-side inheritance without TypeDB supertypes
+- Schema filtering for cleaner database design
+- Avoiding conflicting type names in TypeDB
+
+**Behavior:**
+- Base classes are excluded from `SchemaManager.registered_types`
+- Child classes resolve to their first non-base ancestor as supertype
+- Use `entity.is_base()` to check if an entity type is a base class
+
 ## Ownership Model
 
 In TypeBridge (and TypeDB), entities **own** attributes rather than defining them inline:

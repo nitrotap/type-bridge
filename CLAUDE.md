@@ -72,17 +72,28 @@ type_bridge/
 
 examples/
 ├── basic/                # Basic CRUD examples (start here!)
-│   ├── crud_01_define.py
-│   ├── crud_02_insert.py
-│   ├── crud_03_read.py
-│   └── crud_04_update.py
-└── advanced/             # Advanced features
-    ├── schema_01_manager.py
-    ├── schema_02_comparison.py
-    ├── schema_03_conflict.py
-    ├── pydantic_features.py
-    ├── type_safety.py
-    └── string_representation.py
+│   ├── crud_01_define.py     # Schema definition
+│   ├── crud_02_insert.py     # Data insertion
+│   ├── crud_03_read.py       # Fetching API
+│   ├── crud_04_update.py     # Update operations
+│   ├── crud_05_filter.py     # Advanced filtering
+│   ├── crud_06_aggregate.py  # Aggregations
+│   ├── crud_07_delete.py     # Delete operations
+│   └── crud_08_put.py        # Idempotent PUT
+├── advanced/             # Advanced features
+│   ├── schema_01_manager.py       # Schema operations
+│   ├── schema_02_comparison.py    # Schema comparison
+│   ├── schema_03_conflict.py      # Conflict detection
+│   ├── features_01_pydantic.py    # Pydantic integration
+│   ├── features_02_type_safety.py # Literal types
+│   ├── features_03_string_repr.py # String representations
+│   ├── features_04_base_flag.py   # Python-only base classes
+│   ├── features_05_implicit_flags.py # Implicit TypeFlags
+│   ├── query_01_expressions.py    # Query expressions
+│   └── validation_01_reserved_words.py # Keyword validation
+└── patterns/             # Design patterns
+    ├── cardinality_01_multi_value.py  # Cardinality patterns
+    └── inheritance_01_abstract.py     # Abstract types
 
 tests/
 ├── unit/                 # Unit tests (fast, isolated, no external dependencies)
@@ -90,11 +101,13 @@ tests/
 │   ├── attributes/       # Attribute type tests
 │   ├── flags/            # Flag system tests
 │   ├── expressions/      # Query expression API
+│   ├── crud/             # CRUD unit tests (lookup parser, etc.)
 │   └── validation/       # Reserved word and keyword validation
 └── integration/          # Integration tests (require running TypeDB)
     ├── crud/             # CRUD operations
     ├── queries/          # Query builder tests
-    └── schema/           # Schema operations
+    ├── schema/           # Schema operations
+    └── session/          # TransactionContext tests
 ```
 
 ## Dependencies
@@ -179,5 +192,8 @@ persons = person_manager.all()
 4. **Use Flag system** - `Flag(Key)`, `Flag(Unique)`, `Flag(Card(min=2))`
 5. **Python inheritance maps to TypeDB supertypes** - Use `abstract=True` for abstract types
 6. **Keyword-only arguments** - All Entity/Relation constructors require keyword arguments
+7. **TransactionContext** - Share transactions across operations with `db.transaction()`
+8. **Connection type** - Managers accept `Database`, `Transaction`, or `TransactionContext`
+9. **Dict helpers** - Use `to_dict()` and `from_dict()` for serialization
 
 For detailed documentation, see the links above.

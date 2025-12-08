@@ -25,6 +25,10 @@ A modern, Pythonic ORM for [TypeDB](https://github.com/typedb/typedb) with an At
 - **Chainable Operations**: Filter, delete, and bulk update with method chaining and lambda functions
 - **Query Builder**: Pythonic interface for building TypeQL queries
 - **Multi-player Roles**: A single role can accept multiple entity types via `Role.multi(...)`
+- **Transaction Context**: Share transactions across multiple operations with `TransactionContext`
+- **Django-style Lookups**: Filter with `__contains`, `__gt`, `__in`, `__isnull` and more
+- **Dict Helpers**: `to_dict()` and `from_dict()` for easy serialization and API integration
+- **Bulk Operations**: `update_many()` and `delete_many()` for efficient batch processing
 
 ## Installation
 
@@ -264,13 +268,20 @@ uv run python examples/basic/crud_02_insert.py  # Data insertion
 uv run python examples/basic/crud_03_read.py    # Fetching API
 uv run python examples/basic/crud_04_update.py  # Update operations
 
+# Additional basic examples
+uv run python examples/basic/crud_05_filter.py    # Advanced filtering
+uv run python examples/basic/crud_06_aggregate.py # Aggregations
+uv run python examples/basic/crud_07_delete.py    # Delete operations
+uv run python examples/basic/crud_08_put.py       # Idempotent PUT operations
+
 # Advanced examples
-uv run python examples/advanced/schema_01_manager.py     # Schema operations
-uv run python examples/advanced/schema_02_comparison.py  # Schema comparison
-uv run python examples/advanced/schema_03_conflict.py    # Conflict detection
-uv run python examples/advanced/pydantic_features.py     # Pydantic integration
-uv run python examples/advanced/type_safety.py           # Literal types
-uv run python examples/advanced/reserved_words_validation.py  # Keyword validation
+uv run python examples/advanced/schema_01_manager.py       # Schema operations
+uv run python examples/advanced/schema_02_comparison.py    # Schema comparison
+uv run python examples/advanced/schema_03_conflict.py      # Conflict detection
+uv run python examples/advanced/features_01_pydantic.py    # Pydantic integration
+uv run python examples/advanced/features_02_type_safety.py # Literal types
+uv run python examples/advanced/query_01_expressions.py    # Query expressions
+uv run python examples/advanced/validation_01_reserved_words.py  # Keyword validation
 ```
 
 ## Running Tests
@@ -279,7 +290,7 @@ TypeBridge uses a two-tier testing approach with **100% test pass rate**:
 
 ```bash
 # Unit tests (fast, no external dependencies) - DEFAULT
-uv run pytest                              # Run 309 unit tests (0.3s)
+uv run pytest                              # Run 323 unit tests (0.3s)
 uv run pytest tests/unit/attributes/ -v   # Test all 9 attribute types
 uv run pytest tests/unit/core/ -v         # Test core functionality
 uv run pytest tests/unit/flags/ -v        # Test flag system
@@ -290,7 +301,7 @@ uv run pytest tests/unit/expressions/ -v  # Test query expressions
 ./test-integration.sh                     # Starts Docker, runs tests, stops Docker
 
 # Option 2: Use existing TypeDB server
-USE_DOCKER=false uv run pytest -m integration -v  # Run 249 integration tests (~60s)
+USE_DOCKER=false uv run pytest -m integration -v  # Run 265 integration tests (~60s)
 
 # Run specific integration test categories
 uv run pytest tests/integration/crud/entities/ -v      # Entity CRUD tests

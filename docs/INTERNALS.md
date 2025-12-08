@@ -8,6 +8,8 @@ This guide covers TypeBridge's internal type system, architecture decisions, and
 - [Modern Python Type Hints](#modern-python-type-hints)
 - [Type Checking and Static Analysis](#type-checking-and-static-analysis)
 - [Keyword-Only Arguments](#keyword-only-arguments)
+- [Modular Architecture](#modular-architecture)
+- [Connection Architecture](#connection-architecture)
 - [Deprecated APIs](#deprecated-apis)
 
 ## Internal Type System
@@ -440,6 +442,96 @@ from type_bridge.crud.relation import RelationManager
 
 # Shared utilities (internal use)
 from type_bridge.crud.utils import format_value, is_multi_value_attribute
+```
+
+## Connection Architecture
+
+TypeBridge provides a unified connection handling system for flexible transaction management.
+
+### Connection Type
+
+The `Connection` type alias allows managers to accept any connection type:
+
+```python
+from type_bridge.session import Connection, Database, Transaction, TransactionContext
+
+# Type alias for flexible connection handling
+Connection = Database | Transaction | TransactionContext
+
+# Managers accept any Connection type
+person_manager = Person.manager(db)         # Database
+person_manager = Person.manager(tx)         # Transaction
+person_manager = Person.manager(tx_ctx)     # TransactionContext
+```
+
+### TransactionContext
+
+`TransactionContext` enables sharing transactions across multiple operations:
+
+```python
+from typedb.driver import TransactionType
+
+# Create a shared transaction context
+with db.transaction(TransactionType.WRITE) as tx:
+    person_mgr = Person.manager(tx)     # reuses tx
+    artifact_mgr = Artifact.manager(tx)  # same tx
+
+    person_mgr.insert(alice)
+    artifact_mgr.insert(artifact)
+    # Both commit together on context exit
+```
+
+**Behavior:**
+- Auto-commit on successful context exit (WRITE/SCHEMA transactions)
+- Auto-rollback on exception
+- READ transactions never commit (no writes)
+
+### ConnectionExecutor
+
+The internal `ConnectionExecutor` class handles transaction delegation:
+
+```python
+class ConnectionExecutor:
+    """Unified query execution across connection types."""
+
+    def __init__(self, connection: Connection):
+        # Extracts database/transaction from connection
+
+    def execute(self, query: str, tx_type: TransactionType) -> list[dict[str, Any]]:
+        # Uses existing transaction or creates new one
+
+    @property
+    def has_transaction(self) -> bool:
+        # True if using an existing transaction
+
+    @property
+    def database(self) -> Database | None:
+        # Returns database if available (for creating new transactions)
+```
+
+**Design principles:**
+1. **Transparency**: CRUD operations work identically regardless of connection type
+2. **Transaction reuse**: Existing transactions are never duplicated
+3. **Auto-management**: Database connections create transactions as needed
+4. **Atomic operations**: Bulk operations use single transactions
+
+### Usage Patterns
+
+```python
+# Pattern 1: Simple operations (auto-managed transactions)
+db = Database(address="localhost:1729", database="mydb")
+Person.manager(db).insert(alice)  # Opens and commits its own transaction
+
+# Pattern 2: Shared transaction (atomic multi-operation)
+with db.transaction(TransactionType.WRITE) as tx:
+    Person.manager(tx).insert(alice)
+    Company.manager(tx).insert(techcorp)
+    Employment.manager(tx).insert(employment)
+    # All commit together
+
+# Pattern 3: Bulk operations (single transaction internally)
+Person.manager(db).insert_many(people)  # One transaction for all
+Person.manager(db).update_many(people)  # One transaction for all
 ```
 
 ## Deprecated APIs

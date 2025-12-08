@@ -2,6 +2,84 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [0.7.0] - 2025-12-08
+
+### 🚀 New Features
+
+#### TransactionContext for Shared Operations
+- **Added `TransactionContext` class for sharing transactions across operations**
+  - Multiple managers can share a single transaction
+  - Auto-commit on context exit, rollback on exception
+  - Location: `type_bridge/session.py`
+
+```python
+with db.transaction(TransactionType.WRITE) as tx:
+    person_mgr = Person.manager(tx)     # reuses tx
+    artifact_mgr = Artifact.manager(tx)  # same tx
+    # ... operations commit together
+```
+
+#### Unified Connection Type
+- **Added `Connection` type alias for flexible connection handling**
+  - `Connection = Database | Transaction | TransactionContext`
+  - All managers accept any Connection type
+  - `ConnectionExecutor` handles transaction reuse internally
+  - Location: `type_bridge/session.py`
+
+#### Entity Dict Helpers
+- **Added `Entity.to_dict()` for serialization**
+  - Unwraps Attribute instances to `.value`
+  - Supports `include`, `exclude`, `by_alias`, `exclude_unset` options
+- **Added `Entity.from_dict()` for deserialization**
+  - Optional `field_mapping` for external key names
+  - `strict=False` mode to ignore unknown fields
+  - Location: `type_bridge/models/entity.py`
+
+```python
+person.to_dict()  # {'name': 'Alice', 'age': 30}
+Person.from_dict(payload, field_mapping={"display-id": "display_id"})
+```
+
+#### Django-style Lookup Filters
+- **Added lookup suffix operators to `filter()`**
+  - `__contains`, `__startswith`, `__endswith`, `__regex` for strings
+  - `__gt`, `__gte`, `__lt`, `__lte` for comparisons
+  - `__in` for disjunction (multiple values)
+  - `__isnull` for null checks
+  - Location: `type_bridge/crud/entity/manager.py`
+
+```python
+person_manager.filter(name__startswith="Al", age__gt=30).execute()
+person_manager.filter(status__in=["active", "pending"]).execute()
+```
+
+#### Bulk Operations
+- **Added `EntityManager.update_many()`** - Update multiple entities in one transaction
+- **Added `EntityManager.delete_many()`** - Bulk delete with `__in` filter support
+
+### 📚 Documentation
+
+- **Comprehensive documentation update**
+  - Fixed broken example paths in README.md
+  - Added Connection types documentation to docs/api/crud.md
+  - Added TransactionContext usage examples
+  - Added lookup filter documentation with TypeQL mappings
+  - Added dict helpers documentation to docs/api/entities.md
+
+### 🔧 Maintenance
+
+- Fixed version mismatch between pyproject.toml and __init__.py
+- Added `typings/` stubs for `isodate` and `typedb.driver`
+
+### 📦 Key Files Modified
+
+- `type_bridge/session.py` - Added TransactionContext, Connection, ConnectionExecutor
+- `type_bridge/models/entity.py` - Added to_dict(), from_dict()
+- `type_bridge/crud/entity/manager.py` - Added lookup filters, update_many, delete_many
+- `type_bridge/crud/relation/manager.py` - Unified connection handling
+- `docs/api/crud.md` - New sections for transactions, lookups, bulk ops
+- `docs/api/entities.md` - Dict helpers documentation
+
 ## [0.6.4] - 2025-12-04
 
 ### 🚀 New Features

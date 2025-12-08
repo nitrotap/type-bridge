@@ -113,6 +113,35 @@ person = Person(name=Name("Alice"), age=Age(30))
 person = Person(Name("Alice"), Age(30))
 ```
 
+### 6. TransactionContext for Shared Operations
+
+Share transactions across multiple operations:
+
+```python
+with db.transaction(TransactionType.WRITE) as tx:
+    Person.manager(tx).insert(alice)
+    Company.manager(tx).insert(techcorp)
+    # Both commit together
+```
+
+### 7. Django-style Lookup Filters
+
+Filter with expressive suffix operators:
+
+```python
+person_manager.filter(name__startswith="Al", age__gt=30).execute()
+person_manager.filter(status__in=["active", "pending"]).execute()
+```
+
+### 8. Dict Helpers for Serialization
+
+Easy conversion to/from dictionaries:
+
+```python
+data = person.to_dict()  # {'name': 'Alice', 'age': 30}
+person = Person.from_dict(data)
+```
+
 ## Generated Schema Example
 
 The Python code above generates this TypeQL schema:
