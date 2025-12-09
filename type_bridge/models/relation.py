@@ -390,6 +390,29 @@ class Relation(TypeDBType, metaclass=RelationMeta):
         manager.insert(self)
         return self
 
+    def delete(self: R, connection: Connection) -> R:
+        """Delete this relation instance from the database.
+
+        Args:
+            connection: Database, Transaction, or TransactionContext
+
+        Returns:
+            Self for chaining
+
+        Example:
+            employment = Employment(
+                position=Position("Engineer"),
+                salary=Salary(100000),
+                employee=person,
+                employer=company
+            )
+            employment.insert(db)
+            employment.delete(db)
+        """
+        manager = self.__class__.manager(connection)
+        manager.delete(self)
+        return self
+
     @classmethod
     def to_schema_definition(cls) -> str | None:
         """Generate TypeQL schema definition for this relation.

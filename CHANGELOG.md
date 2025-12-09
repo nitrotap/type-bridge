@@ -2,6 +2,69 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [0.7.1] - 2025-12-09
+
+### Breaking Changes
+
+#### Delete API Refactored to Instance-Based Pattern
+- **Changed `EntityManager.delete()` signature**
+  - Old: `delete(**filters) -> int` (filter-based, returns count)
+  - New: `delete(entity: E) -> E` (instance-based, returns deleted entity)
+  - Uses `@key` attributes to identify entity (same pattern as `update()`)
+  - Related: [Issue #37](https://github.com/ds1sqe/type-bridge/issues/37)
+
+- **Changed `EntityManager.delete_many()` signature**
+  - Old: `delete_many(**filters) -> int` (filter-based with `__in` support)
+  - New: `delete_many(entities: list[E]) -> list[E]` (instance list, returns list)
+
+- **Changed `RelationManager.delete()` and `delete_many()` similarly**
+  - Uses role players' `@key` attributes to identify the relation
+  - Each role player is matched by their `@key` attribute
+
+### New Features
+
+#### Instance Delete Methods
+- **Added `Entity.delete(connection)` instance method**
+  - Delete entity directly: `alice.delete(db)`
+  - Returns self for chaining
+  - Location: `type_bridge/models/entity.py`
+
+- **Added `Relation.delete(connection)` instance method**
+  - Delete relation directly: `employment.delete(db)`
+  - Returns self for chaining
+  - Location: `type_bridge/models/relation.py`
+
+#### Fallback for Entities Without @key
+- **Entities without `@key` can still be deleted** if they match exactly 1 record
+  - Matches by ALL non-None attributes
+  - Raises `ValueError` if 0 or >1 matches found
+  - Provides safer delete behavior than filter-based approach
+
+### Migration Guide
+
+```python
+# OLD (v0.7.0): Filter-based deletion
+deleted_count = manager.delete(name="Alice")  # Returns int
+
+# NEW (v0.7.1): Instance-based deletion
+alice = manager.get(name="Alice")[0]
+deleted = manager.delete(alice)  # Returns Alice instance
+
+# OR use instance method
+alice.delete(db)  # Returns alice
+
+# For filter-based deletion, use filter().delete()
+count = manager.filter(name__in=["Alice", "Bob"]).delete()  # Still returns int
+count = manager.filter(Age.gt(Age(65))).delete()  # Expression filters
+```
+
+### Key Files Modified
+
+- `type_bridge/crud/entity/manager.py` - Refactored `delete()`, `delete_many()`
+- `type_bridge/crud/relation/manager.py` - Refactored `delete()`, `delete_many()`
+- `type_bridge/models/entity.py` - Added `delete()` instance method
+- `type_bridge/models/relation.py` - Added `delete()` instance method
+
 ## [0.7.0] - 2025-12-08
 
 ### 🚀 New Features

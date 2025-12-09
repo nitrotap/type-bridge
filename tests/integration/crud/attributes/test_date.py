@@ -141,8 +141,8 @@ def test_date_delete(clean_db):
     person = Person(name=Name("Eve"), birth_date=BirthDate(date(2000, 12, 31)))
     manager.insert(person)
 
-    # Delete by Date attribute
-    deleted_count = manager.delete(birth_date=date(2000, 12, 31))
+    # Delete by Date attribute using filter
+    deleted_count = manager.filter(birth_date=date(2000, 12, 31)).delete()
     assert deleted_count == 1
 
     # Verify deletion

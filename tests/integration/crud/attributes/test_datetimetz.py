@@ -156,8 +156,8 @@ def test_datetimetz_delete(clean_db):
     )
     manager.insert(event)
 
-    # Delete by DateTimeTZ attribute
-    deleted_count = manager.delete(updated_at=datetime(2024, 5, 1, 15, 0, 0, tzinfo=UTC))
+    # Delete by DateTimeTZ attribute using filter
+    deleted_count = manager.filter(updated_at=datetime(2024, 5, 1, 15, 0, 0, tzinfo=UTC)).delete()
     assert deleted_count == 1
 
     # Verify deletion

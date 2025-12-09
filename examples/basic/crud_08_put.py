@@ -255,7 +255,7 @@ def main():
     print("  (Second insert would violate @key constraint)")
 
     # Clean up test user
-    person_manager.delete(name="TestUser")
+    person_manager.filter(name="TestUser").delete()
 
     # Use PUT - idempotent
     print("\nUsing PUT twice:")
@@ -268,7 +268,7 @@ def main():
     print(f"  After 2nd put: {count_after_second_put} TestUser(s) (idempotent!)")
 
     # Clean up
-    person_manager.delete(name="TestUser")
+    person_manager.filter(name="TestUser").delete()
 
     # -------------------------------------------------------------------------
     # Summary

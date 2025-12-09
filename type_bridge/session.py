@@ -238,7 +238,9 @@ class TransactionContext:
                 if self.tx_type in (TransactionType.WRITE, TransactionType.SCHEMA):
                     self._tx.commit()
             else:
-                self._tx.rollback()
+                # Only rollback WRITE/SCHEMA transactions - READ can't be rolled back
+                if self.tx_type in (TransactionType.WRITE, TransactionType.SCHEMA):
+                    self._tx.rollback()
 
         self._tx.close()
 

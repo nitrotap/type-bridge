@@ -139,8 +139,8 @@ def test_string_delete(clean_db):
     user = User(username=Username("eve"), bio=Bio("TypeDB expert"))
     manager.insert(user)
 
-    # Delete by String attribute
-    deleted_count = manager.delete(bio="TypeDB expert")
+    # Delete by String attribute using filter
+    deleted_count = manager.filter(bio="TypeDB expert").delete()
     assert deleted_count == 1
 
     # Verify deletion

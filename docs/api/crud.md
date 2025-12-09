@@ -61,11 +61,11 @@ class EntityManager[E: Entity]:
     def all(self) -> list[E]:
         """Get all entities of this type."""
 
-    def delete(self, **filters) -> int:
-        """Delete entities matching filters. Returns count (bulk)."""
+    def delete(self, entity: E) -> E:
+        """Delete entity by instance. Returns deleted entity."""
 
-    def delete_many(self, **filters) -> int:
-        """Bulk delete with support for __in filters."""
+    def delete_many(self, entities: list[E]) -> list[E]:
+        """Delete multiple entities. Returns list of deleted entities."""
 
     # Managers can be bound to an existing Transaction/TransactionContext
     # Person.manager(tx) reuses the provided transaction
@@ -459,34 +459,83 @@ $e has status "active";
 
 ## Delete Operations
 
+**Changed in v0.7.1**: Delete API refactored to instance-based pattern for consistency with `insert()` and `update()`.
+
 TypeBridge supports two delete patterns:
-1. **Direct delete**: `manager.delete(**filters)` - delete with keyword filters
-2. **Chainable delete**: `manager.filter(...).delete()` - delete after complex filtering
+1. **Instance delete**: `manager.delete(entity)` - delete by entity instance (recommended)
+2. **Filter delete**: `manager.filter(...).delete()` - delete matching entities by filter
 
-### Direct Delete
+### Instance Delete (Recommended)
 
-Delete entities matching filter criteria:
+Delete entities by instance, similar to `update()`:
 
 ```python
-# Delete by key attribute
-deleted_count = person_manager.delete(name="Alice")
-print(f"Deleted {deleted_count} entities")
+# Step 1: Get entity instance
+alice = person_manager.get(name="Alice")[0]
 
-# Delete by other attributes
-deleted_count = person_manager.delete(age=25)
+# Step 2: Delete using manager
+deleted = person_manager.delete(alice)
+print(f"Deleted: {deleted.name.value}")  # Returns the deleted entity
 
-# Delete with multiple filters (AND logic)
-deleted_count = person_manager.delete(age=30, status="inactive")
+# OR use instance method directly
+alice.delete(db)  # Returns alice for chaining
 ```
 
-### Chainable Delete
+**How instance delete works**:
+- Uses `@key` attributes to identify the entity (same as `update()`)
+- Returns the deleted entity instance (not a count)
+- Raises `ValueError` if key attribute is None
 
-**New in v0.6.0**: Delete after complex filtering with expressions:
+### Delete Entities Without @key
+
+For entities without `@key` attributes, delete matches by ALL attributes:
+
+```python
+class Counter(Entity):
+    flags = TypeFlags(name="counter")
+    value: Value  # No @key attribute
+
+counter = Counter(value=Value(42))
+manager.insert(counter)
+
+# Works if exactly 1 match exists
+manager.delete(counter)  # Matches by value=42
+
+# Raises ValueError if multiple matches exist
+manager.delete(counter)  # Error: found 2 matches
+```
+
+**Behavior**:
+- Matches by ALL non-None attributes
+- Only deletes if exactly 1 match found
+- Raises `ValueError` if 0 or >1 matches
+
+### Batch Delete with `delete_many`
+
+Delete multiple entity instances in a single transaction:
+
+```python
+# Get entities to delete
+alice = person_manager.get(name="Alice")[0]
+bob = person_manager.get(name="Bob")[0]
+
+# Delete multiple entities
+deleted = person_manager.delete_many([alice, bob])
+print(f"Deleted {len(deleted)} entities")  # Returns list of deleted entities
+
+# Empty list returns empty list
+deleted = person_manager.delete_many([])
+assert deleted == []
+```
+
+### Filter-Based Delete
+
+For bulk deletion by criteria, use `filter().delete()`:
 
 ```python
 # Delete all persons over 65
 count = person_manager.filter(Age.gt(Age(65))).delete()
-print(f"Deleted {count} seniors")
+print(f"Deleted {count} seniors")  # Returns count (int)
 
 # Delete with multiple expression filters
 count = person_manager.filter(
@@ -494,6 +543,9 @@ count = person_manager.filter(
     Status.eq(Status("inactive"))
 ).delete()
 print(f"Deleted {count} inactive minors")
+
+# Delete by multiple values using __in filter
+count = person_manager.filter(name__in=["Alice", "Bob", "Charlie"]).delete()
 
 # Delete with range filter
 count = person_manager.filter(
@@ -506,26 +558,28 @@ count = person_manager.filter(Age.gt(Age(150))).delete()
 assert count == 0
 ```
 
-**How chainable delete works**:
-- Builds TypeQL delete query from all filters (dict-based and expression-based)
+**How filter delete works**:
+- Builds TypeQL delete query from all filters
 - Executes in single atomic transaction
-- Returns count of deleted entities (0 if no matches)
+- Returns count of deleted entities (int)
 
-**Warning**: Delete operations are permanent and cannot be undone!
+### Instance Delete Method
 
-### Bulk Delete with `delete_many`
-
-Use `delete_many()` for explicit bulk deletes and `__in` filters:
+**New in v0.7.1**: Entities can delete themselves:
 
 ```python
-# Delete multiple by key values
-deleted = person_manager.delete_many(name__in=["Alice", "Bob"])
+# Create and insert entity
+alice = Person(name=Name("Alice"), age=Age(30))
+alice.insert(db)
 
-# Delete by attribute values
-deleted = person_manager.delete_many(status__in=[Status("inactive"), Status("banned")])
+# Delete using instance method
+alice.delete(db)  # Returns alice for chaining
+
+# Chaining example
+Person(name=Name("Temp")).insert(db).delete(db)
 ```
 
-`delete_many()` reuses a provided transaction/context; otherwise it opens exactly one write transaction. For clarity, prefer `delete_many()` for batch deletions and instance-level delete (if implemented) for single-entity removal.
+**Warning**: Delete operations are permanent and cannot be undone!
 
 ## RelationManager
 
@@ -575,8 +629,11 @@ class RelationManager[R: Relation]:
     def all(self) -> list[R]:
         """Get all relations of this type."""
 
-    def delete(self, **filters) -> int:
-        """Delete relations matching filters. Returns count."""
+    def delete(self, relation: R) -> R:
+        """Delete relation by instance. Returns deleted relation."""
+
+    def delete_many(self, relations: list[R]) -> list[R]:
+        """Delete multiple relations. Returns list of deleted relations."""
 
     def update(self, relation: R) -> R:
         """Update relation in database."""
@@ -819,45 +876,59 @@ print(f"Promoted {len(promoted)} employments")
 
 ### Delete Relations
 
-TypeBridge supports two delete patterns for relations (same as entities):
-1. **Direct delete**: `manager.delete(**filters)` - delete with keyword filters
-2. **Chainable delete**: `manager.filter(...).delete()` - delete after complex filtering
+**Changed in v0.7.1**: Delete API refactored to instance-based pattern.
 
-#### Direct Delete
+TypeBridge supports two delete patterns for relations:
+1. **Instance delete**: `manager.delete(relation)` - delete by relation instance (recommended)
+2. **Filter delete**: `manager.filter(...).delete()` - delete matching relations by filter
 
-Delete relations matching filter criteria:
+#### Instance Delete (Recommended)
+
+Delete relations by instance, using role players' `@key` attributes:
 
 ```python
-# Delete by attribute
-deleted_count = employment_manager.delete(position="Intern")
-print(f"Deleted {deleted_count} intern positions")
+# Get or create relation instance
+employment = employment_manager.get(employee=alice, employer=techcorp)[0]
 
-# Delete by role player
-deleted_count = employment_manager.delete(employee=alice)
-print(f"Deleted {deleted_count} of Alice's employments")
+# Delete using manager
+deleted = employment_manager.delete(employment)
+print(f"Deleted: {deleted.position.value}")  # Returns deleted relation
 
-# Delete with multiple filters (AND logic)
-deleted_count = employment_manager.delete(
-    employee=alice,
-    employer=techcorp
-)
-print(f"Deleted {deleted_count} employments")
-
-# Delete by both role players
-deleted_count = employment_manager.delete(
-    employee=bob,
-    employer=startup
-)
+# OR use instance method directly
+employment.delete(db)  # Returns employment for chaining
 ```
 
-#### Chainable Delete
+**How instance delete works**:
+- Uses role players' `@key` attributes to identify the relation
+- Returns the deleted relation instance (not a count)
+- Raises `ValueError` if role player is missing or has None key
 
-**New in v0.6.0**: Delete after complex filtering with expressions:
+#### Batch Delete with `delete_many`
+
+Delete multiple relation instances in a single transaction:
+
+```python
+# Get relations to delete
+emp1 = employment_manager.get(employee=alice)[0]
+emp2 = employment_manager.get(employee=bob)[0]
+
+# Delete multiple relations
+deleted = employment_manager.delete_many([emp1, emp2])
+print(f"Deleted {len(deleted)} relations")  # Returns list of deleted relations
+
+# Empty list returns empty list
+deleted = employment_manager.delete_many([])
+assert deleted == []
+```
+
+#### Filter-Based Delete
+
+For bulk deletion by criteria, use `filter().delete()`:
 
 ```python
 # Delete high-salary employments
 count = employment_manager.filter(Salary.gt(Salary(150000))).delete()
-print(f"Deleted {count} high-salary employments")
+print(f"Deleted {count} high-salary employments")  # Returns count (int)
 
 # Delete with multiple expression filters
 count = employment_manager.filter(
@@ -875,10 +946,23 @@ count = employment_manager.filter(Salary.gt(Salary(1000000))).delete()
 assert count == 0
 ```
 
-**How chainable delete works for relations**:
-- Builds TypeQL delete query from all filters (dict-based, expression-based, and role player filters)
+**How filter delete works**:
+- Builds TypeQL delete query from all filters
 - Executes in single atomic transaction
-- Returns count of deleted relations (0 if no matches)
+- Returns count of deleted relations (int)
+
+#### Instance Delete Method
+
+**New in v0.7.1**: Relations can delete themselves:
+
+```python
+# Create and insert relation
+emp = Employment(employee=alice, employer=techcorp, position=Position("Engineer"))
+emp.insert(db)
+
+# Delete using instance method
+emp.delete(db)  # Returns emp for chaining
+```
 
 **Warning**: Delete operations are permanent and cannot be undone!
 
@@ -988,8 +1072,12 @@ alice.tags = [Tag("python"), Tag("typedb"), Tag("fastapi")]
 user_manager.update(alice)
 
 # 7. DELETE: Remove user
-deleted_count = user_manager.delete(username="bob")
-print(f"Deleted {deleted_count} users")
+bob = user_manager.get(username="bob")[0]
+deleted = user_manager.delete(bob)
+print(f"Deleted user: {deleted.username.value}")
+
+# OR use instance method
+# bob.delete(db)
 ```
 
 ## Best Practices
@@ -1047,20 +1135,24 @@ alice = user_manager.get(email="alice@example.com")[0]
 alice = user_manager.get(age=30)[0]  # May return multiple results
 ```
 
-### 5. Check Delete Results
+### 5. Use Instance Delete Pattern
 
-Always verify delete operations:
+Delete entities by instance, not by filter:
 
 ```python
-# ✅ GOOD: Check delete count
-deleted_count = user_manager.delete(username="alice")
-if deleted_count > 0:
-    print(f"Successfully deleted {deleted_count} users")
-else:
-    print("No users deleted")
+# ✅ GOOD: Instance-based delete (v0.7.1+)
+alice = user_manager.get(user_id="u1")[0]
+deleted = user_manager.delete(alice)  # Returns alice
+print(f"Deleted {deleted.username.value}")
 
-# ⚠️ POOR: Assume delete succeeded
-user_manager.delete(username="alice")
+# ✅ GOOD: Instance method
+alice.delete(db)
+
+# ✅ GOOD: Filter-based for bulk operations
+count = user_manager.filter(Age.gt(Age(65))).delete()  # Returns count
+
+# ⚠️ NOTE: Old filter-based manager.delete(**filters) removed in v0.7.1
+# Use filter().delete() instead for filter-based deletion
 ```
 
 ## See Also

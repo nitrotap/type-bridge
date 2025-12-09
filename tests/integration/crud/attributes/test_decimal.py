@@ -141,8 +141,8 @@ def test_decimal_delete(clean_db):
     account = Account(name=AccountName("Temp"), balance=Balance(PyDecimal("100.00")))
     manager.insert(account)
 
-    # Delete by Decimal attribute
-    deleted_count = manager.delete(balance=PyDecimal("100.00"))
+    # Delete by Decimal attribute using filter
+    deleted_count = manager.filter(balance=PyDecimal("100.00")).delete()
     assert deleted_count == 1
 
     # Verify deletion

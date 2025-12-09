@@ -139,8 +139,8 @@ def test_boolean_delete(clean_db):
     user = User(email=Email("delete@example.com"), is_active=IsActive(True))
     manager.insert(user)
 
-    # Delete by Boolean attribute
-    deleted_count = manager.delete(is_active=True)
+    # Delete by Boolean attribute using filter
+    deleted_count = manager.filter(is_active=True).delete()
     assert deleted_count == 1
 
     # Verify deletion

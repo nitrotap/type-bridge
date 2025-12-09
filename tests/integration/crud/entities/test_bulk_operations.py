@@ -83,9 +83,9 @@ def test_update_many_multivalue(db_with_schema):
 
 
 @pytest.mark.integration
-@pytest.mark.order(21)
-def test_delete_many_with_in_filter(db_with_schema):
-    """Delete multiple entities using __in filter expansion."""
+@pytest.mark.order(28)
+def test_delete_many_with_filter_expression(db_with_schema):
+    """Delete multiple entities using filter expression (replaces __in filter)."""
 
     class Name(String):
         pass
@@ -107,7 +107,8 @@ def test_delete_many_with_in_filter(db_with_schema):
     ]
     manager.insert_many(people)
 
-    deleted = manager.delete_many(name__in=[Name("Bob"), "Dora"])
+    # Use filter().delete() for filter-based deletion
+    deleted = manager.filter(name__in=[Name("Bob"), "Dora"]).delete()
     assert deleted == 2
 
     remaining = {p.name.value for p in manager.all()}
@@ -115,9 +116,43 @@ def test_delete_many_with_in_filter(db_with_schema):
 
 
 @pytest.mark.integration
-@pytest.mark.order(21)
-def test_delete_many_with_base_and_in(db_with_schema):
-    """Combine base filter and __in disjunction in bulk delete."""
+@pytest.mark.order(29)
+def test_delete_many_instances(db_with_schema):
+    """Delete multiple entity instances using delete_many([entities])."""
+
+    class Name(String):
+        pass
+
+    class Age(Integer):
+        pass
+
+    class Person(Entity):
+        flags = TypeFlags(name="person")
+        name: Name = Flag(Key)
+        age: Age | None
+
+    manager = Person.manager(db_with_schema)
+
+    alice = Person(name=Name("Alice"), age=Age(30))
+    bob = Person(name=Name("Bob"), age=Age(40))
+    dora = Person(name=Name("Dora"), age=Age(50))
+
+    manager.insert_many([alice, bob, dora])
+
+    # Delete using instance list
+    deleted = manager.delete_many([bob, dora])
+    assert len(deleted) == 2
+    assert bob in deleted
+    assert dora in deleted
+
+    remaining = {p.name.value for p in manager.all()}
+    assert remaining == {"Alice"}
+
+
+@pytest.mark.integration
+@pytest.mark.order(30)
+def test_delete_many_with_combined_filter(db_with_schema):
+    """Combine base filter and __in in filter().delete()."""
 
     class Name(String):
         pass
@@ -139,7 +174,8 @@ def test_delete_many_with_base_and_in(db_with_schema):
     ]
     mgr.insert_many(people)
 
-    deleted = mgr.delete_many(age=Age(10), name__in=[Name("X1"), "X2", "X999"])
+    # Use filter().delete() for combined filters
+    deleted = mgr.filter(age=Age(10), name__in=[Name("X1"), "X2", "X999"]).delete()
     assert deleted == 2
 
     remaining = {p.name.value for p in mgr.all()}
@@ -147,9 +183,9 @@ def test_delete_many_with_base_and_in(db_with_schema):
 
 
 @pytest.mark.integration
-@pytest.mark.order(22)
-def test_delete_many_empty_in_returns_zero(db_with_schema):
-    """Ensure empty __in filter does not delete anything."""
+@pytest.mark.order(31)
+def test_delete_many_empty_list_returns_empty(db_with_schema):
+    """Ensure delete_many([]) returns empty list."""
 
     class Name(String):
         pass
@@ -166,8 +202,9 @@ def test_delete_many_empty_in_returns_zero(db_with_schema):
 
     manager.insert_many([Person(name=Name("Solo"), age=None)])
 
-    deleted = manager.delete_many(name__in=[])
-    assert deleted == 0
+    # Empty list returns empty list
+    deleted = manager.delete_many([])
+    assert deleted == []
 
     remaining = manager.all()
     assert len(remaining) == 1

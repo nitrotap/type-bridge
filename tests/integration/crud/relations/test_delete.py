@@ -1,7 +1,7 @@
 """Integration tests for relation deletion operations.
 
-Tests cover the RelationManager.delete() method with filter-based deletion
-supporting both attribute and role player filters.
+Tests cover the RelationManager.delete() method with instance-based deletion
+using role players' @key attributes to identify the relation.
 """
 
 import pytest
@@ -59,8 +59,8 @@ def test_relation_manager_has_delete_method(db_with_schema):
 
 @pytest.mark.integration
 @pytest.mark.order(141)
-def test_delete_relation_by_role_players(db_with_schema):
-    """Test deleting specific relation by role players."""
+def test_delete_relation_instance(db_with_schema):
+    """Test deleting specific relation by instance."""
 
     # Arrange
     class Name(String):
@@ -106,12 +106,11 @@ def test_delete_relation_by_role_players(db_with_schema):
     actual = len(relations_before)
     assert expected == actual
 
-    # Act - Delete relation using manager.delete() with role player filters
-    count = employment_mgr.delete(employee=alice, employer=techcorp)
+    # Act - Delete relation using instance
+    deleted = employment_mgr.delete(emp)
 
-    # Assert - Verify deletion count
-    expected_count = 1
-    assert expected_count == count
+    # Assert - Returns the relation instance
+    assert deleted is emp
 
     # Assert - Relation should be deleted
     relations_after = employment_mgr.all()
@@ -122,8 +121,8 @@ def test_delete_relation_by_role_players(db_with_schema):
 
 @pytest.mark.integration
 @pytest.mark.order(142)
-def test_delete_relation_by_attribute_filter(db_with_schema):
-    """Test deleting relations filtered by attribute value."""
+def test_delete_relation_returns_instance(db_with_schema):
+    """Test that delete returns the relation instance, not a count."""
 
     # Arrange
     class Name(String):
@@ -150,50 +149,30 @@ def test_delete_relation_by_attribute_filter(db_with_schema):
     schema_manager.register(Person, Company, Employment)
     schema_manager.sync_schema(force=True)
 
-    # Setup multiple employments
     person_mgr = Person.manager(db_with_schema)
     company_mgr = Company.manager(db_with_schema)
     employment_mgr = Employment.manager(db_with_schema)
 
     bob = Person(name=Name("Bob"))
-    charlie = Person(name=Name("Charlie"))
     acme = Company(name=Name("Acme"))
-
-    person_mgr.insert_many([bob, charlie])
+    person_mgr.insert(bob)
     company_mgr.insert(acme)
 
-    employments = [
-        Employment(employee=bob, employer=acme, position=Position("Intern")),
-        Employment(employee=charlie, employer=acme, position=Position("Manager")),
-    ]
-    employment_mgr.insert_many(employments)
+    emp = Employment(employee=bob, employer=acme, position=Position("Manager"))
+    employment_mgr.insert(emp)
 
-    # Verify both exist
-    all_before = employment_mgr.all()
-    expected = 2
-    actual = len(all_before)
-    assert expected == actual
+    # Act
+    deleted = employment_mgr.delete(emp)
 
-    # Act - Delete only "Intern" position using manager.delete() with attribute filter
-    count = employment_mgr.delete(position="Intern")
-
-    # Assert - Verify deletion count
-    expected_count = 1
-    assert expected_count == count
-
-    # Assert - Only Manager should remain
-    all_after = employment_mgr.all()
-    expected = 1
-    actual = len(all_after)
-    assert expected == actual
-
-    assert "Manager" == all_after[0].position.value
+    # Assert - Should return relation, not int
+    assert isinstance(deleted, Employment)
+    assert deleted.position.value == "Manager"
 
 
 @pytest.mark.integration
 @pytest.mark.order(143)
-def test_delete_all_relations_of_type(db_with_schema):
-    """Test deleting all relations of a specific type."""
+def test_delete_relation_missing_role_player_raises(db_with_schema):
+    """Test that deleting relation with missing role player raises ValueError."""
 
     # Arrange
     class Name(String):
@@ -220,42 +199,19 @@ def test_delete_all_relations_of_type(db_with_schema):
     schema_manager.register(Person, Company, Employment)
     schema_manager.sync_schema(force=True)
 
-    # Setup multiple employments
-    person_mgr = Person.manager(db_with_schema)
-    company_mgr = Company.manager(db_with_schema)
     employment_mgr = Employment.manager(db_with_schema)
 
-    people = [Person(name=Name(f"Person{i}")) for i in range(3)]
-    companies = [Company(name=Name(f"Company{i}")) for i in range(2)]
+    # Create relation then manually remove role player to simulate missing data
+    alice = Person(name=Name("Alice"))
+    techcorp = Company(name=Name("TechCorp"))
+    emp = Employment(employee=alice, employer=techcorp, position=Position("Engineer"))
 
-    person_mgr.insert_many(people)
-    company_mgr.insert_many(companies)
+    # Manually remove the role player to simulate a corrupt/incomplete relation
+    emp.__dict__["employer"] = None
 
-    employments = [
-        Employment(employee=people[0], employer=companies[0], position=Position("Dev")),
-        Employment(employee=people[1], employer=companies[0], position=Position("Manager")),
-        Employment(employee=people[2], employer=companies[1], position=Position("CEO")),
-    ]
-    employment_mgr.insert_many(employments)
-
-    # Verify all exist
-    all_before = employment_mgr.all()
-    expected = 3
-    actual = len(all_before)
-    assert expected == actual
-
-    # Act - Delete all employments using manager.delete() with no filters
-    count = employment_mgr.delete()
-
-    # Assert - Verify deletion count
-    expected_count = 3
-    assert expected_count == count
-
-    # Assert - No relations should remain
-    all_after = employment_mgr.all()
-    expected = 0
-    actual = len(all_after)
-    assert expected == actual
+    # Act & Assert
+    with pytest.raises(ValueError, match="Role player 'employer' is required for delete"):
+        employment_mgr.delete(emp)
 
 
 @pytest.mark.integration
@@ -301,14 +257,11 @@ def test_delete_relation_preserves_role_player_entities(db_with_schema):
     emp = Employment(employee=diana, employer=startup, position=Position("Founder"))
     employment_mgr.insert(emp)
 
-    # Act - Delete relation using manager.delete()
-    count = employment_mgr.delete()
-
-    # Assert - Verify deletion count
-    expected_count = 1
-    assert expected_count == count
+    # Act - Delete relation using instance
+    deleted = employment_mgr.delete(emp)
 
     # Assert - Relation deleted
+    assert deleted is emp
     relations = employment_mgr.all()
     expected = 0
     actual = len(relations)
@@ -330,8 +283,167 @@ def test_delete_relation_preserves_role_player_entities(db_with_schema):
 
 @pytest.mark.integration
 @pytest.mark.order(145)
-def test_delete_relation_with_complex_filter(db_with_schema):
-    """Test deleting relations with complex filter criteria."""
+def test_delete_many_relations(db_with_schema):
+    """Test batch deletion of multiple relations."""
+
+    # Arrange
+    class Name(String):
+        pass
+
+    class Position(String):
+        pass
+
+    class Person(Entity):
+        flags = TypeFlags(name="person")
+        name: Name = Flag(Key)
+
+    class Company(Entity):
+        flags = TypeFlags(name="company")
+        name: Name = Flag(Key)
+
+    class Employment(Relation):
+        flags = TypeFlags(name="employment")
+        employee: Role[Person] = Role("employee", Person)
+        employer: Role[Company] = Role("employer", Company)
+        position: Position
+
+    schema_manager = SchemaManager(db_with_schema)
+    schema_manager.register(Person, Company, Employment)
+    schema_manager.sync_schema(force=True)
+
+    person_mgr = Person.manager(db_with_schema)
+    company_mgr = Company.manager(db_with_schema)
+    employment_mgr = Employment.manager(db_with_schema)
+
+    alice = Person(name=Name("Alice"))
+    bob = Person(name=Name("Bob"))
+    charlie = Person(name=Name("Charlie"))
+    techcorp = Company(name=Name("TechCorp"))
+
+    person_mgr.insert_many([alice, bob, charlie])
+    company_mgr.insert(techcorp)
+
+    emp1 = Employment(employee=alice, employer=techcorp, position=Position("Engineer"))
+    emp2 = Employment(employee=bob, employer=techcorp, position=Position("Manager"))
+    emp3 = Employment(employee=charlie, employer=techcorp, position=Position("Intern"))
+
+    employment_mgr.insert_many([emp1, emp2, emp3])
+
+    # Verify insertion
+    assert len(employment_mgr.all()) == 3
+
+    # Act - Delete multiple relations
+    deleted = employment_mgr.delete_many([emp1, emp2])
+
+    # Assert - Returns list of deleted relations
+    assert len(deleted) == 2
+    assert emp1 in deleted
+    assert emp2 in deleted
+
+    # Verify only emp3 remains
+    remaining = employment_mgr.all()
+    assert len(remaining) == 1
+    assert remaining[0].position.value == "Intern"
+
+
+@pytest.mark.integration
+@pytest.mark.order(146)
+def test_delete_many_empty_list(db_with_schema):
+    """Test that delete_many with empty list returns empty list."""
+
+    # Arrange
+    class Name(String):
+        pass
+
+    class Position(String):
+        pass
+
+    class Person(Entity):
+        flags = TypeFlags(name="person")
+        name: Name = Flag(Key)
+
+    class Company(Entity):
+        flags = TypeFlags(name="company")
+        name: Name = Flag(Key)
+
+    class Employment(Relation):
+        flags = TypeFlags(name="employment")
+        employee: Role[Person] = Role("employee", Person)
+        employer: Role[Company] = Role("employer", Company)
+        position: Position
+
+    schema_manager = SchemaManager(db_with_schema)
+    schema_manager.register(Person, Company, Employment)
+    schema_manager.sync_schema(force=True)
+
+    employment_mgr = Employment.manager(db_with_schema)
+
+    # Act
+    deleted = employment_mgr.delete_many([])
+
+    # Assert
+    assert deleted == []
+
+
+@pytest.mark.integration
+@pytest.mark.order(147)
+def test_relation_delete_instance_method(db_with_schema):
+    """Test relation.delete(connection) instance method."""
+
+    # Arrange
+    class Name(String):
+        pass
+
+    class Position(String):
+        pass
+
+    class Person(Entity):
+        flags = TypeFlags(name="person")
+        name: Name = Flag(Key)
+
+    class Company(Entity):
+        flags = TypeFlags(name="company")
+        name: Name = Flag(Key)
+
+    class Employment(Relation):
+        flags = TypeFlags(name="employment")
+        employee: Role[Person] = Role("employee", Person)
+        employer: Role[Company] = Role("employer", Company)
+        position: Position
+
+    schema_manager = SchemaManager(db_with_schema)
+    schema_manager.register(Person, Company, Employment)
+    schema_manager.sync_schema(force=True)
+
+    person_mgr = Person.manager(db_with_schema)
+    company_mgr = Company.manager(db_with_schema)
+    employment_mgr = Employment.manager(db_with_schema)
+
+    eve = Person(name=Name("Eve"))
+    mega = Company(name=Name("MegaCorp"))
+    person_mgr.insert(eve)
+    company_mgr.insert(mega)
+
+    emp = Employment(employee=eve, employer=mega, position=Position("CEO"))
+    employment_mgr.insert(emp)
+
+    # Verify insertion
+    assert len(employment_mgr.all()) == 1
+
+    # Act - Delete using instance method
+    result = emp.delete(db_with_schema)
+
+    # Assert - Returns self for chaining
+    assert result is emp
+
+    # Verify deletion
+    assert len(employment_mgr.all()) == 0
+
+
+@pytest.mark.integration
+@pytest.mark.order(148)
+def test_filter_based_delete_still_works(db_with_schema):
+    """Test that filter-based deletion via manager.filter(...).delete() still works."""
 
     # Arrange
     class Name(String):
@@ -362,38 +474,33 @@ def test_delete_relation_with_complex_filter(db_with_schema):
     schema_manager.register(Person, Company, Employment)
     schema_manager.sync_schema(force=True)
 
-    # Setup
     person_mgr = Person.manager(db_with_schema)
     company_mgr = Company.manager(db_with_schema)
     employment_mgr = Employment.manager(db_with_schema)
 
-    eve = Person(name=Name("Eve"))
     frank = Person(name=Name("Frank"))
-    mega = Company(name=Name("MegaCorp"))
+    grace = Person(name=Name("Grace"))
+    corp = Company(name=Name("Corp"))
 
-    person_mgr.insert_many([eve, frank])
-    company_mgr.insert(mega)
+    person_mgr.insert_many([frank, grace])
+    company_mgr.insert(corp)
 
-    employments = [
-        Employment(employee=eve, employer=mega, position=Position("Junior"), salary=Salary(50000)),
-        Employment(
-            employee=frank, employer=mega, position=Position("Senior"), salary=Salary(100000)
-        ),
-    ]
-    employment_mgr.insert_many(employments)
+    emp1 = Employment(
+        employee=frank, employer=corp, position=Position("Junior"), salary=Salary(50000)
+    )
+    emp2 = Employment(
+        employee=grace, employer=corp, position=Position("Senior"), salary=Salary(150000)
+    )
 
-    # Act - Delete only Junior position employments using manager.delete() with combined filters
-    count = employment_mgr.delete(position="Junior", employer=mega)
+    employment_mgr.insert_many([emp1, emp2])
 
-    # Assert - Verify deletion count
-    expected_count = 1
-    assert expected_count == count
+    # Act - Delete using filter (old-style deletion via query)
+    count = employment_mgr.filter(Salary.gt(Salary(100000))).delete()
 
-    # Assert - Only Senior employment remains
+    # Assert
+    assert count == 1
+
+    # Only Junior should remain
     remaining = employment_mgr.all()
-    expected = 1
-    actual = len(remaining)
-    assert expected == actual
-
-    assert "Senior" == remaining[0].position.value
-    assert 100000 == remaining[0].salary.value
+    assert len(remaining) == 1
+    assert remaining[0].position.value == "Junior"
