@@ -674,7 +674,7 @@ class EntityManager[E: Entity]:
         # Add match statements to bind single-value attributes for deletion
         if single_value_deletes:
             for attr_name in single_value_deletes:
-                match_statements.append(f"$e has {attr_name} ${attr_name};")
+                match_statements.append(f"try {{ $e has {attr_name} ${attr_name}; }};")
 
         match_clause = "\n".join(match_statements)
         query_parts.append(f"match\n{match_clause}")
@@ -686,7 +686,7 @@ class EntityManager[E: Entity]:
                 delete_parts.append(f"try {{ ${attr_name} of $e; }};")
         if single_value_deletes:
             for attr_name in single_value_deletes:
-                delete_parts.append(f"${attr_name} of $e;")
+                delete_parts.append(f"try {{ ${attr_name} of $e; }};")
         if delete_parts:
             delete_clause = "\n".join(delete_parts)
             query_parts.append(f"delete\n{delete_clause}")
