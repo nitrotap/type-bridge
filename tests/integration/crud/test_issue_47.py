@@ -50,6 +50,7 @@ def test_update_entity_with_multiple_none_optional_attributes(clean_db):
     # When fetched, email will be set, but phone and notes will be None
     fetched_person = manager.get(name="Test User")[0]
 
+    assert fetched_person.email is not None
     assert fetched_person.email.value == "old@example.com"
     assert fetched_person.phone is None
     assert fetched_person.notes is None
