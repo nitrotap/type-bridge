@@ -1,11 +1,11 @@
 """CRUD Tutorial Part 7: Deleting Data.
 
 This example demonstrates:
-- Deleting entities by key attributes
-- Deleting entities with filters
-- Deleting relations
+- Deleting entities by instance (v0.7.1+ API)
+- Deleting entities with filters using filter().delete()
+- Deleting relations by instance
+- Using instance delete method: entity.delete(db)
 - Understanding delete return values
-- Chainable delete operations
 
 Prerequisites: Run crud_01_define.py and crud_02_insert.py first.
 """
@@ -82,13 +82,13 @@ class Employment(Relation):
     salary: Salary | None
 
 
-def demonstrate_delete_by_key(db: Database):
-    """Step 1: Demonstrate deleting by key attribute."""
+def demonstrate_delete_by_instance(db: Database):
+    """Step 1: Demonstrate deleting by entity instance."""
     print("=" * 80)
-    print("STEP 1: Delete by Key Attribute")
+    print("STEP 1: Delete by Entity Instance")
     print("=" * 80)
     print()
-    print("The simplest way to delete is by key attribute (unique identifier).")
+    print("In v0.7.1+, delete takes an entity instance (like insert and update).")
     print()
 
     person_manager = Person.manager(db)
@@ -101,19 +101,27 @@ def demonstrate_delete_by_key(db: Database):
     print(f"  Total: {len(all_persons)} persons")
     print()
 
-    # Delete by key
+    # Delete by instance
     print("Python Code:")
     print("-" * 80)
     print("""
-# Delete a person by their key attribute (name)
-deleted = person_manager.delete(name="Frank Garcia")
+# Step 1: Get the entity instance
+frank = person_manager.get(name="Frank Garcia")[0]
+
+# Step 2: Delete using the instance
+deleted = person_manager.delete(frank)  # Returns the deleted entity
 """)
     print("-" * 80)
     print()
 
     print("Executing...")
-    deleted = person_manager.delete(name="Frank Garcia")
-    print(f"\n✓ Deleted {deleted} person(s)")
+    frank_list = person_manager.get(name="Frank Garcia")
+    if frank_list:
+        frank = frank_list[0]
+        deleted = person_manager.delete(frank)
+        print(f"\n✓ Deleted: {deleted.name.value}")
+    else:
+        print("\n⚠ Frank Garcia not found (may have been deleted already)")
     print()
 
     # Show remaining persons
@@ -226,32 +234,36 @@ def demonstrate_delete_return_values(db: Database):
     print("STEP 4: Delete Return Values")
     print("=" * 80)
     print()
-    print("Delete operations return the number of entities/relations deleted.")
+    print("Instance delete returns the deleted entity/relation.")
+    print("Filter delete returns the count of deleted items.")
     print()
 
     person_manager = Person.manager(db)
 
-    # Try to delete non-existent entity
-    print("Try to delete a non-existent person:")
+    # Instance delete returns the entity
+    print("Instance delete returns the entity:")
     print("-" * 80)
-    deleted = person_manager.delete(name="NonExistent Person")
-    print(f"✓ Deleted {deleted} person(s)")
-    print("  (Returns 0 if no matches found)")
+    print("""
+# Instance-based delete returns the entity
+alice = person_manager.get(name="Alice")[0]
+deleted = person_manager.delete(alice)
+print(deleted.name.value)  # "Alice"
+""")
     print()
 
-    # Delete with filter that matches nothing
-    print("Try to delete with filter that matches nothing:")
+    # Filter delete returns count
+    print("Filter delete returns count:")
     print("-" * 80)
     deleted = person_manager.filter(Age.gt(Age(1000))).delete()
     print(f"✓ Deleted {deleted} person(s)")
-    print("  (Returns 0 if filter matches nothing)")
+    print("  (filter().delete() returns 0 if no matches)")
     print()
 
     # Show safe deletion pattern
     print("Safe deletion pattern:")
     print("-" * 80)
     print("""
-# Check before deleting
+# Check before deleting with filter
 target = person_manager.filter(Score.lt(Score(90.0))).execute()
 if target:
     print(f"About to delete {len(target)} person(s)")
@@ -259,6 +271,11 @@ if target:
     print(f"Deleted {deleted} person(s)")
 else:
     print("No persons match the criteria")
+
+# Or use instance delete for single entities
+person = person_manager.get(name="Alice")[0]
+if person:
+    deleted = person_manager.delete(person)  # Returns the entity
 """)
     print()
     input("Press Enter to continue...")
@@ -300,13 +317,16 @@ def demonstrate_delete_cascade(db: Database):
     print()
     print("""
 # First find the person
-person = person_manager.get(name="Alice Johnson")[0]
+alice = person_manager.get(name="Alice Johnson")[0]
 
-# Then delete their employment relations
-employment_manager.delete(employee=person.name.value)
+# Then delete their employment relations using filter
+employment_manager.filter(employee=alice).delete()
 
-# Finally delete the person
-person_manager.delete(name="Alice Johnson")
+# Finally delete the person using instance delete
+person_manager.delete(alice)
+
+# OR use instance method
+alice.delete(db)
 """)
     print()
     input("Press Enter to continue...")
@@ -335,17 +355,19 @@ def show_delete_summary(db: Database):
     print(f"  Employment relations: {len(jobs)}")
     print()
 
-    print("Delete Methods Available:")
-    print("  .delete(**filters) - Delete by dictionary filters (key attributes)")
-    print("  .filter(...).delete() - Delete with expression filters (chainable)")
+    print("Delete Methods Available (v0.7.1+):")
+    print("  .delete(entity) - Delete by instance, returns deleted entity")
+    print("  .delete_many([entities]) - Delete multiple, returns deleted list")
+    print("  entity.delete(db) - Instance method, returns self")
+    print("  .filter(...).delete() - Filter-based deletion, returns count")
     print()
 
     print("Best Practices:")
-    print("  ✓ Delete returns count of deleted entities/relations")
-    print("  ✓ Deleting non-existent entities returns 0 (no error)")
-    print("  ✓ Use filters for conditional deletion")
+    print("  ✓ Instance delete returns the entity, filter delete returns count")
+    print("  ✓ Use instance delete for single entities (safer)")
+    print("  ✓ Use filter().delete() for bulk conditional deletion")
     print("  ✓ Delete relations before deleting entities they reference")
-    print("  ✓ Check count before deletion for important operations")
+    print("  ✓ Entity must have @key or match exactly 1 record")
     print()
 
 
@@ -369,7 +391,7 @@ def main():
         return
 
     # Run demonstrations
-    demonstrate_delete_by_key(db)
+    demonstrate_delete_by_instance(db)
     demonstrate_delete_with_filters(db)
     demonstrate_delete_relations(db)
     demonstrate_delete_return_values(db)
@@ -404,10 +426,10 @@ def main():
     print("=" * 80)
     print()
     print("What we learned:")
-    print("  ✓ Deleting by key attributes with .delete()")
-    print("  ✓ Deleting with filters using .filter().delete()")
-    print("  ✓ Deleting relations")
-    print("  ✓ Understanding delete return values")
+    print("  ✓ Deleting by entity instance with .delete(entity)")
+    print("  ✓ Using instance method: entity.delete(db)")
+    print("  ✓ Filter-based deletion with .filter().delete()")
+    print("  ✓ Understanding delete return values (entity vs count)")
     print("  ✓ Best practices for deletion with relations")
     print()
     print("The basic CRUD tutorial series is complete!")

@@ -139,8 +139,8 @@ def test_double_delete(clean_db):
     product = Product(name=ProductName("Speaker"), price=Price(149.99))
     manager.insert(product)
 
-    # Delete by Double attribute
-    deleted_count = manager.delete(price=149.99)
+    # Delete by Double attribute using filter
+    deleted_count = manager.filter(price=149.99).delete()
     assert deleted_count == 1
 
     # Verify deletion

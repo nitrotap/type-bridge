@@ -335,6 +335,24 @@ class Entity(TypeDBType, metaclass=EntityMeta):
         manager.insert(self)
         return self
 
+    def delete(self: E, connection: Connection) -> E:
+        """Delete this entity instance from the database.
+
+        Args:
+            connection: Database, Transaction, or TransactionContext
+
+        Returns:
+            Self for chaining
+
+        Example:
+            person = Person(name=Name("Alice"), age=Age(30))
+            person.insert(db)
+            person.delete(db)
+        """
+        manager = self.__class__.manager(connection)
+        manager.delete(self)
+        return self
+
     @classmethod
     def to_schema_definition(cls) -> str | None:
         """Generate TypeQL schema definition for this entity.

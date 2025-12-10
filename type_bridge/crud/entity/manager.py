@@ -12,6 +12,7 @@ from type_bridge.query import QueryBuilder
 from type_bridge.session import Connection, ConnectionExecutor
 
 from ..base import E
+from ..exceptions import EntityNotFoundError, NotUniqueError
 from ..utils import format_value, is_multi_value_attribute
 
 if TYPE_CHECKING:
@@ -413,91 +414,136 @@ class EntityManager[E: Entity]:
         """
         return self.get()
 
-    def delete(self, **filters) -> int:
-        """Delete entities matching filters.
+    def delete(self, entity: E) -> E:
+        """Delete an entity instance from the database.
+
+        Uses @key attributes to identify the entity (same as update).
+        If no @key attributes exist, matches by ALL attributes and only
+        deletes if exactly 1 match is found.
 
         Args:
-            filters: Attribute filters
+            entity: Entity instance to delete (must have key attributes set,
+                    or match exactly one record if no keys)
 
         Returns:
-            Number of entities deleted
-        """
-        return self.delete_many(**filters)
+            The deleted entity instance
 
-    def delete_many(self, **filters) -> int:
-        """Bulk delete entities matching filters in a single query.
+        Raises:
+            ValueError: If key attribute value is None
+            EntityNotFoundError: If entity does not exist in database
+            NotUniqueError: If no @key and multiple matches found
 
-        Supports ``__in`` lookups (e.g., ``id__in=[1, 2, 3]``) by expanding
-        into a disjunction of match patterns.
+        Example:
+            alice = Person(name=Name("Alice"), age=Age(30))
+            person_manager.insert(alice)
 
-        Args:
-            filters: Attribute filters supporting ``__in`` suffix for lists
-
-        Returns:
-            Number of entities deleted
+            # Delete using the instance
+            deleted = person_manager.delete(alice)
         """
         owned_attrs = self.model_class.get_all_attributes()
-        base_parts = [f"$e isa {self.model_class.get_type_name()}"]
-        normal_filters: list[str] = []
-        in_filters: list[tuple[str, list[Any]]] = []
 
-        for field_name, field_value in filters.items():
-            if field_name.endswith("__in"):
-                attr_field = field_name[:-4]
-                if attr_field in owned_attrs:
-                    values = (
-                        list(field_value)
-                        if isinstance(field_value, (list, tuple, set))
-                        else [field_value]
-                    )
-                    # If the list is empty, nothing to delete
-                    if not values:
-                        return 0
-
-                    attr_name = owned_attrs[attr_field].typ.get_attribute_name()
-                    in_filters.append((attr_name, values))
-            elif field_name in owned_attrs:
-                attr_info = owned_attrs[field_name]
+        # Extract key attributes from entity for matching (same pattern as update)
+        match_filters: dict[str, Any] = {}
+        for field_name, attr_info in owned_attrs.items():
+            if attr_info.flags.is_key:
+                key_value = getattr(entity, field_name, None)
+                if key_value is None:
+                    msg = f"Key attribute '{field_name}' is required for delete"
+                    raise ValueError(msg)
+                # Extract value from Attribute instance if needed
+                if hasattr(key_value, "value"):
+                    key_value = key_value.value
                 attr_name = attr_info.typ.get_attribute_name()
-                formatted_value = format_value(field_value)
-                normal_filters.append(f"has {attr_name} {formatted_value}")
+                match_filters[attr_name] = key_value
 
-        base_pattern = ", ".join(base_parts + normal_filters)
+        # Fallback: no @key attributes - match by ALL attributes
+        if not match_filters:
+            all_filters: dict[str, Any] = {}
+            filter_kwargs: dict[str, Any] = {}
+            for field_name, attr_info in owned_attrs.items():
+                value = getattr(entity, field_name, None)
+                if value is not None:
+                    # Store field_name -> attribute value for filter()
+                    filter_kwargs[field_name] = value
+                    # Store attr_name -> raw value for TypeQL query
+                    if hasattr(value, "value"):
+                        value = value.value
+                    attr_name = attr_info.typ.get_attribute_name()
+                    all_filters[attr_name] = value
 
-        # Expand __in filters into a set of concrete patterns
-        def expand_patterns(prefix: str, remaining: list[tuple[str, list[Any]]]) -> list[str]:
-            if not remaining:
-                return [prefix]
+            # Count matches first - only delete if exactly 1
+            # Use existing filter().count() mechanism
+            count = self.filter(**filter_kwargs).count()
 
-            attr_name, values = remaining[0]
-            tail = remaining[1:]
-            expanded: list[str] = []
-            for value in values:
-                formatted_value = format_value(value)
-                next_prefix = (
-                    f"{prefix}, has {attr_name} {formatted_value}"
-                    if prefix
-                    else f"has {attr_name} {formatted_value}"
+            if count == 0:
+                raise EntityNotFoundError(
+                    f"Cannot delete: entity '{self.model_class.get_type_name()}' "
+                    "not found with given attributes."
                 )
-                expanded.extend(expand_patterns(next_prefix, tail))
-            return expanded
-
-        match_patterns = expand_patterns(base_pattern, in_filters)
-
-        if not match_patterns:
-            return 0
-
-        if len(match_patterns) == 1:
-            match_section = f"match\n{match_patterns[0]};"
+            if count > 1:
+                raise NotUniqueError(
+                    f"Cannot delete: found {count} matches. "
+                    "Entity without @key must match exactly 1 record. "
+                    "Use filter().delete() for bulk deletion."
+                )
+            match_filters = all_filters
         else:
-            disjunction = " or ".join(f"{{ {pattern}; }}" for pattern in match_patterns)
-            match_section = f"match\n{disjunction};"
+            # For keyed entities, check existence before delete
+            filter_kwargs: dict[str, Any] = {}
+            for field_name, attr_info in owned_attrs.items():
+                if attr_info.flags.is_key:
+                    value = getattr(entity, field_name, None)
+                    if value is not None:
+                        filter_kwargs[field_name] = value
 
-        query_str = f"{match_section}\ndelete\n$e;"
+            count = self.filter(**filter_kwargs).count()
+            if count == 0:
+                raise EntityNotFoundError(
+                    f"Cannot delete: entity '{self.model_class.get_type_name()}' "
+                    "not found with given key attributes."
+                )
 
-        results = self._execute(query_str, TransactionType.WRITE)
+        # Build TypeQL: match $e isa type, has key value; delete $e;
+        parts = [f"$e isa {self.model_class.get_type_name()}"]
+        for attr_name, attr_value in match_filters.items():
+            parts.append(f"has {attr_name} {format_value(attr_value)}")
 
-        return len(results) if results else 0
+        query_str = f"match\n{', '.join(parts)};\ndelete\n$e;"
+        self._execute(query_str, TransactionType.WRITE)
+
+        return entity
+
+    def delete_many(self, entities: list[E]) -> list[E]:
+        """Delete multiple entities within a single transaction.
+
+        Uses an existing transaction when supplied, otherwise opens one write
+        transaction and reuses it for all deletes to avoid N separate commits.
+
+        Args:
+            entities: Entity instances to delete
+
+        Returns:
+            The list of deleted entities
+
+        Raises:
+            ValueError: If any entity has no @key attributes and doesn't match exactly 1 record
+            ValueError: If any key attribute value is None
+        """
+        if not entities:
+            return []
+
+        if self._executor.has_transaction:
+            for entity in entities:
+                self.delete(entity)
+            return entities
+
+        assert self._executor.database is not None
+        with self._executor.database.transaction(TransactionType.WRITE) as tx_ctx:
+            temp_manager = EntityManager(tx_ctx, self.model_class)
+            for entity in entities:
+                temp_manager.delete(entity)
+
+        return entities
 
     def update(self, entity: E) -> E:
         """Update an entity in the database based on its current state.

@@ -164,13 +164,13 @@ All tests must pass:
 
 ```bash
 # Unit tests (default)
-uv run pytest                              # All 284 unit tests
+uv run pytest                              # All 425 unit tests
 
 # Integration tests
-./test-integration.sh                     # All 138 integration tests with Docker
+./test-integration.sh                     # All 278 integration tests with Docker
 
 # All tests
-uv run pytest -m ""                       # All 422 tests
+uv run pytest -m ""                       # All 703 tests
 ./test.sh                                 # Full test suite with detailed output
 ./check.sh                                # Linting and type checking
 ```

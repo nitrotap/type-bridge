@@ -145,6 +145,37 @@ class TestEntityValidation:
             class MyEntity(Entity):
                 flags = TypeFlags(name="insert")
 
+    def test_entity_named_entity_fails(self):
+        """Entity named 'entity' should fail - TypeDB built-in type.
+
+        Note: Built-in types (entity, relation, attribute, thing) raise ValueError
+        from the TYPEDB_BUILTIN_TYPES check, not ReservedWordError.
+        """
+        with pytest.raises((ValueError, ReservedWordError)):
+
+            class MyEntity(Entity):
+                flags = TypeFlags(name="entity")
+
+    def test_entity_named_thing_fails(self):
+        """Entity named 'thing' should fail - TypeDB root type.
+
+        Note: Built-in types raise ValueError from TYPEDB_BUILTIN_TYPES check.
+        """
+        with pytest.raises((ValueError, ReservedWordError)):
+
+            class Thing(Entity):
+                pass
+
+    def test_entity_named_attribute_fails(self):
+        """Entity named 'attribute' should fail - TypeDB built-in type.
+
+        Note: Built-in types raise ValueError from TYPEDB_BUILTIN_TYPES check.
+        """
+        with pytest.raises((ValueError, ReservedWordError)):
+
+            class Attribute(Entity):
+                flags = TypeFlags(name="attribute")
+
     def test_entity_with_valid_name_succeeds(self):
         """Entity with valid name should succeed."""
 
@@ -157,6 +188,25 @@ class TestEntityValidation:
             pass
 
         assert Company.get_type_name() == "Company"
+
+    def test_entity_with_valid_compound_name_succeeds(self):
+        """Entity with compound name containing reserved word substring succeeds."""
+
+        # These should work - reserved word is part of a larger name
+        class MatchHistory(Entity):
+            flags = TypeFlags(name="match_history")
+
+        assert MatchHistory.get_type_name() == "match_history"
+
+        class DeleteLog(Entity):
+            flags = TypeFlags(name="delete_log")
+
+        assert DeleteLog.get_type_name() == "delete_log"
+
+        class EntityType(Entity):
+            flags = TypeFlags(name="entity_type")
+
+        assert EntityType.get_type_name() == "entity_type"
 
 
 class TestRelationValidation:
@@ -213,6 +263,39 @@ class TestAttributeValidation:
 
             class MyAttribute(String):
                 attr_name = "count"  # 'count' is a reduction keyword
+
+    def test_attribute_named_value_fails(self):
+        """Attribute named 'value' should fail - common mistake."""
+        with pytest.raises(ReservedWordError, match="[Vv]alue.*attribute"):
+
+            class Value(Integer):
+                pass
+
+        with pytest.raises(ReservedWordError):
+
+            class MyValue(String):
+                attr_name = "value"
+
+    def test_attribute_named_label_fails(self):
+        """Attribute named 'label' should fail."""
+        with pytest.raises(ReservedWordError):
+
+            class Label(String):
+                pass
+
+    def test_attribute_named_double_fails(self):
+        """Attribute named 'double' (TypeQL value type) should fail."""
+        with pytest.raises(ReservedWordError):
+
+            class Double(Integer):
+                attr_name = "double"
+
+    def test_attribute_named_datetime_fails(self):
+        """Attribute named 'datetime' (TypeQL value type) should fail."""
+        with pytest.raises(ReservedWordError):
+
+            class DateTimeAttr(String):
+                attr_name = "datetime"
 
     def test_attribute_with_valid_name_succeeds(self):
         """Attribute with valid name should succeed."""
@@ -428,3 +511,198 @@ class TestBaseClassEscapeHatch:
         # These should exist without errors
         assert BaseEntity.__name__ == "Entity"
         assert BaseRelation.__name__ == "Relation"
+
+
+class TestAllReservedWords:
+    """Test that ALL reserved words are properly rejected."""
+
+    # Group reserved words by category for organized testing
+    SCHEMA_KEYWORDS = ["define", "undefine", "redefine"]
+    DATA_MANIPULATION = ["match", "fetch", "insert", "delete", "update", "put"]
+    STREAM_OPERATORS = ["select", "require", "sort", "limit", "offset", "reduce"]
+    PATTERN_LOGIC = ["or", "not", "try", "with"]
+    TYPE_DEFINITIONS = ["entity", "relation", "attribute", "struct", "fun"]
+    CONSTRAINTS = ["sub", "relates", "plays", "value", "owns", "alias"]
+    INSTANCE_STATEMENTS = ["isa", "links", "has", "is", "let", "contains", "like"]
+    IDENTITY = ["label", "iid"]
+    ANNOTATIONS = [
+        "card",
+        "cascade",
+        "independent",
+        "abstract",
+        "key",
+        "subkey",
+        "unique",
+        "values",
+        "range",
+        "regex",
+        "distinct",
+    ]
+    REDUCTIONS = ["check", "first", "count", "max", "min", "mean", "median", "std", "sum", "list"]
+    VALUE_TYPES = [
+        "boolean",
+        "integer",
+        "double",
+        "decimal",
+        "datetime-tz",
+        "datetime_tz",
+        "datetime",
+        "date",
+        "duration",
+        "string",
+    ]
+    FUNCTIONS = ["round", "ceil", "floor", "abs", "length"]
+    LITERALS = ["true", "false"]
+    MISC = ["asc", "desc", "return", "of", "from", "in", "as"]
+
+    @pytest.mark.parametrize("word", SCHEMA_KEYWORDS)
+    def test_schema_keywords_rejected(self, word):
+        """Schema keywords should be rejected."""
+        with pytest.raises(ReservedWordError):
+            validate_type_name(word, "entity")
+
+    @pytest.mark.parametrize("word", DATA_MANIPULATION)
+    def test_data_manipulation_keywords_rejected(self, word):
+        """Data manipulation keywords should be rejected."""
+        with pytest.raises(ReservedWordError):
+            validate_type_name(word, "entity")
+
+    @pytest.mark.parametrize("word", STREAM_OPERATORS)
+    def test_stream_operators_rejected(self, word):
+        """Stream operators should be rejected."""
+        with pytest.raises(ReservedWordError):
+            validate_type_name(word, "attribute")
+
+    @pytest.mark.parametrize("word", PATTERN_LOGIC)
+    def test_pattern_logic_keywords_rejected(self, word):
+        """Pattern logic keywords should be rejected."""
+        with pytest.raises(ReservedWordError):
+            validate_type_name(word, "entity")
+
+    @pytest.mark.parametrize("word", TYPE_DEFINITIONS)
+    def test_type_definition_keywords_rejected(self, word):
+        """Type definition keywords should be rejected."""
+        with pytest.raises(ReservedWordError):
+            validate_type_name(word, "relation")
+
+    @pytest.mark.parametrize("word", CONSTRAINTS)
+    def test_constraint_keywords_rejected(self, word):
+        """Constraint keywords should be rejected."""
+        with pytest.raises(ReservedWordError):
+            validate_type_name(word, "attribute")
+
+    @pytest.mark.parametrize("word", INSTANCE_STATEMENTS)
+    def test_instance_statement_keywords_rejected(self, word):
+        """Instance statement keywords should be rejected."""
+        with pytest.raises(ReservedWordError):
+            validate_type_name(word, "entity")
+
+    @pytest.mark.parametrize("word", IDENTITY)
+    def test_identity_keywords_rejected(self, word):
+        """Identity keywords should be rejected."""
+        with pytest.raises(ReservedWordError):
+            validate_type_name(word, "attribute")
+
+    @pytest.mark.parametrize("word", ANNOTATIONS)
+    def test_annotation_keywords_rejected(self, word):
+        """Annotation keywords should be rejected."""
+        with pytest.raises(ReservedWordError):
+            validate_type_name(word, "entity")
+
+    @pytest.mark.parametrize("word", REDUCTIONS)
+    def test_reduction_keywords_rejected(self, word):
+        """Reduction keywords should be rejected."""
+        with pytest.raises(ReservedWordError):
+            validate_type_name(word, "attribute")
+
+    @pytest.mark.parametrize("word", VALUE_TYPES)
+    def test_value_type_keywords_rejected(self, word):
+        """Value type keywords should be rejected."""
+        # Skip hyphenated versions that aren't valid identifiers anyway
+        if "-" in word:
+            pytest.skip(f"'{word}' is not a valid Python identifier")
+        with pytest.raises(ReservedWordError):
+            validate_type_name(word, "attribute")
+
+    @pytest.mark.parametrize("word", FUNCTIONS)
+    def test_function_keywords_rejected(self, word):
+        """Function keywords should be rejected."""
+        with pytest.raises(ReservedWordError):
+            validate_type_name(word, "entity")
+
+    @pytest.mark.parametrize("word", LITERALS)
+    def test_literal_keywords_rejected(self, word):
+        """Literal keywords should be rejected."""
+        with pytest.raises(ReservedWordError):
+            validate_type_name(word, "attribute")
+
+    @pytest.mark.parametrize("word", MISC)
+    def test_misc_keywords_rejected(self, word):
+        """Miscellaneous keywords should be rejected."""
+        with pytest.raises(ReservedWordError):
+            validate_type_name(word, "role")
+
+    def test_all_reserved_words_covered(self):
+        """Verify that test coverage includes all reserved words."""
+        all_tested = set(
+            self.SCHEMA_KEYWORDS
+            + self.DATA_MANIPULATION
+            + self.STREAM_OPERATORS
+            + self.PATTERN_LOGIC
+            + self.TYPE_DEFINITIONS
+            + self.CONSTRAINTS
+            + self.INSTANCE_STATEMENTS
+            + self.IDENTITY
+            + self.ANNOTATIONS
+            + self.REDUCTIONS
+            + self.VALUE_TYPES
+            + self.FUNCTIONS
+            + self.LITERALS
+            + self.MISC
+        )
+        actual_reserved = get_reserved_words()
+
+        missing = actual_reserved - all_tested
+        extra = all_tested - actual_reserved
+
+        # Report any discrepancies
+        assert not missing, f"Reserved words not tested: {missing}"
+        assert not extra, f"Tested words not in reserved list: {extra}"
+
+    def test_case_insensitive_all_reserved(self):
+        """All reserved words should be rejected regardless of case."""
+        sample_words = ["DEFINE", "Match", "INSERT", "Entity", "VALUE", "Boolean"]
+        for word in sample_words:
+            with pytest.raises(ReservedWordError):
+                validate_type_name(word, "entity")
+
+
+class TestReservedWordContexts:
+    """Test reserved words in all validation contexts."""
+
+    @pytest.mark.parametrize("context", ["entity", "relation", "attribute", "role"])
+    def test_common_reserved_rejected_in_all_contexts(self, context):
+        """Common reserved words should be rejected in all contexts."""
+        common_words = ["match", "insert", "delete", "entity", "attribute", "value"]
+        for word in common_words:
+            with pytest.raises(ReservedWordError):
+                validate_type_name(word, context)
+
+    @pytest.mark.parametrize("context", ["entity", "relation", "attribute", "role"])
+    def test_valid_names_pass_in_all_contexts(self, context):
+        """Valid names should pass in all contexts."""
+        valid_names = [
+            "person",
+            "company",
+            "employee",
+            "customer",
+            "name",
+            "age",
+            "email",
+            "address",
+            "my_entity",
+            "user_role",
+            "product_id",
+        ]
+        for name in valid_names:
+            validate_type_name(name, context)  # Should not raise

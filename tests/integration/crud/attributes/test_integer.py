@@ -141,8 +141,8 @@ def test_integer_delete(clean_db):
     person = Person(name=Name("Frank"), age=Age(35))
     manager.insert(person)
 
-    # Delete by Integer attribute
-    deleted_count = manager.delete(age=35)
+    # Delete by Integer attribute using filter
+    deleted_count = manager.filter(age=35).delete()
     assert deleted_count == 1
 
     # Verify deletion

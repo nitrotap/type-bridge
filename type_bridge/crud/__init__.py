@@ -13,6 +13,12 @@ The module is organized into submodules:
 
 # Re-export for backward compatibility
 from .entity import EntityManager, EntityQuery, GroupByQuery
+from .exceptions import (
+    EntityNotFoundError,
+    NotFoundError,
+    NotUniqueError,
+    RelationNotFoundError,
+)
 from .relation import RelationGroupByQuery, RelationManager, RelationQuery
 
 __all__ = [
@@ -24,4 +30,9 @@ __all__ = [
     "RelationManager",
     "RelationQuery",
     "RelationGroupByQuery",
+    # Exceptions
+    "NotFoundError",
+    "EntityNotFoundError",
+    "RelationNotFoundError",
+    "NotUniqueError",
 ]

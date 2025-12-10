@@ -9,6 +9,7 @@ from type_bridge.query import Query
 from type_bridge.session import Connection, ConnectionExecutor
 
 from ..base import R
+from ..exceptions import RelationNotFoundError
 from ..utils import format_value, is_multi_value_attribute
 
 if TYPE_CHECKING:
@@ -921,99 +922,118 @@ class RelationManager[R: Relation]:
 
         return relation
 
-    def delete(self, **filters) -> int:
-        """Delete relations matching filters.
+    def delete(self, relation: R) -> R:
+        """Delete a relation instance from the database.
 
-        Supports filtering by both attributes and role players to identify relations to delete.
+        Uses role players' @key attributes to identify the relation (same as update).
 
         Args:
-            **filters: Attribute and/or role player filters
-                - Attribute filters: position="Engineer", salary=100000
-                - Role player filters: employee=person_entity, employer=company_entity
+            relation: Relation instance to delete (must have all role players set)
 
         Returns:
-            Number of relations deleted
+            The deleted relation instance
+
+        Raises:
+            ValueError: If any role player is missing
+            RelationNotFoundError: If relation does not exist in database
 
         Example:
-            # Delete by role players
-            manager.delete(employee=alice, employer=techcorp)
+            employment = Employment(employee=alice, employer=techcorp, position=Position("Engineer"))
+            employment_manager.insert(employment)
 
-            # Delete by attribute
-            manager.delete(position="Intern")
-
-            # Delete by both
-            manager.delete(employee=alice, position="Engineer")
+            # Delete using the instance
+            deleted = employment_manager.delete(employment)
         """
-        # Get all attributes (including inherited) for validation
-        all_attrs = self.model_class.get_all_attributes()
+        # Extract role players from relation instance for matching
+        roles = self.model_class._roles
+        role_players = {}
 
-        # Separate attribute filters from role player filters
-        attr_filters = {}
-        role_player_filters = {}
+        for role_name in roles:
+            entity = relation.__dict__.get(role_name)
+            if entity is None:
+                raise ValueError(f"Role player '{role_name}' is required for delete")
+            role_players[role_name] = entity
 
-        for key, value in filters.items():
-            if key in self.model_class._roles:
-                # This is a role player filter
-                role_player_filters[key] = value
-            elif key in all_attrs:
-                # This is an attribute filter
-                attr_filters[key] = value
-            else:
-                raise ValueError(f"Unknown filter: {key}")
-
-        # Build match clause with role players and filters
+        # Build match clause with role players
         role_parts = []
-        role_info = {}  # role_name -> (var, allowed_entity_classes)
-        for role_name, role in self.model_class._roles.items():
+        match_statements = []
+
+        for role_name, entity in role_players.items():
             role_var = f"${role_name}"
+            role = roles[role_name]
             role_parts.append(f"{role.role_name}: {role_var}")
-            role_info[role_name] = (role_var, role.player_entity_types)
 
-        roles_str = ", ".join(role_parts)
-
-        # Build relation match with inline attribute filters
-        relation_parts = [f"$r isa {self.model_class.get_type_name()} ({roles_str})"]
-
-        # Add attribute filters inline using commas
-        for field_name, value in attr_filters.items():
-            attr_info = all_attrs[field_name]
-            attr_name = attr_info.typ.get_attribute_name()
-            formatted_value = format_value(value)
-            relation_parts.append(f"has {attr_name} {formatted_value}")
-
-        # Combine relation and attribute filters with commas
-        relation_match = ", ".join(relation_parts)
-        match_statements = [relation_match]
-
-        # Add role player filter clauses (without semicolons inside)
-        for role_name, player_entity in role_player_filters.items():
-            role_var = f"${role_name}"
-            entity_class = player_entity.__class__
-
-            # Match the role player by their key attributes (including inherited)
-            player_owned_attrs = entity_class.get_all_attributes()
-            for field_name, attr_info in player_owned_attrs.items():
+            # Match role player by their @key attribute (including inherited)
+            player_attrs = entity.__class__.get_all_attributes()
+            for field_name, attr_info in player_attrs.items():
                 if attr_info.flags.is_key:
-                    key_value = getattr(player_entity, field_name, None)
+                    key_value = getattr(entity, field_name, None)
                     if key_value is not None:
                         attr_name = attr_info.typ.get_attribute_name()
-                        # Extract value from Attribute instance if needed
                         if hasattr(key_value, "value"):
                             key_value = key_value.value
                         formatted_value = format_value(key_value)
                         match_statements.append(f"{role_var} has {attr_name} {formatted_value}")
                         break
 
-        # Build query
+        roles_str = ", ".join(role_parts)
+        relation_match = f"$r isa {self.model_class.get_type_name()} ({roles_str})"
+        match_statements.insert(0, relation_match)
+
+        # Check existence before delete by fetching the relation
+        check_query = Query()
+        check_pattern = ";\n".join(match_statements)
+        check_query.match(check_pattern)
+        check_query.fetch("$r")
+
+        result = self._execute(check_query.build(), TransactionType.READ)
+
+        if not result:
+            raise RelationNotFoundError(
+                f"Cannot delete: relation '{self.model_class.get_type_name()}' "
+                "not found with given role players."
+            )
+
+        # Build delete query
         query = Query()
-        # Join statements with semicolons, Query class adds final semicolon
-        pattern = ";\n".join(match_statements) if match_statements else ""
+        pattern = ";\n".join(match_statements)
         query.match(pattern)
         query.delete("$r")
 
-        results = self._execute(query.build(), TransactionType.WRITE)
+        self._execute(query.build(), TransactionType.WRITE)
 
-        return len(results) if results else 0
+        return relation
+
+    def delete_many(self, relations: list[R]) -> list[R]:
+        """Delete multiple relations within a single transaction.
+
+        Uses an existing transaction when supplied, otherwise opens one write
+        transaction and reuses it for all deletes to avoid N separate commits.
+
+        Args:
+            relations: Relation instances to delete
+
+        Returns:
+            The list of deleted relations
+
+        Raises:
+            ValueError: If any relation has missing role players
+        """
+        if not relations:
+            return []
+
+        if self._executor.has_transaction:
+            for relation in relations:
+                self.delete(relation)
+            return relations
+
+        assert self._executor.database is not None
+        with self._executor.database.transaction(TransactionType.WRITE) as tx_ctx:
+            temp_manager = RelationManager(tx_ctx, self.model_class)
+            for relation in relations:
+                temp_manager.delete(relation)
+
+        return relations
 
     def filter(self, *expressions: Any, **filters: Any) -> "RelationQuery[R]":
         """Create a query for filtering relations.

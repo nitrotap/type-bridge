@@ -143,8 +143,8 @@ def test_duration_delete(clean_db):
     session = Session(name=SessionName("Standup"), duration=SessionDuration(timedelta(minutes=15)))
     manager.insert(session)
 
-    # Delete by Duration attribute
-    deleted_count = manager.delete(duration=timedelta(minutes=15))
+    # Delete by Duration attribute using filter
+    deleted_count = manager.filter(duration=timedelta(minutes=15)).delete()
     assert deleted_count == 1
 
     # Verify deletion

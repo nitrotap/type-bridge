@@ -118,8 +118,8 @@ def test_delete_subtype_by_inherited_attribute(clean_db):
     max_dog = Dog(name=LivingName("Max"))
     dog_manager.insert_many([buddy, max_dog])
 
-    # Act - Delete dog by inherited 'name' attribute
-    dog_manager.delete(name=LivingName("Buddy"))
+    # Act - Delete dog by inherited 'name' attribute using filter
+    dog_manager.filter(name=LivingName("Buddy")).delete()
 
     # Assert - Only Max should remain
     remaining = dog_manager.all()
