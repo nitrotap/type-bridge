@@ -10,6 +10,7 @@ def render_package_init(
     *,
     schema_version: str = "1.0.0",
     include_schema_loader: bool = True,
+    functions_present: bool = False,
 ) -> str:
     """Render the package __init__.py source.
 
@@ -19,6 +20,7 @@ def render_package_init(
         relation_class_names: Mapping from TypeDB relation names to Python class names
         schema_version: Version string for SCHEMA_VERSION constant
         include_schema_loader: Whether to include schema_text() helper
+        functions_present: Whether to export functions module
 
     Returns:
         Complete Python source code for __init__.py
@@ -38,9 +40,13 @@ def render_package_init(
             ]
         )
 
+    imports = ["attributes", "entities", "relations"]
+    if functions_present:
+        imports.append("functions")
+
     lines.extend(
         [
-            "from . import attributes, entities, relations",
+            f"from . import {', '.join(imports)}",
             "",
             f'SCHEMA_VERSION = "{schema_version}"',
             "",
@@ -94,6 +100,9 @@ def render_package_init(
         "entities",
         "relations",
     ]
+    if functions_present:
+        all_exports.append("functions")
+
     if include_schema_loader:
         all_exports.append("schema_text")
 

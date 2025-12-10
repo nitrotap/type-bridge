@@ -230,11 +230,11 @@ class TestParseRelations:
         assert rel.abstract is True
 
 
-class TestParseFunctions:
-    """Tests for function handling (functions should be ignored)."""
+class TestParseFunctionsHandling:
+    """Tests for function handling."""
 
-    def test_functions_ignored(self) -> None:
-        """Functions should be skipped without error."""
+    def test_functions_parsed(self) -> None:
+        """Functions should be parsed correctly."""
         schema = parse_tql_schema("""
             define
             entity person,
@@ -250,6 +250,11 @@ class TestParseFunctions:
         # Should still parse the entity and attribute
         assert "person" in schema.entities
         assert "name" in schema.attributes
+
+        # Should parse the function
+        assert "get_person" in schema.functions
+        assert schema.functions["get_person"].return_type == "person"
+
 
 
 class TestParseCardinality:

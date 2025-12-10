@@ -20,6 +20,8 @@ from .models import (
     AttributeSpec,
     Cardinality,
     EntitySpec,
+    FunctionSpec,
+    ParameterSpec,
     ParsedSchema,
     RelationSpec,
     RoleSpec,
@@ -38,6 +40,12 @@ logger = logging.getLogger(__name__)
 # Block-level patterns
 RE_DEFINE_BLOCK = re.compile(r"define\s+", re.IGNORECASE)
 RE_FUNCTION = re.compile(r"\bfun\s+[\w-]+\s*\([^)]*\)", re.MULTILINE)
+
+# Function parsing
+RE_FUNCTION_DEF = re.compile(
+    r"^\s*fun\s+([\w-]+)\s*\(([^)]*)\)\s*->\s*\{\s*([\w-]+)\s*\}\s*:", re.MULTILINE
+)
+RE_PARAM = re.compile(r"\$([\w-]+)\s*:\s*([\w-]+)")
 
 # Type declaration patterns (match at start of statement)
 RE_ATTRIBUTE = re.compile(r"^\s*attribute\s+([\w-]+)", re.MULTILINE)
@@ -285,25 +293,22 @@ def _parse_relation(text: str) -> RelationSpec | None:
 
 
 # =============================================================================
-# Function removal
+# Function parsing
 # =============================================================================
 
 
-def _remove_functions(content: str) -> str:
-    """Remove function definitions from schema content.
+def _extract_and_parse_functions(content: str) -> tuple[str, dict[str, FunctionSpec]]:
+    """Extract function definitions from schema content and parse them.
 
-    TypeDB 3.x functions have the format:
-        fun name($param: type) -> { return_type }:
-          match
-            ...
-          return { $var };
-
-    We remove everything from 'fun' to the line containing 'return' followed by semicolon.
+    Returns:
+        Tuple of (clean_content, dict_of_functions)
     """
+    functions: dict[str, FunctionSpec] = {}
     lines = content.split("\n")
     result_lines: list[str] = []
     in_function = False
     brace_depth = 0
+    current_function_lines: list[str] = []
 
     for line in lines:
         stripped = line.strip()
@@ -312,20 +317,52 @@ def _remove_functions(content: str) -> str:
         if RE_FUNCTION.search(line) and not in_function:
             in_function = True
             brace_depth = 0
+            current_function_lines = [line]
             continue
 
         if in_function:
+            current_function_lines.append(line)
             # Track braces to find function end
             brace_depth += stripped.count("{") - stripped.count("}")
 
             # Function ends when we see "return" and close all braces
             if "return" in stripped and brace_depth <= 0:
                 in_function = False
+                # Parse the accumulated function block
+                full_block = "\n".join(current_function_lines)
+                if spec := _parse_function_block(full_block):
+                    functions[spec.name] = spec
             continue
 
         result_lines.append(line)
 
-    return "\n".join(result_lines)
+    return "\n".join(result_lines), functions
+
+
+def _parse_function_block(block: str) -> FunctionSpec | None:
+    """Parse a single function block into a FunctionSpec."""
+    match = RE_FUNCTION_DEF.search(block)
+    if not match:
+        return None
+
+    name = match.group(1)
+    params_str = match.group(2)
+    return_type = match.group(3)
+
+    parameters: list[ParameterSpec] = []
+    for param_match in RE_PARAM.finditer(params_str):
+        p_name = param_match.group(1)
+        p_type = param_match.group(2)
+        parameters.append(ParameterSpec(name=p_name, type=p_type))
+
+    docstring = _extract_docstring(block)
+
+    return FunctionSpec(
+        name=name,
+        parameters=parameters,
+        return_type=return_type,
+        docstring=docstring,
+    )
 
 
 # =============================================================================
@@ -340,14 +377,10 @@ def parse_tql_schema(schema_content: str) -> ParsedSchema:
         schema_content: Raw TQL schema text
 
     Returns:
-        ParsedSchema containing all parsed attributes, entities, and relations
+        ParsedSchema containing all parsed attributes, entities, relations, and functions
     """
-    # Check for functions
-    if RE_FUNCTION.search(schema_content):
-        logger.debug("Schema contains function definitions which are not yet supported")
-
-    # Remove function blocks
-    clean_content = _remove_functions(schema_content)
+    # Extract and parse functions first
+    clean_content, functions = _extract_and_parse_functions(schema_content)
 
     # Remove 'define' keywords - we'll split on statements
     content = RE_DEFINE_BLOCK.sub("", clean_content)
@@ -356,6 +389,7 @@ def parse_tql_schema(schema_content: str) -> ParsedSchema:
     statements = _split_statements(content)
 
     schema = ParsedSchema()
+    schema.functions = functions
     pending_annotations: dict[str, object] = {}
 
     for statement in statements:
