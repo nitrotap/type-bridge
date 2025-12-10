@@ -3,6 +3,7 @@
 **type-bridge** is a Python ORM (Object-Relational Mapper) for TypeDB, designed to provide Pythonic abstractions over TypeDB's native TypeQL query language.
 
 TypeDB is a strongly-typed database with a unique type system that includes:
+
 - **Entities**: Independent objects with attributes
 - **Relations**: Connections between entities with role players
 - **Attributes**: Values owned by entities and relations
@@ -63,12 +64,23 @@ type_bridge/
 │       ├── manager.py    # RelationManager class
 │       ├── query.py      # RelationQuery chainable queries
 │       └── group_by.py   # RelationGroupByQuery for aggregations
-└── schema/               # Modular schema management
-    ├── manager.py        # SchemaManager for schema operations
-    ├── info.py           # SchemaInfo container
-    ├── diff.py           # SchemaDiff for comparison
-    ├── migration.py      # MigrationManager for migrations
-    └── exceptions.py     # SchemaConflictError for conflict detection
+├── schema/               # Modular schema management
+│   ├── manager.py        # SchemaManager for schema operations
+│   ├── info.py           # SchemaInfo container
+│   ├── diff.py           # SchemaDiff for comparison
+│   ├── migration.py      # MigrationManager for migrations
+│   └── exceptions.py     # SchemaConflictError for conflict detection
+└── generator/            # Code generator (TQL → Python)
+    ├── __init__.py       # Public API: generate_models(), parse_tql_schema()
+    ├── __main__.py       # CLI: python -m type_bridge.generator
+    ├── models.py         # ParsedSchema, AttributeSpec, EntitySpec, RelationSpec
+    ├── parser.py         # TypeQL parser with inheritance resolution
+    ├── naming.py         # kebab-case → PascalCase/snake_case utilities
+    └── render/           # Code renderers
+        ├── attributes.py # Attribute class generation
+        ├── entities.py   # Entity class generation
+        ├── relations.py  # Relation class generation
+        └── package.py    # Package __init__.py generation
 
 examples/
 ├── basic/                # Basic CRUD examples (start here!)
@@ -102,17 +114,20 @@ tests/
 │   ├── flags/            # Flag system tests
 │   ├── expressions/      # Query expression API
 │   ├── crud/             # CRUD unit tests (lookup parser, etc.)
+│   ├── generator/        # Code generator unit tests
 │   └── validation/       # Reserved word and keyword validation
 └── integration/          # Integration tests (require running TypeDB)
     ├── crud/             # CRUD operations
     ├── queries/          # Query builder tests
     ├── schema/           # Schema operations
-    └── session/          # TransactionContext tests
+    ├── session/          # TransactionContext tests
+    └── generator/        # Generator integration tests (generate + import)
 ```
 
 ## Dependencies
 
 The project requires:
+
 - `typedb-driver==3.7.0`: Official Python driver for TypeDB connectivity
 - `pydantic>=2.0`: For validation and type coercion
 - Uses Python's built-in type hints and dataclass-like patterns
@@ -120,20 +135,25 @@ The project requires:
 ## Documentation
 
 ### User Documentation
+
 - **[README.md](README.md)** - Quick start guide for users
 
 ### Development Guides
+
 - **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)** - Development setup, commands, code quality standards
 - **[docs/TESTING.md](docs/TESTING.md)** - Testing strategy, patterns, and execution
 
 ### TypeDB Integration
+
 - **[docs/TYPEDB.md](docs/TYPEDB.md)** - TypeDB concepts, driver API, TypeQL syntax, 3.x changes
 - **[docs/ABSTRACT_TYPES.md](docs/ABSTRACT_TYPES.md)** - Abstract types and interface hierarchies in TypeDB
 
 ### Architecture & Internals
+
 - **[docs/INTERNALS.md](docs/INTERNALS.md)** - Internal type system, ModelAttrInfo, modern Python standards
 
 ### API Reference
+
 - **[docs/api/README.md](docs/api/README.md)** - API overview and quick reference
 - **[docs/api/attributes.md](docs/api/attributes.md)** - Attribute types and value types
 - **[docs/api/entities.md](docs/api/entities.md)** - Entity definition and ownership
@@ -143,12 +163,13 @@ The project requires:
 - **[docs/api/crud.md](docs/api/crud.md)** - CRUD operations and managers
 - **[docs/api/queries.md](docs/api/queries.md)** - Query expressions and aggregations
 - **[docs/api/schema.md](docs/api/schema.md)** - Schema management and conflict detection
+- **[docs/api/generator.md](docs/api/generator.md)** - Code generator (TQL → Python)
 - **[docs/api/validation.md](docs/api/validation.md)** - Pydantic integration and type safety
 
 ## Getting Help
 
 - `/help`: Get help with using Claude Code
-- Report issues at: https://github.com/anthropics/claude-code/issues
+- Report issues at: <https://github.com/anthropics/claude-code/issues>
 
 ## Quick Reference
 

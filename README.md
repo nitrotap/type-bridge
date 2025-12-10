@@ -18,6 +18,7 @@ A modern, Pythonic ORM for [TypeDB](https://github.com/typedb/typedb) with an At
 - **Type-Safe**: Full Python type hints and IDE autocomplete support
 - **Declarative Models**: Define entities and relations using Python classes
 - **Automatic Schema Generation**: Generate TypeQL schemas from your Python models
+- **Code Generator**: Generate Python models from TypeQL schema files (`.tql`)
 - **Schema Conflict Detection**: Automatic detection of breaking schema changes to prevent data loss
 - **Data Validation**: Automatic type checking and coercion via Pydantic, including keyword validation
 - **JSON Support**: Seamless JSON serialization/deserialization
@@ -212,6 +213,43 @@ class Dog(Animal):  # Automatically: dog sub animal in TypeDB
     breed: Breed
 ```
 
+### 8. Generate Models from TypeQL Schema
+
+Instead of writing Python classes manually, generate them from your TypeQL schema:
+
+```bash
+# Generate Python models from a schema file
+python -m type_bridge.generator schema.tql -o ./myapp/models/
+```
+
+Or programmatically:
+
+```python
+from type_bridge.generator import generate_models
+
+generate_models("schema.tql", "./myapp/models/")
+```
+
+This generates a complete Python package:
+
+```
+myapp/models/
+├── __init__.py      # Package exports, SCHEMA_VERSION, schema_text()
+├── attributes.py    # Attribute class definitions
+├── entities.py      # Entity class definitions
+├── relations.py     # Relation class definitions
+└── schema.tql       # Copy of original schema
+```
+
+The generator supports:
+- Entity/relation/attribute inheritance (`sub` keyword)
+- `@key`, `@unique`, `@card` constraints
+- `@regex` and `@values` constraints
+- `@abstract` types
+- Role overrides (`relates X as Y`)
+
+See [docs/api/generator.md](docs/api/generator.md) for full documentation.
+
 ## Documentation
 
 - **[CLAUDE.md](CLAUDE.md)** - Project guidance for development, TypeDB concepts, and quick reference
@@ -232,6 +270,7 @@ class Dog(Animal):  # Automatically: dog sub animal in TypeDB
 - **[docs/api/crud.md](docs/api/crud.md)** - CRUD operations and managers
 - **[docs/api/queries.md](docs/api/queries.md)** - Query expressions and aggregations
 - **[docs/api/schema.md](docs/api/schema.md)** - Schema management and conflict detection
+- **[docs/api/generator.md](docs/api/generator.md)** - Code generator (TQL → Python)
 - **[docs/api/validation.md](docs/api/validation.md)** - Pydantic integration and type safety
 
 ## Pydantic Integration

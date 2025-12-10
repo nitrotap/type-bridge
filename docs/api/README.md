@@ -21,6 +21,10 @@ TypeBridge provides a Pythonic interface to TypeDB that aligns with TypeDB's typ
 - **[Queries](queries.md)** - Query expressions, filtering, aggregations, and pagination
 - **[Schema Management](schema.md)** - Schema operations, conflict detection, and migrations
 
+### Code Generation
+
+- **[Generator](generator.md)** - Generate Python models from TypeDB schema files
+
 ### Validation and Type Safety
 
 - **[Validation](validation.md)** - Pydantic integration, type safety, and literal types
@@ -168,6 +172,7 @@ entity person,
 - [CRUD Operations Documentation](crud.md)
 - [Queries Documentation](queries.md)
 - [Schema Management Documentation](schema.md)
+- [Generator Documentation](generator.md)
 - [Validation Documentation](validation.md)
 
 ---

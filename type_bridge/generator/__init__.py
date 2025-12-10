@@ -1,0 +1,139 @@
+"""TypeBridge code generator - Generate Python models from TypeDB schemas.
+
+This module provides tools to parse TypeDB TQL schema files and generate
+corresponding type-bridge Python model classes.
+
+Example usage:
+
+    from type_bridge.generator import generate_models
+
+    # Generate from a schema file
+    generate_models("schema.tql", "myapp/models/")
+
+    # Or from schema text
+    schema_text = '''
+    define
+    entity person,
+        owns name @key;
+    attribute name, value string;
+    '''
+    generate_models(schema_text, "myapp/models/")
+
+The generated package structure:
+
+    myapp/models/
+    ├── __init__.py      # Package exports, ATTRIBUTES/ENTITIES/RELATIONS lists
+    ├── attributes.py    # Attribute class definitions
+    ├── entities.py      # Entity class definitions
+    ├── relations.py     # Relation class definitions
+    └── schema.tql       # Copy of the source schema
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from .models import ParsedSchema
+from .naming import build_class_name_map
+from .parser import parse_tql_schema
+from .render import (
+    render_attributes,
+    render_entities,
+    render_package_init,
+    render_relations,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+__all__ = [
+    "generate_models",
+    "parse_tql_schema",
+    "ParsedSchema",
+]
+
+
+def generate_models(
+    schema: str | Path,
+    output_dir: str | Path,
+    *,
+    implicit_key_attributes: Iterable[str] | None = None,
+    schema_version: str = "1.0.0",
+    copy_schema: bool = True,
+) -> None:
+    """Generate TypeBridge models from a TypeDB schema.
+
+    Args:
+        schema: Either a path to a .tql file, or the schema text directly
+        output_dir: Directory to write the generated package to
+        implicit_key_attributes: Attribute names to treat as @key even if not marked
+        schema_version: Version string for SCHEMA_VERSION constant
+        copy_schema: Whether to copy the schema file to the output directory
+
+    Raises:
+        FileNotFoundError: If schema is a path that doesn't exist
+        ValueError: If schema parsing fails
+    """
+    # Resolve schema text
+    schema_path: Path | None = None
+    if isinstance(schema, Path):
+        schema_path = schema
+    elif isinstance(schema, str):
+        # Check if it looks like a file path (short string, no newlines)
+        if len(schema) < 500 and "\n" not in schema:
+            try:
+                candidate = Path(schema)
+                if candidate.exists() and candidate.is_file():
+                    schema_path = candidate
+            except OSError:
+                pass  # Not a valid path
+
+    if schema_path:
+        schema_text = schema_path.read_text(encoding="utf-8")
+    else:
+        schema_text = str(schema)
+
+    # Create output directory
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+
+    # Parse schema
+    parsed = parse_tql_schema(schema_text)
+    implicit_keys = set(implicit_key_attributes or set())
+
+    # Build class name mappings
+    attr_class_names = build_class_name_map(parsed.attributes)
+    entity_class_names = build_class_name_map(parsed.entities)
+    relation_class_names = build_class_name_map(parsed.relations)
+
+    # Generate and write files
+    (output / "attributes.py").write_text(
+        render_attributes(parsed, attr_class_names),
+        encoding="utf-8",
+    )
+
+    (output / "entities.py").write_text(
+        render_entities(parsed, attr_class_names, entity_class_names, implicit_keys),
+        encoding="utf-8",
+    )
+
+    (output / "relations.py").write_text(
+        render_relations(parsed, attr_class_names, entity_class_names, relation_class_names),
+        encoding="utf-8",
+    )
+
+    (output / "__init__.py").write_text(
+        render_package_init(
+            attr_class_names,
+            entity_class_names,
+            relation_class_names,
+            schema_version=schema_version,
+            include_schema_loader=copy_schema,
+        ),
+        encoding="utf-8",
+    )
+
+    # Copy schema file if requested
+    if copy_schema:
+        (output / "schema.tql").write_text(schema_text, encoding="utf-8")
