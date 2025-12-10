@@ -12,6 +12,7 @@ from type_bridge import (
     Integer,
     Key,
     Relation,
+    RelationNotFoundError,
     Role,
     SchemaManager,
     String,
@@ -504,3 +505,51 @@ def test_filter_based_delete_still_works(db_with_schema):
     remaining = employment_mgr.all()
     assert len(remaining) == 1
     assert remaining[0].position.value == "Junior"
+
+
+@pytest.mark.integration
+@pytest.mark.order(149)
+def test_delete_nonexistent_relation_raises(db_with_schema):
+    """Test that deleting relation that doesn't exist raises RelationNotFoundError."""
+
+    # Arrange
+    class Name(String):
+        pass
+
+    class Position(String):
+        pass
+
+    class Person(Entity):
+        flags = TypeFlags(name="person")
+        name: Name = Flag(Key)
+
+    class Company(Entity):
+        flags = TypeFlags(name="company")
+        name: Name = Flag(Key)
+
+    class Employment(Relation):
+        flags = TypeFlags(name="employment")
+        employee: Role[Person] = Role("employee", Person)
+        employer: Role[Company] = Role("employer", Company)
+        position: Position
+
+    schema_manager = SchemaManager(db_with_schema)
+    schema_manager.register(Person, Company, Employment)
+    schema_manager.sync_schema(force=True)
+
+    person_mgr = Person.manager(db_with_schema)
+    company_mgr = Company.manager(db_with_schema)
+    employment_mgr = Employment.manager(db_with_schema)
+
+    # Insert entities but NOT the relation
+    alice = Person(name=Name("Alice"))
+    techcorp = Company(name=Name("TechCorp"))
+    person_mgr.insert(alice)
+    company_mgr.insert(techcorp)
+
+    # Create relation but don't insert it
+    emp = Employment(employee=alice, employer=techcorp, position=Position("Engineer"))
+
+    # Act & Assert - Should raise RelationNotFoundError
+    with pytest.raises(RelationNotFoundError, match="not found with given role players"):
+        employment_mgr.delete(emp)

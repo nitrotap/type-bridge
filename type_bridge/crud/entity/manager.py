@@ -12,6 +12,7 @@ from type_bridge.query import QueryBuilder
 from type_bridge.session import Connection, ConnectionExecutor
 
 from ..base import E
+from ..exceptions import EntityNotFoundError, NotUniqueError
 from ..utils import format_value, is_multi_value_attribute
 
 if TYPE_CHECKING:
@@ -429,7 +430,8 @@ class EntityManager[E: Entity]:
 
         Raises:
             ValueError: If key attribute value is None
-            ValueError: If no @key and multiple/no matches found
+            EntityNotFoundError: If entity does not exist in database
+            NotUniqueError: If no @key and multiple matches found
 
         Example:
             alice = Person(name=Name("Alice"), age=Age(30))
@@ -473,12 +475,33 @@ class EntityManager[E: Entity]:
             # Use existing filter().count() mechanism
             count = self.filter(**filter_kwargs).count()
 
-            if count != 1:
-                raise ValueError(
+            if count == 0:
+                raise EntityNotFoundError(
+                    f"Cannot delete: entity '{self.model_class.get_type_name()}' "
+                    "not found with given attributes."
+                )
+            if count > 1:
+                raise NotUniqueError(
                     f"Cannot delete: found {count} matches. "
-                    "Entity without @key must match exactly 1 record."
+                    "Entity without @key must match exactly 1 record. "
+                    "Use filter().delete() for bulk deletion."
                 )
             match_filters = all_filters
+        else:
+            # For keyed entities, check existence before delete
+            filter_kwargs: dict[str, Any] = {}
+            for field_name, attr_info in owned_attrs.items():
+                if attr_info.flags.is_key:
+                    value = getattr(entity, field_name, None)
+                    if value is not None:
+                        filter_kwargs[field_name] = value
+
+            count = self.filter(**filter_kwargs).count()
+            if count == 0:
+                raise EntityNotFoundError(
+                    f"Cannot delete: entity '{self.model_class.get_type_name()}' "
+                    "not found with given key attributes."
+                )
 
         # Build TypeQL: match $e isa type, has key value; delete $e;
         parts = [f"$e isa {self.model_class.get_type_name()}"]

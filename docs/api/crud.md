@@ -461,6 +461,8 @@ $e has status "active";
 
 **Changed in v0.7.1**: Delete API refactored to instance-based pattern for consistency with `insert()` and `update()`.
 
+**Changed in v0.7.2**: New exceptions for delete operations - `EntityNotFoundError`, `RelationNotFoundError`, `NotUniqueError`.
+
 TypeBridge supports two delete patterns:
 1. **Instance delete**: `manager.delete(entity)` - delete by entity instance (recommended)
 2. **Filter delete**: `manager.filter(...).delete()` - delete matching entities by filter
@@ -485,6 +487,7 @@ alice.delete(db)  # Returns alice for chaining
 - Uses `@key` attributes to identify the entity (same as `update()`)
 - Returns the deleted entity instance (not a count)
 - Raises `ValueError` if key attribute is None
+- Raises `EntityNotFoundError` if entity doesn't exist in database (v0.7.2+)
 
 ### Delete Entities Without @key
 
@@ -508,7 +511,8 @@ manager.delete(counter)  # Error: found 2 matches
 **Behavior**:
 - Matches by ALL non-None attributes
 - Only deletes if exactly 1 match found
-- Raises `ValueError` if 0 or >1 matches
+- Raises `EntityNotFoundError` if 0 matches (v0.7.2+)
+- Raises `NotUniqueError` if >1 matches (v0.7.2+)
 
 ### Batch Delete with `delete_many`
 
@@ -580,6 +584,31 @@ Person(name=Name("Temp")).insert(db).delete(db)
 ```
 
 **Warning**: Delete operations are permanent and cannot be undone!
+
+### Exception Handling (v0.7.2+)
+
+Delete operations now raise specific exceptions for better error handling:
+
+```python
+from type_bridge import EntityNotFoundError, NotUniqueError
+
+# Handle non-existent entity
+try:
+    manager.delete(nonexistent_entity)
+except EntityNotFoundError:
+    print("Entity was already deleted or never existed")
+
+# Handle multiple matches for keyless entity
+try:
+    manager.delete(keyless_entity)
+except NotUniqueError:
+    # Use filter().delete() for bulk deletion instead
+    count = manager.filter(value=keyless_entity.value).delete()
+```
+
+**Exception hierarchy**:
+- `EntityNotFoundError(LookupError)` - Entity not found in database
+- `NotUniqueError(ValueError)` - Multiple matches for keyless entity
 
 ## RelationManager
 
@@ -878,6 +907,8 @@ print(f"Promoted {len(promoted)} employments")
 
 **Changed in v0.7.1**: Delete API refactored to instance-based pattern.
 
+**Changed in v0.7.2**: Raises `RelationNotFoundError` when relation doesn't exist.
+
 TypeBridge supports two delete patterns for relations:
 1. **Instance delete**: `manager.delete(relation)` - delete by relation instance (recommended)
 2. **Filter delete**: `manager.filter(...).delete()` - delete matching relations by filter
@@ -902,6 +933,7 @@ employment.delete(db)  # Returns employment for chaining
 - Uses role players' `@key` attributes to identify the relation
 - Returns the deleted relation instance (not a count)
 - Raises `ValueError` if role player is missing or has None key
+- Raises `RelationNotFoundError` if relation doesn't exist (v0.7.2+)
 
 #### Batch Delete with `delete_many`
 
@@ -965,6 +997,19 @@ emp.delete(db)  # Returns emp for chaining
 ```
 
 **Warning**: Delete operations are permanent and cannot be undone!
+
+#### Exception Handling (v0.7.2+)
+
+Relation delete operations raise `RelationNotFoundError` when the relation doesn't exist:
+
+```python
+from type_bridge import RelationNotFoundError
+
+try:
+    manager.delete(nonexistent_relation)
+except RelationNotFoundError:
+    print("Relation was already deleted or never existed")
+```
 
 ## Type Safety
 

@@ -9,6 +9,7 @@ from type_bridge.query import Query
 from type_bridge.session import Connection, ConnectionExecutor
 
 from ..base import R
+from ..exceptions import RelationNotFoundError
 from ..utils import format_value, is_multi_value_attribute
 
 if TYPE_CHECKING:
@@ -934,6 +935,7 @@ class RelationManager[R: Relation]:
 
         Raises:
             ValueError: If any role player is missing
+            RelationNotFoundError: If relation does not exist in database
 
         Example:
             employment = Employment(employee=alice, employer=techcorp, position=Position("Engineer"))
@@ -978,7 +980,21 @@ class RelationManager[R: Relation]:
         relation_match = f"$r isa {self.model_class.get_type_name()} ({roles_str})"
         match_statements.insert(0, relation_match)
 
-        # Build query
+        # Check existence before delete by fetching the relation
+        check_query = Query()
+        check_pattern = ";\n".join(match_statements)
+        check_query.match(check_pattern)
+        check_query.fetch("$r")
+
+        result = self._execute(check_query.build(), TransactionType.READ)
+
+        if not result:
+            raise RelationNotFoundError(
+                f"Cannot delete: relation '{self.model_class.get_type_name()}' "
+                "not found with given role players."
+            )
+
+        # Build delete query
         query = Query()
         pattern = ";\n".join(match_statements)
         query.match(pattern)

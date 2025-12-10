@@ -2,6 +2,64 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [0.7.2] - 2025-12-10
+
+### Breaking Changes
+
+#### New Exceptions for Delete Operations
+- **Added `EntityNotFoundError`** - Raised when deleting an entity that doesn't exist
+  - Now raised for both keyed and keyless entities when no match is found
+  - Previously: keyed entities silently succeeded, keyless raised `ValueError`
+  - Subclass of `LookupError`
+
+- **Added `RelationNotFoundError`** - Raised when deleting a relation that doesn't exist
+  - Raised when relation with given role players is not found
+  - Previously: silently succeeded
+  - Subclass of `LookupError`
+
+- **Added `NotUniqueError`** - Raised when keyless entity matches multiple records
+  - Replaces `ValueError` for multiple match scenarios
+  - Subclass of `ValueError`
+  - Suggestion to use `filter().delete()` for bulk deletion
+
+### Migration Guide
+
+```python
+# Handling non-existent entity deletion (NEW in v0.7.2)
+from type_bridge import EntityNotFoundError, RelationNotFoundError, NotUniqueError
+
+# Entity with @key that doesn't exist
+try:
+    manager.delete(nonexistent_entity)
+except EntityNotFoundError:
+    print("Entity was already deleted or never existed")
+
+# Relation that doesn't exist
+try:
+    relation_manager.delete(nonexistent_relation)
+except RelationNotFoundError:
+    print("Relation was already deleted or never existed")
+
+# Entity without @key matching multiple records
+try:
+    manager.delete(keyless_entity)
+except NotUniqueError:
+    print("Multiple entities matched - use filter().delete() for bulk deletion")
+
+# Bulk delete with __in (migrating from v0.7.0)
+# OLD: manager.delete_many(name__in=["Alice", "Bob"])
+# NEW:
+count = manager.filter(name__in=["Alice", "Bob"]).delete()
+```
+
+### Key Files Modified
+
+- `type_bridge/crud/exceptions.py` - **NEW** - Exception classes
+- `type_bridge/crud/__init__.py` - Export exceptions
+- `type_bridge/crud/entity/manager.py` - Add existence check before delete
+- `type_bridge/crud/relation/manager.py` - Add existence check before delete
+- `type_bridge/__init__.py` - Export exceptions
+
 ## [0.7.1] - 2025-12-09
 
 ### Breaking Changes

@@ -2,7 +2,16 @@
 
 import pytest
 
-from type_bridge import Entity, Flag, Integer, Key, String, TypeFlags
+from type_bridge import (
+    Entity,
+    EntityNotFoundError,
+    Flag,
+    Integer,
+    Key,
+    NotUniqueError,
+    String,
+    TypeFlags,
+)
 from type_bridge.schema import SchemaManager
 
 
@@ -249,7 +258,7 @@ def test_delete_entity_without_key_single_match(db_with_schema):
 @pytest.mark.integration
 @pytest.mark.order(27)
 def test_delete_entity_without_key_multiple_matches_raises(db_with_schema):
-    """Test that deleting entity without @key raises when multiple matches exist."""
+    """Test that deleting entity without @key raises NotUniqueError when multiple matches exist."""
 
     class CounterValue(Integer):
         pass
@@ -270,15 +279,15 @@ def test_delete_entity_without_key_multiple_matches_raises(db_with_schema):
     counter2 = Counter(counter_value=CounterValue(42))
     manager.insert_many([counter1, counter2])
 
-    # Should raise since multiple matches
-    with pytest.raises(ValueError, match="Cannot delete: found 2 matches"):
+    # Should raise NotUniqueError since multiple matches
+    with pytest.raises(NotUniqueError, match="Cannot delete: found 2 matches"):
         manager.delete(counter1)
 
 
 @pytest.mark.integration
 @pytest.mark.order(28)
 def test_delete_entity_without_key_no_match_raises(db_with_schema):
-    """Test that deleting entity without @key raises when no matches exist."""
+    """Test that deleting entity without @key raises EntityNotFoundError when no matches exist."""
 
     class CounterValue(Integer):
         pass
@@ -297,6 +306,54 @@ def test_delete_entity_without_key_no_match_raises(db_with_schema):
     # Create entity but don't insert it (not in DB)
     counter = Counter(counter_value=CounterValue(999))
 
-    # Should raise since 0 matches
-    with pytest.raises(ValueError, match="Cannot delete: found 0 matches"):
+    # Should raise EntityNotFoundError since 0 matches
+    with pytest.raises(EntityNotFoundError, match="not found with given attributes"):
         manager.delete(counter)
+
+
+@pytest.mark.integration
+@pytest.mark.order(29)
+def test_delete_nonexistent_entity_with_key_raises(db_with_schema):
+    """Test that deleting entity with @key that doesn't exist raises EntityNotFoundError."""
+
+    class Name(String):
+        pass
+
+    class Person(Entity):
+        flags = TypeFlags(name="person")
+        name: Name = Flag(Key)
+
+    manager = Person.manager(db_with_schema)
+
+    # Create entity but don't insert it (not in DB)
+    nonexistent = Person(name=Name("NonExistent"))
+
+    # Should raise EntityNotFoundError since entity not in DB
+    with pytest.raises(EntityNotFoundError, match="not found with given key attributes"):
+        manager.delete(nonexistent)
+
+
+@pytest.mark.integration
+@pytest.mark.order(30)
+def test_delete_many_nonexistent_entity_raises(db_with_schema):
+    """Test that delete_many raises EntityNotFoundError when entity doesn't exist."""
+
+    class Name(String):
+        pass
+
+    class Person(Entity):
+        flags = TypeFlags(name="person")
+        name: Name = Flag(Key)
+
+    manager = Person.manager(db_with_schema)
+
+    # Insert one entity
+    alice = Person(name=Name("Alice"))
+    manager.insert(alice)
+
+    # Create another entity but don't insert it
+    nonexistent = Person(name=Name("NonExistent"))
+
+    # Should raise EntityNotFoundError when trying to delete nonexistent entity
+    with pytest.raises(EntityNotFoundError, match="not found with given key attributes"):
+        manager.delete_many([alice, nonexistent])
