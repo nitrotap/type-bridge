@@ -40,6 +40,7 @@ class RelationQuery[R: Relation]:
         self.model_class = model_class
         self.filters = filters or {}
         self._expressions: list[Any] = []  # Store Expression objects
+        self._role_player_expressions: dict[str, list[Any]] = {}  # role_name -> expressions
         self._limit_value: int | None = None
         self._offset_value: int | None = None
 
@@ -177,6 +178,14 @@ class RelationQuery[R: Relation]:
             # Generate TypeQL pattern from expression
             pattern = expr.to_typeql("$r")
             match_clauses.append(pattern)
+
+        # Apply role player expression-based filters
+        for role_name, expressions in self._role_player_expressions.items():
+            role_var = f"${role_name}"
+            for expr in expressions:
+                # Generate TypeQL pattern using role player variable
+                pattern = expr.to_typeql(role_var)
+                match_clauses.append(pattern)
 
         match_str = ";\n".join(match_clauses) + ";"
 
@@ -439,6 +448,13 @@ class RelationQuery[R: Relation]:
         for expr in self._expressions:
             expr_pattern = expr.to_typeql("$r")
             query.match(expr_pattern)
+
+        # Add role player expression-based filters
+        for role_name, expressions in self._role_player_expressions.items():
+            role_var = f"${role_name}"
+            for expr in expressions:
+                expr_pattern = expr.to_typeql(role_var)
+                query.match(expr_pattern)
 
         # Add delete clause
         query.delete("$r")

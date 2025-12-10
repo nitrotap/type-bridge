@@ -8,6 +8,7 @@ from type_bridge.expressions.aggregate import AggregateExpr
 from type_bridge.expressions.base import Expression
 from type_bridge.expressions.boolean import BooleanExpr
 from type_bridge.expressions.comparison import AttributeExistsExpr, ComparisonExpr
+from type_bridge.expressions.role_player import RolePlayerExpr
 from type_bridge.expressions.string import StringExpr
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "StringExpr",
     "BooleanExpr",
     "AggregateExpr",
+    "RolePlayerExpr",
 ]
