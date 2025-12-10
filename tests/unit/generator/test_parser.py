@@ -256,7 +256,6 @@ class TestParseFunctionsHandling:
         assert schema.functions["get_person"].return_type == "person"
 
 
-
 class TestParseCardinality:
     """Tests for cardinality parsing."""
 

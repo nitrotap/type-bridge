@@ -81,7 +81,10 @@ class TestRenderFunctions:
         schema = parse_tql_schema(schema_text)
         source = render_functions(schema)
 
-        assert "def risk_score(age: int | Expression, income: float | Expression) -> FunctionCallExpr:" in source
+        assert (
+            "def risk_score(age: int | Expression, income: float | Expression) -> FunctionCallExpr:"
+            in source
+        )
         assert 'return FunctionCallExpr("risk-score", [age, income])' in source
 
 

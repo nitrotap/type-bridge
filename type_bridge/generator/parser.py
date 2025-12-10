@@ -42,12 +42,12 @@ class SchemaTransformer(Transformer):
         name_token = items[0]
         # items[1] is attribute_opts result (list of dicts) if present
         opts_list = items[1] if len(items) > 1 else []
-        
+
         # Merge all opts dicts
         opts = {}
         for opt in opts_list:
             opts.update(opt)
-        
+
         attr = AttributeSpec(
             name=str(name_token),
             value_type=opts.get("value_type", ""),
@@ -87,20 +87,20 @@ class SchemaTransformer(Transformer):
     # --- Entities ---
     def entity_def(self, items: list[Any]) -> None:
         name = str(items[0])
-        
+
         # Collect all opts and clauses
         opts = {}
         owns_list = []
         plays_set = set()
-        
+
         # items[1:] contains entity_opts (list of dicts) and entity_clauses (tuple or str)
         for item in items[1:]:
-            if isinstance(item, list): # entity_opts
+            if isinstance(item, list):  # entity_opts
                 for opt in item:
                     opts.update(opt)
-            elif isinstance(item, tuple): # owns_statement result
+            elif isinstance(item, tuple):  # owns_statement result
                 owns_list.append(item)
-            elif isinstance(item, str): # plays_statement result
+            elif isinstance(item, str):  # plays_statement result
                 plays_set.add(item)
 
         # Process owns
@@ -113,9 +113,12 @@ class SchemaTransformer(Transformer):
         for attr, card, is_key, is_unique in owns_list:
             owns_set.add(attr)
             owns_order.append(attr)
-            if is_key: keys.add(attr)
-            if is_unique: uniques.add(attr)
-            if card: cardinalities[attr] = card
+            if is_key:
+                keys.add(attr)
+            if is_unique:
+                uniques.add(attr)
+            if card:
+                cardinalities[attr] = card
 
         entity = EntitySpec(
             name=name,
@@ -161,21 +164,21 @@ class SchemaTransformer(Transformer):
     def card_annotation(self, items: list[Any]) -> dict[str, Cardinality]:
         # Filter None (from optional grammar groups)
         real_items = [x for x in items if x is not None]
-        
+
         min_val = int(real_items[0])
-        
+
         if len(real_items) == 1:
             # @card(x) -> exactly x
             return {"card": Cardinality(min_val, min_val)}
-            
+
         # Has ".."
         # items could be [min, ".."] or [min, "..", max]
         last = real_items[-1]
         if hasattr(last, "type") and last.type == "INT":
-             max_val = int(last)
+            max_val = int(last)
         else:
-             max_val = None # Unbounded
-             
+            max_val = None  # Unbounded
+
         return {"card": Cardinality(min_val, max_val)}
 
     def plays_statement(self, items: list[Any]) -> str:
@@ -186,7 +189,7 @@ class SchemaTransformer(Transformer):
     # --- Relations ---
     def relation_def(self, items: list[Any]) -> None:
         name = str(items[0])
-        
+
         opts = {}
         roles = []
         owns_list = []
@@ -194,16 +197,16 @@ class SchemaTransformer(Transformer):
 
         # items[1:] contains relation_opts (list) and relation_clauses
         for item in items[1:]:
-            if isinstance(item, list): # relation_opts
+            if isinstance(item, list):  # relation_opts
                 for opt in item:
                     opts.update(opt)
-            elif isinstance(item, RoleSpec): # relates_statement
+            elif isinstance(item, RoleSpec):  # relates_statement
                 roles.append(item)
-            elif isinstance(item, tuple): # owns_statement
+            elif isinstance(item, tuple):  # owns_statement
                 owns_list.append(item)
-            elif isinstance(item, str): # plays_statement
+            elif isinstance(item, str):  # plays_statement
                 plays_set.add(item)
-        
+
         # Process owns
         owns_set = set()
         owns_order = []
@@ -214,9 +217,12 @@ class SchemaTransformer(Transformer):
         for attr, card, is_key, is_unique in owns_list:
             owns_set.add(attr)
             owns_order.append(attr)
-            if is_key: keys.add(attr)
-            if is_unique: uniques.add(attr)
-            if card: cardinalities[attr] = card
+            if is_key:
+                keys.add(attr)
+            if is_unique:
+                uniques.add(attr)
+            if card:
+                cardinalities[attr] = card
 
         rel = RelationSpec(
             name=name,
@@ -247,20 +253,16 @@ class SchemaTransformer(Transformer):
         idx = 0
         name = str(items[idx])
         idx += 1
-        
+
         parameters = []
         if idx < len(items) and isinstance(items[idx], list):
-             parameters = items[idx]
-             idx += 1
-             
+            parameters = items[idx]
+            idx += 1
+
         # Next item is return_type_clause result (string)
         return_type = str(items[idx])
-        
-        func = FunctionSpec(
-            name=name,
-            parameters=parameters,
-            return_type=return_type
-        )
+
+        func = FunctionSpec(name=name, parameters=parameters, return_type=return_type)
         self.schema.functions[name] = func
 
     def param_list(self, items: list[Any]) -> list[ParameterSpec]:
@@ -274,12 +276,12 @@ class SchemaTransformer(Transformer):
 
     def return_type(self, items: list[Any]) -> str:
         return str(items[0])
-        
+
     def func_body(self, items: list[Any]) -> Any:
-        return None # Ignore body content
+        return None  # Ignore body content
 
     # --- Comments ---
-    # Comments are ignored by grammar (%ignore SH_COMMENT), 
+    # Comments are ignored by grammar (%ignore SH_COMMENT),
     # capturing docstrings requires explicit token handling or a separate pass.
     # For now, we accept losing docstrings in the migration or add them later.
 
@@ -288,9 +290,9 @@ def parse_tql_schema(schema_content: str) -> ParsedSchema:
     """Parse TQL schema using Lark."""
     with open(GRAMMAR_PATH, encoding="utf-8") as f:
         grammar = f.read()
-        
+
     parser = Lark(grammar, start="start", parser="lalr")
     tree = parser.parse(schema_content)
-    
+
     transformer = SchemaTransformer()
     return transformer.transform(tree)

@@ -52,7 +52,7 @@ def _render_function(name: str, spec: FunctionSpec) -> list[str]:
 
     # Body
     args = [to_python_name(p.name) for p in spec.parameters]
-    lines.append(f'    return FunctionCallExpr("{name}", [{', '.join(args)}])')
+    lines.append(f'    return FunctionCallExpr("{name}", [{", ".join(args)}])')
     lines.append("")
 
     return lines
