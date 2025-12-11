@@ -1,4 +1,22 @@
-"""String-specific expressions for text filtering."""
+"""String-specific expressions for text filtering.
+
+TypeDB 3.x Variable Scoping:
+    TypeDB uses variable bindings to create implicit equality constraints.
+    If the same variable is used twice in a match clause, both bindings
+    must have the same value.
+
+    Wrong approach:
+        $actor has name $name;    -- $name binds to actor's name
+        $target has name $name;   -- CONSTRAINT: target's name must EQUAL actor's name!
+
+    Correct approach (unique variables):
+        $actor has name $actor_name;    -- $actor_name binds to actor's name
+        $target has name $target_name;  -- $target_name binds to target's name (independent)
+
+    This is why expressions generate ${var_prefix}_${attr_name} patterns.
+    For example, when var="$actor" and attr="name":
+        Generated: $actor has name $actor_name; $actor_name contains "value"
+"""
 
 from typing import TYPE_CHECKING, Literal
 
@@ -37,10 +55,10 @@ class StringExpr[T: "String"](Expression):
         """
         Generate TypeQL pattern for this string operation.
 
-        Example output: "$e has Name $name; $name contains 'Alice'"
+        Example output: "$e has Name $e_name; $e_name contains 'Alice'"
 
         Args:
-            var: Entity variable name
+            var: Entity variable name (e.g., "$e", "$actor")
 
         Returns:
             TypeQL pattern string (without trailing semicolon)
@@ -48,8 +66,10 @@ class StringExpr[T: "String"](Expression):
         # Get attribute type name for schema
         attr_type_name = self.attr_type.get_attribute_name()
 
-        # Generate attribute variable name (lowercased to avoid conflicts)
-        attr_var = f"${attr_type_name.lower()}"
+        # Generate unique attribute variable name by combining entity var and attr name
+        # This prevents collisions when filtering multiple entities by same attribute type
+        var_prefix = var.lstrip("$")
+        attr_var = f"${var_prefix}_{attr_type_name.lower()}"
 
         # Escape and quote the pattern
         escaped_pattern = self.pattern.value.replace("\\", "\\\\").replace('"', '\\"')

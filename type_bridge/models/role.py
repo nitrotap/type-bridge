@@ -10,6 +10,7 @@ from pydantic_core import CoreSchema
 from type_bridge.validation import validate_type_name as validate_reserved_word
 
 if TYPE_CHECKING:
+    from type_bridge.fields.role import RoleRef
     from type_bridge.models.entity import Entity
 
 
@@ -61,8 +62,8 @@ class Role[T: "Entity"]:
         self.attr_name = name
 
     @overload
-    def __get__(self, obj: None, objtype: type) -> Role[T]:
-        """Get role descriptor when accessed from class."""
+    def __get__(self, obj: None, objtype: type) -> RoleRef[T]:
+        """Get RoleRef when accessed from class (for query building)."""
         ...
 
     @overload
@@ -70,14 +71,20 @@ class Role[T: "Entity"]:
         """Get role player entity when accessed from instance."""
         ...
 
-    def __get__(self, obj: Any, objtype: type) -> T | Role[T]:
-        """Get role player from instance or descriptor from class.
+    def __get__(self, obj: Any, objtype: type) -> T | RoleRef[T]:
+        """Get role player from instance or RoleRef from class.
 
-        When accessed from the class (obj is None), returns the Role descriptor.
+        When accessed from the class (obj is None), returns RoleRef for
+        type-safe query building (e.g., Employment.employee.age.gt(Age(30))).
         When accessed from an instance, returns the entity playing the role.
         """
         if obj is None:
-            return self
+            from type_bridge.fields.role import RoleRef
+
+            return RoleRef(
+                role_name=self.role_name,
+                player_types=self.player_entity_types,
+            )
         return obj.__dict__.get(self.attr_name)
 
     def __set__(self, obj: Any, value: T) -> None:

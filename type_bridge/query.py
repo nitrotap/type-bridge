@@ -146,8 +146,9 @@ class Query:
         # Sort, offset, and limit modifiers (must come BEFORE fetch in TypeQL 3.x)
         # IMPORTANT: offset must come BEFORE limit for pagination to work correctly
         if self._sort_clauses:
-            for var, direction in self._sort_clauses:
-                parts.append(f"sort {var} {direction};")
+            # TypeQL uses comma-separated sort variables: sort $var1 asc, $var2 desc;
+            sort_items = [f"{var} {direction}" for var, direction in self._sort_clauses]
+            parts.append(f"sort {', '.join(sort_items)};")
         if self._offset is not None:
             parts.append(f"offset {self._offset};")
         if self._limit is not None:

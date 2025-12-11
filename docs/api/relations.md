@@ -107,6 +107,109 @@ class Employment(Relation):
 - `Role[EntityType]`: Type hint for role player type
 - `Role("role_name", EntityType)`: Role definition with TypeDB role name and player type
 
+## Type-Safe Role Access
+
+**New in v0.9.0**: Access role player attributes with full type safety for query building.
+
+### Class-Level vs Instance-Level Access
+
+Role fields behave differently at class-level and instance-level:
+
+```python
+class Employment(Relation):
+    flags = TypeFlags(name="employment")
+    employee: Role[Person] = Role("employee", Person)
+    employer: Role[Company] = Role("employer", Company)
+
+# Class-level access returns RoleRef for query building
+Employment.employee       # Returns RoleRef
+Employment.employee.age   # Returns RolePlayerNumericFieldRef
+Employment.employee.name  # Returns RolePlayerStringFieldRef
+
+# Instance-level access returns actual entity instances
+emp = Employment(employee=alice, employer=techcorp)
+emp.employee              # Returns Person instance (alice)
+emp.employer              # Returns Company instance (techcorp)
+```
+
+### Role Player Field References
+
+Access role player attributes through the `RoleRef`:
+
+```python
+# Numeric field reference
+age_ref = Employment.employee.age
+# Type: RolePlayerNumericFieldRef
+
+# String field reference
+name_ref = Employment.employee.name
+# Type: RolePlayerStringFieldRef
+```
+
+### Query Building with Role Player Fields
+
+Use role player field references for type-safe filtering:
+
+```python
+manager = Employment.manager(db)
+
+# Filter by role player attribute
+results = manager.filter(
+    Employment.employee.age.gte(Age(30))
+).execute()
+
+# String operations
+results = manager.filter(
+    Employment.employer.name.contains(Name("Tech"))
+).execute()
+
+# Combine multiple conditions
+results = manager.filter(
+    Employment.employee.age.gt(Age(25)),
+    Employment.employer.name.like(Name("^Tech.*"))
+).execute()
+```
+
+### Available Methods
+
+**Numeric fields**:
+- `.gt(value)`, `.lt(value)`, `.gte(value)`, `.lte(value)`
+- `.eq(value)`, `.neq(value)`
+
+**String fields**:
+- `.contains(value)` - Substring match
+- `.like(value)` - Regex pattern
+- `.regex(value)` - Regex pattern (alias)
+
+### Introspecting Role Attributes
+
+Use `dir()` to discover available attributes:
+
+```python
+# List all available attributes on a role
+print(dir(Employment.employee))
+# ['name', 'age', 'email', ...]
+
+# For multi-player roles, returns union of all player attributes
+print(dir(Trace.origin))
+# ['name', 'subject', 'sender', ...]  # From Document and Email
+```
+
+### Public Role Access
+
+**New in v0.9.0**: Use `get_roles()` to access role definitions:
+
+```python
+# Get all roles
+roles = Employment.get_roles()
+# Returns: {'employee': Role(...), 'employer': Role(...)}
+
+# Access role properties
+role = roles['employee']
+print(role.role_name)            # 'employee'
+print(role.player_entity_types)  # (Person,)
+```
+
 ## Multi-player Roles
 
 A single role can be playable by multiple entity types without introducing an artificial supertype:

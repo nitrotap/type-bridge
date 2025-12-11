@@ -2,6 +2,98 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [0.9.0] - 2025-12-11
+
+### New Features
+
+#### Type-Safe Role Player Expressions (PR #42)
+- **Type-safe role player field expressions**
+  - Access role player attributes with type safety: `Employment.employee.age.gte(Age(30))`
+  - `RoleRef` class for class-level role access
+  - `RolePlayerFieldRef` for type-safe attribute access
+  - `RolePlayerNumericFieldRef` for numeric comparison methods
+  - `RolePlayerStringFieldRef` for string-specific methods (contains, like, regex)
+  - Location: `type_bridge/fields/role.py`
+
+- **Django-style role-player lookup filters**
+  - Filter by role player attributes: `filter(employee__age__gt=30)`
+  - Support for comparison operators: `__eq`, `__gt`, `__lt`, `__gte`, `__lte`
+  - Support for string operators: `__contains`, `__like`, `__regex`
+  - Location: `type_bridge/crud/relation/lookup.py`
+
+- **Added `order_by()` method to EntityQuery and RelationQuery**
+  - Sort results by entity/relation attributes or role player attributes
+  - Supports ascending (default) and descending (`-field`) order
+  - Role-player sorting: `order_by('employee__age', '-salary')`
+  - Location: `type_bridge/crud/entity/query.py`, `type_bridge/crud/relation/query.py`
+
+- **Added public `Relation.get_roles()` method**
+  - Clean API for accessing relation roles without internal `_roles` access
+  - Returns: `dict[str, Role]` mapping role names to Role instances
+  - Location: `type_bridge/models/relation.py`
+
+### Bug Fixes
+
+- **Fixed `RelationQuery.filter()` to support Django-style kwargs**
+  - Chained `.filter()` calls now properly support `**filters` parameter
+  - Location: `type_bridge/crud/relation/query.py`
+
+### Testing
+
+- Added `TestCombinedWithPagination` integration tests
+- Added `TestRoleMultiAttributeAccess` unit tests
+- All type checks pass without suppressions (uses `isinstance` for type narrowing)
+- **806 unit tests** + **377 integration tests** = **1,183 total tests**
+
+### Key Files Added/Modified
+
+- `type_bridge/fields/role.py` - RoleRef and RolePlayerFieldRef classes
+- `type_bridge/crud/relation/lookup.py` - Django-style lookup parser
+- `type_bridge/crud/relation/query.py` - RelationQuery with filter and order_by
+- `type_bridge/crud/entity/query.py` - EntityQuery with order_by
+- `type_bridge/models/relation.py` - Added get_roles() method
+- `type_bridge/generator/render/relations.py` - Updated generated code patterns
+- `tests/unit/fields/test_role_ref.py` - RoleRef unit tests
+- `tests/integration/queries/test_role_field_expressions.py` - Integration tests
+
+### Usage Examples
+
+```python
+from type_bridge import Relation, Role, Entity, TypeFlags, String, Integer
+
+class Age(Integer):
+    pass
+
+class Name(String):
+    pass
+
+class Person(Entity):
+    flags = TypeFlags(name="person")
+    name: Name = Flag(Key)
+    age: Age | None = None
+
+class Employment(Relation):
+    flags = TypeFlags(name="employment")
+    employee: Role[Person] = Role("employee", Person)
+
+# Type-safe role player expression
+results = Employment.manager(db).filter(
+    Employment.employee.age.gte(Age(30))
+).execute()
+
+# Django-style lookup
+results = Employment.manager(db).filter(employee__age__gt=30).execute()
+
+# Combined with sorting and pagination
+results = (
+    Employment.manager(db)
+    .filter(Employment.employee.age.gte(Age(25)), salary__gte=80000)
+    .order_by("employee__age", "-salary")
+    .limit(10)
+    .execute()
+)
+```
+
 ## [0.8.1] - 2025-12-11
 
 ### New Features

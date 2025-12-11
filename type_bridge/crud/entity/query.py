@@ -43,6 +43,7 @@ class EntityQuery[E: Entity]:
         self._expressions: list[Any] = []  # Store Expression objects
         self._limit_value: int | None = None
         self._offset_value: int | None = None
+        self._order_by_fields: list[tuple[str, str]] = []  # [(field_name, direction)]
 
     def filter(self, *expressions: Any) -> "EntityQuery[E]":
         """Add expression-based filters to the query.
@@ -106,6 +107,58 @@ class EntityQuery[E: Entity]:
         self._offset_value = offset
         return self
 
+    def order_by(self, *fields: str) -> "EntityQuery[E]":
+        """Sort query results by one or more fields.
+
+        Args:
+            *fields: Field names to sort by. Prefix with '-' for descending order.
+
+        Returns:
+            Self for chaining
+
+        Raises:
+            ValueError: If field name does not correspond to an owned attribute
+            ValueError: If attempting to sort by a multi-value attribute
+
+        Example:
+            # Ascending
+            query.order_by('name')
+
+            # Descending
+            query.order_by('-age')
+
+            # Multiple fields
+            query.order_by('department', '-salary')
+        """
+        owned_attrs = self.model_class.get_all_attributes()
+
+        for field in fields:
+            # Parse direction prefix
+            if field.startswith("-"):
+                direction = "desc"
+                field_name = field[1:]
+            else:
+                direction = "asc"
+                field_name = field
+
+            # Validate field exists
+            if field_name not in owned_attrs:
+                raise ValueError(
+                    f"Unknown sort field '{field_name}' for {self.model_class.__name__}. "
+                    f"Available fields: {list(owned_attrs.keys())}"
+                )
+
+            # Reject multi-value attributes
+            if is_multi_value_attribute(owned_attrs[field_name].flags):
+                raise ValueError(
+                    f"Cannot sort by multi-value attribute '{field_name}'. "
+                    "Multi-value attributes can have multiple values per entity."
+                )
+
+            self._order_by_fields.append((field_name, direction))
+
+        return self
+
     def execute(self) -> list[E]:
         """Execute the query.
 
@@ -122,10 +175,20 @@ class EntityQuery[E: Entity]:
 
         query.fetch("$e")  # Fetch all attributes with $e.*
 
-        # TypeDB 3.x requires sorting for pagination to work reliably
-        # Always add sorting when using limit or offset to ensure consistent pagination
-        if self._limit_value is not None or self._offset_value is not None:
-            owned_attrs = self.model_class.get_all_attributes()
+        # Apply sorting - either user-specified or auto-select for pagination
+        owned_attrs = self.model_class.get_all_attributes()
+
+        if self._order_by_fields:
+            # User-specified sort fields
+            for i, (field_name, direction) in enumerate(self._order_by_fields):
+                attr_info = owned_attrs[field_name]
+                attr_name = attr_info.typ.get_attribute_name()
+                sort_var = f"$sort_{i}"
+                query.match(f"$e has {attr_name} {sort_var}")
+                query.sort(sort_var, direction)
+        elif self._limit_value is not None or self._offset_value is not None:
+            # TypeDB 3.x requires sorting for pagination to work reliably
+            # Auto-select a sort attribute when using limit or offset
             sort_attr = None
 
             # Try to find a key attribute first (keys are always present and unique)
@@ -143,7 +206,6 @@ class EntityQuery[E: Entity]:
 
             # Add sort clause with attribute variable
             if sort_attr:
-                # Add attribute to match pattern
                 query.match(f"$e has {sort_attr} $sort_attr")
                 query.sort("$sort_attr", "asc")
 
