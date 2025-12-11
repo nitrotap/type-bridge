@@ -40,6 +40,7 @@ from .parser import parse_tql_schema
 from .render import (
     render_attributes,
     render_entities,
+    render_functions,
     render_package_init,
     render_relations,
 )
@@ -123,6 +124,13 @@ def generate_models(
         encoding="utf-8",
     )
 
+    # Render functions if present
+    functions_content = render_functions(parsed)
+    functions_present = False
+    if functions_content:
+        (output / "functions.py").write_text(functions_content, encoding="utf-8")
+        functions_present = True
+
     (output / "__init__.py").write_text(
         render_package_init(
             attr_class_names,
@@ -130,6 +138,7 @@ def generate_models(
             relation_class_names,
             schema_version=schema_version,
             include_schema_loader=copy_schema,
+            functions_present=functions_present,
         ),
         encoding="utf-8",
     )

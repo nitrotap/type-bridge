@@ -11,12 +11,14 @@ from __future__ import annotations
 
 from .attributes import render_attributes
 from .entities import render_entities
+from .functions import render_functions
 from .package import render_package_init
 from .relations import render_relations
 
 __all__ = [
     "render_attributes",
     "render_entities",
+    "render_functions",
     "render_package_init",
     "render_relations",
 ]
