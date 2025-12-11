@@ -2,6 +2,53 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [0.8.1] - 2025-12-11
+
+### New Features
+
+#### TypeDB Function Support in Code Generator
+- **Parse TypeQL `fun` declarations with parameters and return types**
+  - Generate Python function wrappers that return `FunctionCallExpr` objects
+  - Auto-generate `functions.py` module when functions are defined in schema
+  - Support for all TypeDB data types (string, integer, date, datetime, double, boolean, decimal, duration)
+  - Location: `type_bridge/generator/render/functions.py`
+
+- **Added `FunctionCallExpr` class for building function calls in queries**
+  - New expression type for calling TypeDB functions
+  - Location: `type_bridge/expressions/functions.py`
+
+#### Lark-based Parser
+- **Migrated from regex-based parser to robust Lark grammar**
+  - Added formal grammar file (`typeql.lark`) for better maintainability
+  - Improved handling of edge cases (whitespace, optional clauses)
+  - Better support for TypeDB 3.0 features
+  - Location: `type_bridge/generator/typeql.lark`, `type_bridge/generator/parser.py`
+
+### Bug Fixes
+
+#### Parser Grammar Fixes
+- **Fixed parsing of `sub` and `@abstract` in entity/relation bodies**
+  - Now correctly handles patterns like `entity page @abstract, sub content,`
+  - Supports `sub` appearing anywhere in the type definition, not just at the start
+- **Fixed parsing of `@card` annotations on `plays` and `relates` statements**
+  - Now correctly parses `plays posting:post @card(1)` and `relates subject @card(1)`
+
+### Testing
+
+- Added 136 new unit tests for function parsing and rendering
+- All 808 tests passing (520 unit + 288 integration)
+
+### Key Files Added/Modified
+
+- `type_bridge/generator/typeql.lark` - Formal TypeQL grammar (75 lines)
+- `type_bridge/generator/parser.py` - Rewritten with Lark integration
+- `type_bridge/generator/models.py` - Added `FunctionSpec`, `ParameterSpec`
+- `type_bridge/generator/render/functions.py` - Function code generation
+- `type_bridge/expressions/functions.py` - `FunctionCallExpr` class
+- `type_bridge/expressions/__init__.py` - Export `FunctionCallExpr`
+- `type_bridge/generator/__init__.py` - Expose function parsing API
+- `tests/unit/generator/test_functions.py` - Function unit tests
+
 ## [0.8.0] - 2025-12-11
 
 ### New Features
