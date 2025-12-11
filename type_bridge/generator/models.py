@@ -160,6 +160,35 @@ class RelationSpec:
         return {r.name: r.overrides for r in self.roles if r.overrides}
 
 
+@dataclass(slots=True)
+class ParameterSpec:
+    """Parameter definition for a TypeDB function.
+
+    Attributes:
+        name: The parameter name (e.g., "birth-date")
+        type: The parameter type (e.g., "date")
+    """
+
+    name: str
+    type: str
+
+
+@dataclass(slots=True)
+class FunctionSpec:
+    """Function definition extracted from a TypeDB schema.
+
+    Attributes:
+        name: The function name (e.g., "calculate-age")
+        parameters: List of parameters
+        return_type: The return type (e.g., "int")
+    """
+
+    name: str
+    parameters: list[ParameterSpec]
+    return_type: str
+    docstring: str | None = None
+
+
 @dataclass
 class ParsedSchema:
     """Container for all parsed schema components.
@@ -170,6 +199,7 @@ class ParsedSchema:
     attributes: dict[str, AttributeSpec] = field(default_factory=dict)
     entities: dict[str, EntitySpec] = field(default_factory=dict)
     relations: dict[str, RelationSpec] = field(default_factory=dict)
+    functions: dict[str, FunctionSpec] = field(default_factory=dict)
 
     def accumulate_inheritance(self) -> None:
         """Propagate inherited members down all type hierarchies."""

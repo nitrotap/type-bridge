@@ -1,0 +1,79 @@
+// TypeQL Schema Grammar for TypeBridge Generator
+// Based on TypeDB 3.0 syntax
+
+start: define_block*
+
+define_block: "define" statement+
+
+statement: attribute_def
+         | entity_def
+         | relation_def
+         | function_def
+         | comment_annotation
+
+// --- Attributes ---
+attribute_def: "attribute" IDENTIFIER [attribute_opts] ";"
+
+// Allow optional commas between options for flexibility
+attribute_opts: (","? (sub_clause | abstract_annotation | value_type_clause | regex_annotation | values_annotation))+
+
+sub_clause: "sub" IDENTIFIER
+value_type_clause: "value" value_type
+regex_annotation: "@regex" "(" STRING ")"
+values_annotation: "@values" "(" string_list ")"
+abstract_annotation: "@abstract"
+
+// --- Entities ---
+entity_def: "entity" IDENTIFIER [entity_opts] (","? entity_clause)* ";"
+
+entity_opts: (sub_clause | abstract_annotation)+
+
+entity_clause: owns_statement | plays_statement
+
+owns_statement: "owns" IDENTIFIER [owns_opts]
+
+owns_opts: (key_annotation | unique_annotation | card_annotation)+
+key_annotation: "@key"
+unique_annotation: "@unique"
+card_annotation: "@card" "(" INT [DOT_DOT [INT]] ")"
+
+plays_statement: "plays" IDENTIFIER [":" IDENTIFIER]
+
+// --- Relations ---
+relation_def: "relation" IDENTIFIER [relation_opts] (","? relation_clause)* ";"
+
+relation_opts: (sub_clause | abstract_annotation)+
+
+relation_clause: relates_statement | owns_statement | plays_statement
+
+relates_statement: "relates" IDENTIFIER ["as" IDENTIFIER]
+
+// --- Functions ---
+function_def: "fun" IDENTIFIER "(" param_list? ")" "->" return_type_clause ":" func_body
+
+param_list: param ("," param)*
+param: "$" IDENTIFIER ":" (VALUE_TYPE_NAME | IDENTIFIER)
+
+func_body: /.*?return\s*\{[^}]*\};/s
+
+return_type_clause: "{" return_type "}" | return_type
+return_type: IDENTIFIER | VALUE_TYPE_NAME
+
+// --- Common ---
+value_type: VALUE_TYPE_NAME
+
+VALUE_TYPE_NAME: "string" | "integer" | "int" | "long" | "double" | "boolean" | "date" | "datetime" | "datetime-tz" | "decimal" | "duration"
+
+string_list: STRING ("," STRING)*
+
+comment_annotation: /#\s*@[\w-]+(?::\s*.*)?/
+
+IDENTIFIER: /[a-zA-Z_][a-zA-Z0-9_-]*/
+STRING: /"[^"]*"/ | /'[^']*'/
+INT: /[0-9]+/
+DOT_DOT: ".."
+
+%import common.WS
+%import common.SH_COMMENT
+%ignore WS
+%ignore SH_COMMENT
