@@ -32,7 +32,7 @@ from type_bridge.schema import MigrationManager, SchemaManager
 from type_bridge.session import Connection, Database, TransactionContext
 from type_bridge.typedb_driver import Credentials, TransactionType, TypeDB
 
-__version__ = "0.8.1"
+__version__ = "0.9.0"
 
 __all__ = [
     # Database and session

@@ -63,24 +63,35 @@ class RelationMeta(ModelMetaclass):
         Intercept class-level attribute access.
 
         For owned attributes AFTER initialization is complete, return FieldRef instances.
+        For roles AFTER initialization is complete, return RoleRef instances.
         During Pydantic initialization, return the actual descriptor.
         """
-        # Check if this is a field and if we should return FieldRef
+        # Check if this is a field/role and if we should return FieldRef/RoleRef
         try:
-            owned_attrs = super().__getattribute__("_owned_attrs")
             pydantic_complete = super().__getattribute__("__pydantic_complete__")
 
-            # Only return FieldRef if:
-            # 1. Field is in owned_attrs (it's one of our fields)
-            # 2. Pydantic setup is complete (__pydantic_complete__ is True)
-            if name in owned_attrs and pydantic_complete:
-                from type_bridge.fields import FieldDescriptor
+            if pydantic_complete:
+                # Check if it's an owned attribute -> return FieldRef
+                owned_attrs = super().__getattribute__("_owned_attrs")
+                if name in owned_attrs:
+                    from type_bridge.fields import FieldDescriptor
 
-                attr_info = owned_attrs[name]
-                descriptor = FieldDescriptor(field_name=name, attr_type=attr_info.typ)
-                return descriptor.__get__(None, cls)
+                    attr_info = owned_attrs[name]
+                    descriptor = FieldDescriptor(field_name=name, attr_type=attr_info.typ)
+                    return descriptor.__get__(None, cls)
+
+                # Check if it's a role -> return RoleRef
+                roles = super().__getattribute__("_roles")
+                if name in roles:
+                    from type_bridge.fields.role import RoleRef
+
+                    role = roles[name]
+                    return RoleRef(
+                        role_name=role.role_name,
+                        player_types=role.player_entity_types,
+                    )
         except AttributeError:
-            # _owned_attrs or __pydantic_complete__ not defined yet
+            # _owned_attrs, _roles, or __pydantic_complete__ not defined yet
             pass
 
         # For all other cases, use normal access
@@ -144,8 +155,9 @@ class Relation(TypeDBType, metaclass=RelationMeta):
                 # Check if it's a Role[T] type
                 origin = get_origin(hint)
                 if origin is Role:
-                    # It's Role[T]
-                    value = getattr(cls, key, None)
+                    # It's Role[T] - get value directly from __dict__ to avoid
+                    # triggering Role.__get__ descriptor (which returns RoleRef)
+                    value = cls.__dict__.get(key)
                     if isinstance(value, Role):
                         roles[key] = value
 
@@ -286,6 +298,15 @@ class Relation(TypeDBType, metaclass=RelationMeta):
                     return base.get_supertype()
                 return base.get_type_name()
         return None
+
+    @classmethod
+    def get_roles(cls) -> dict[str, Role]:
+        """Get all roles defined on this relation.
+
+        Returns:
+            Dictionary mapping role names to Role instances
+        """
+        return cls._roles
 
     @classmethod
     def manager(cls: type[R], connection: Connection) -> RelationManager[R]:

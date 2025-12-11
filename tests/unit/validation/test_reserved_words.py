@@ -544,7 +544,7 @@ class TestAllReservedWords:
         "integer",
         "double",
         "decimal",
-        "datetime-tz",
+        # Note: "datetime-tz" is omitted because hyphens are not valid in Python identifiers
         "datetime_tz",
         "datetime",
         "date",
@@ -618,9 +618,6 @@ class TestAllReservedWords:
     @pytest.mark.parametrize("word", VALUE_TYPES)
     def test_value_type_keywords_rejected(self, word):
         """Value type keywords should be rejected."""
-        # Skip hyphenated versions that aren't valid identifiers anyway
-        if "-" in word:
-            pytest.skip(f"'{word}' is not a valid Python identifier")
         with pytest.raises(ReservedWordError):
             validate_type_name(word, "attribute")
 
@@ -642,6 +639,10 @@ class TestAllReservedWords:
         with pytest.raises(ReservedWordError):
             validate_type_name(word, "role")
 
+    # Reserved words that aren't valid Python identifiers (contain hyphens)
+    # These can never be used as type names in Python, so we don't test them
+    INVALID_PYTHON_IDENTIFIERS = {"datetime-tz"}
+
     def test_all_reserved_words_covered(self):
         """Verify that test coverage includes all reserved words."""
         all_tested = set(
@@ -662,7 +663,10 @@ class TestAllReservedWords:
         )
         actual_reserved = get_reserved_words()
 
-        missing = actual_reserved - all_tested
+        # Exclude reserved words that aren't valid Python identifiers
+        testable_reserved = actual_reserved - self.INVALID_PYTHON_IDENTIFIERS
+
+        missing = testable_reserved - all_tested
         extra = all_tested - actual_reserved
 
         # Report any discrepancies

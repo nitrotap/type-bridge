@@ -40,33 +40,94 @@ class RelationQuery[R: Relation]:
         self.model_class = model_class
         self.filters = filters or {}
         self._expressions: list[Any] = []  # Store Expression objects
+        self._role_player_expressions: dict[str, list[Any]] = {}  # role_name -> expressions
         self._limit_value: int | None = None
         self._offset_value: int | None = None
+        # [(field_name, direction, role_name or None)]
+        self._order_by_fields: list[tuple[str, str, str | None]] = []
 
-    def filter(self, *expressions: Any) -> "RelationQuery[R]":
-        """Add expression-based filters to the query.
+    def filter(self, *expressions: Any, **filters: Any) -> "RelationQuery[R]":
+        """Add filters to the query.
+
+        Supports expression-based and Django-style filtering for chained queries.
 
         Args:
-            *expressions: Expression objects (ComparisonExpr, StringExpr, etc.)
+            *expressions: Expression objects (ComparisonExpr, StringExpr, RolePlayerExpr, etc.)
+            **filters: Django-style filters for attributes and role-player lookups
+                - Attribute filters: position="Engineer", salary=100000
+                - Role player filters: employee=person_entity
+                - Role-player lookups: employee__age__gt=30, employer__name__contains="Tech"
 
         Returns:
             Self for chaining
 
         Example:
+            # Filter by relation's own attributes
             query = Employment.manager(db).filter(
                 Salary.gt(Salary(100000)),
                 Position.contains(Position("Engineer"))
             )
 
+            # Filter by role-player attributes (type-safe syntax)
+            query = Employment.manager(db).filter(
+                Employment.employee.age.gt(Age(30))
+            )
+
+            # Django-style lookups (can be chained)
+            query = query.filter(employer__industry__contains="Tech")
+
+            # Combined in one call
+            query = manager.filter(
+                Employment.employee.age.gte(Age(25)),
+                salary__gt=50000
+            )
+
         Raises:
             ValueError: If expression references attribute type not owned by relation
+                       or role-player expression references unknown role
         """
-        # Validate expressions reference owned attribute types
+        from type_bridge.expressions import RolePlayerExpr
+
+        from .lookup import parse_role_lookup_filters
+
+        # Parse Django-style filters if provided
+        if filters:
+            attr_filters, role_player_filters, role_expressions, attr_expressions = (
+                parse_role_lookup_filters(self.model_class, filters)
+            )
+
+            # Add attr_filters to self.filters
+            self.filters.update(attr_filters)
+
+            # Add role_player_filters to self.filters
+            self.filters.update(role_player_filters)
+
+            # Add role_expressions to _role_player_expressions
+            for role_name, exprs in role_expressions.items():
+                if role_name not in self._role_player_expressions:
+                    self._role_player_expressions[role_name] = []
+                self._role_player_expressions[role_name].extend(exprs)
+
+            # Add attr_expressions to _expressions
+            self._expressions.extend(attr_expressions)
+
+        # Separate RolePlayerExpr from regular expressions
+        regular_expressions = []
+        role_player_expr_list = []
+
         if expressions:
+            for expr in expressions:
+                if isinstance(expr, RolePlayerExpr):
+                    role_player_expr_list.append(expr)
+                else:
+                    regular_expressions.append(expr)
+
+        # Validate regular expressions reference owned attribute types
+        if regular_expressions:
             owned_attrs = self.model_class.get_all_attributes()
             owned_attr_types = {attr_info.typ for attr_info in owned_attrs.values()}
 
-            for expr in expressions:
+            for expr in regular_expressions:
                 # Get attribute types from expression
                 expr_attr_types = expr.get_attribute_types()
 
@@ -78,7 +139,24 @@ class RelationQuery[R: Relation]:
                             f"Available attribute types: {', '.join(t.__name__ for t in owned_attr_types)}"
                         )
 
-        self._expressions.extend(expressions)
+        # Validate RolePlayerExpr reference valid roles
+        roles = self.model_class._roles
+        for expr in role_player_expr_list:
+            if expr.role_name not in roles:
+                raise ValueError(
+                    f"{self.model_class.__name__} does not have role '{expr.role_name}'. "
+                    f"Available roles: {list(roles.keys())}"
+                )
+
+        # Add regular expressions
+        self._expressions.extend(regular_expressions)
+
+        # Add RolePlayerExpr to role_player_expressions
+        for expr in role_player_expr_list:
+            if expr.role_name not in self._role_player_expressions:
+                self._role_player_expressions[expr.role_name] = []
+            self._role_player_expressions[expr.role_name].append(expr)
+
         return self
 
     def limit(self, limit: int) -> "RelationQuery[R]":
@@ -109,6 +187,96 @@ class RelationQuery[R: Relation]:
             Self for chaining
         """
         self._offset_value = offset
+        return self
+
+    def order_by(self, *fields: str) -> "RelationQuery[R]":
+        """Sort query results by one or more fields.
+
+        Args:
+            *fields: Field names to sort by. Prefix with '-' for descending order.
+                     Use 'role__attr' syntax for role-player attributes.
+
+        Returns:
+            Self for chaining
+
+        Raises:
+            ValueError: If field name does not exist
+            ValueError: If role name does not exist
+            ValueError: If role player does not have the specified attribute
+
+        Example:
+            # Relation attribute
+            query.order_by('salary')
+            query.order_by('-salary')
+
+            # Role-player attribute
+            query.order_by('employee__age')
+            query.order_by('-employee__age')
+
+            # Multiple
+            query.order_by('employee__age', '-salary')
+        """
+        all_attrs = self.model_class.get_all_attributes()
+        roles = self.model_class._roles
+
+        for field in fields:
+            # Parse direction prefix
+            if field.startswith("-"):
+                direction = "desc"
+                field_spec = field[1:]
+            else:
+                direction = "asc"
+                field_spec = field
+
+            # Check if this is a role-player attribute (contains '__')
+            if "__" in field_spec:
+                parts = field_spec.split("__", 1)
+                if len(parts) != 2:
+                    raise ValueError(
+                        f"Invalid sort field format '{field_spec}'. "
+                        "Use 'role__attr' for role-player attributes."
+                    )
+
+                role_name, attr_name = parts
+
+                # Validate role exists
+                if role_name not in roles:
+                    raise ValueError(
+                        f"Unknown role '{role_name}' for {self.model_class.__name__}. "
+                        f"Available roles: {list(roles.keys())}"
+                    )
+
+                # Validate attribute exists on at least one player type
+                role = roles[role_name]
+                all_player_attrs: set[str] = set()
+                for player_type in role.player_entity_types:
+                    player_attrs = player_type.get_all_attributes()
+                    all_player_attrs.update(player_attrs.keys())
+
+                if attr_name not in all_player_attrs:
+                    raise ValueError(
+                        f"Role '{role_name}' players do not have attribute '{attr_name}'. "
+                        f"Available attributes: {sorted(all_player_attrs)}"
+                    )
+
+                self._order_by_fields.append((attr_name, direction, role_name))
+            else:
+                # Direct relation attribute
+                if field_spec not in all_attrs:
+                    raise ValueError(
+                        f"Unknown sort field '{field_spec}' for {self.model_class.__name__}. "
+                        f"Available fields: {list(all_attrs.keys())}"
+                    )
+
+                # Reject multi-value attributes
+                if is_multi_value_attribute(all_attrs[field_spec].flags):
+                    raise ValueError(
+                        f"Cannot sort by multi-value attribute '{field_spec}'. "
+                        "Multi-value attributes can have multiple values per relation."
+                    )
+
+                self._order_by_fields.append((field_spec, direction, None))
+
         return self
 
     def execute(self) -> list[R]:
@@ -178,6 +346,14 @@ class RelationQuery[R: Relation]:
             pattern = expr.to_typeql("$r")
             match_clauses.append(pattern)
 
+        # Apply role player expression-based filters
+        for role_name, expressions in self._role_player_expressions.items():
+            role_var = f"${role_name}"
+            for expr in expressions:
+                # Generate TypeQL pattern using role player variable
+                pattern = expr.to_typeql(role_var)
+                match_clauses.append(pattern)
+
         match_str = ";\n".join(match_clauses) + ";"
 
         # Build fetch clause with nested structure for role players
@@ -198,10 +374,43 @@ class RelationQuery[R: Relation]:
 
         fetch_body = ",\n  ".join(fetch_items)
 
-        # Add sorting for pagination (required for stable limit/offset)
+        # Apply sorting - either user-specified or auto-select for pagination
         sort_clause = ""
-        if self._limit_value is not None or self._offset_value is not None:
-            # Find a required attribute to sort by (not already filtered)
+        sort_match_clauses: list[str] = []
+
+        if self._order_by_fields:
+            # User-specified sort fields
+            sort_parts = []
+            for i, (field_name, direction, role_name) in enumerate(self._order_by_fields):
+                sort_var = f"$sort_{i}"
+
+                if role_name is not None:
+                    # Role-player attribute: get attribute name from player type
+                    role = self.model_class._roles[role_name]
+                    # Find attribute info from first player type that has it
+                    attr_name = None
+                    for player_type in role.player_entity_types:
+                        player_attrs = player_type.get_all_attributes()
+                        if field_name in player_attrs:
+                            attr_info = player_attrs[field_name]
+                            attr_name = attr_info.typ.get_attribute_name()
+                            break
+
+                    if attr_name:
+                        role_var = f"${role_name}"
+                        sort_match_clauses.append(f"{role_var} has {attr_name} {sort_var}")
+                        sort_parts.append(f"{sort_var} {direction}")
+                else:
+                    # Relation attribute
+                    attr_info = all_attrs[field_name]
+                    attr_name = attr_info.typ.get_attribute_name()
+                    sort_match_clauses.append(f"$r has {attr_name} {sort_var}")
+                    sort_parts.append(f"{sort_var} {direction}")
+
+            if sort_parts:
+                sort_clause = "\nsort " + ", ".join(sort_parts) + ";"
+        elif self._limit_value is not None or self._offset_value is not None:
+            # Auto-select a sort attribute for pagination (required for stable limit/offset)
             sort_attr = None
             already_matched_attrs = set()
             for field_name in attr_filters.keys():
@@ -219,10 +428,13 @@ class RelationQuery[R: Relation]:
                         break
 
             if sort_attr:
-                # Add sort binding to match
-                match_str = match_str.rstrip(";")
-                match_str += f";\n$r has {sort_attr} $sort_attr;"
+                sort_match_clauses.append(f"$r has {sort_attr} $sort_attr")
                 sort_clause = "\nsort $sort_attr;"
+
+        # Add sort bindings to match clause
+        if sort_match_clauses:
+            match_str = match_str.rstrip(";")
+            match_str += ";\n" + ";\n".join(sort_match_clauses) + ";"
 
         # Add limit/offset clauses
         pagination_clause = ""
@@ -439,6 +651,13 @@ class RelationQuery[R: Relation]:
         for expr in self._expressions:
             expr_pattern = expr.to_typeql("$r")
             query.match(expr_pattern)
+
+        # Add role player expression-based filters
+        for role_name, expressions in self._role_player_expressions.items():
+            role_var = f"${role_name}"
+            for expr in expressions:
+                expr_pattern = expr.to_typeql(role_var)
+                query.match(expr_pattern)
 
         # Add delete clause
         query.delete("$r")

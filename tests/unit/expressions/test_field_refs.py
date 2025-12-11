@@ -232,34 +232,37 @@ class TestExpressionToTypeQL:
         expr = Person.age.gt(Age(30))
         pattern = expr.to_typeql("$p")
 
-        assert "$p has Age $age" in pattern
-        assert "$age > 30" in pattern
+        # Variable names include entity prefix to avoid collisions
+        assert "$p has Age $p_age" in pattern
+        assert "$p_age > 30" in pattern
 
     def test_string_contains_to_typeql(self):
         """Test string contains TypeQL generation."""
         expr = Person.name.contains(Name("Alice"))
         pattern = expr.to_typeql("$p")
 
-        assert "$p has Name $name" in pattern
-        assert '$name contains "Alice"' in pattern
+        # Variable names include entity prefix to avoid collisions
+        assert "$p has Name $p_name" in pattern
+        assert '$p_name contains "Alice"' in pattern
 
     def test_string_like_to_typeql(self):
         """Test string like (regex) TypeQL generation."""
         expr = Person.name.like(Name("A.*"))
         pattern = expr.to_typeql("$p")
 
-        assert "$p has Name $name" in pattern
-        assert '$name like "A.*"' in pattern
+        # Variable names include entity prefix to avoid collisions
+        assert "$p has Name $p_name" in pattern
+        assert '$p_name like "A.*"' in pattern
 
     def test_boolean_and_to_typeql(self):
         """Test AND expression TypeQL generation."""
         expr = Person.age.gt(Age(18)).and_(Person.age.lt(Age(65)))
         pattern = expr.to_typeql("$p")
 
-        # AND just concatenates patterns
-        assert "$p has Age $age" in pattern
-        assert "$age > 18" in pattern
-        assert "$age < 65" in pattern
+        # AND just concatenates patterns; variable names include entity prefix
+        assert "$p has Age $p_age" in pattern
+        assert "$p_age > 18" in pattern
+        assert "$p_age < 65" in pattern
 
     def test_boolean_or_to_typeql(self):
         """Test OR expression TypeQL generation."""
@@ -267,20 +270,21 @@ class TestExpressionToTypeQL:
         pattern = expr.to_typeql("$p")
 
         # OR creates disjunction blocks (with newlines for TypeDB compatibility)
+        # Variable names include entity prefix
         assert "{" in pattern and "}" in pattern
         assert "\nor\n" in pattern
-        assert "$age < 20" in pattern
-        assert "$age > 40" in pattern
+        assert "$p_age < 20" in pattern
+        assert "$p_age > 40" in pattern
 
     def test_boolean_not_to_typeql(self):
         """Test NOT expression TypeQL generation."""
         expr = Person.age.eq(Age(30)).not_()
         pattern = expr.to_typeql("$p")
 
-        # NOT creates negation block
+        # NOT creates negation block; variable names include entity prefix
         assert "not {" in pattern
         assert "}" in pattern
-        assert "$age == 30" in pattern
+        assert "$p_age == 30" in pattern
 
     def test_aggregate_to_typeql(self):
         """Test aggregate expression TypeQL generation."""

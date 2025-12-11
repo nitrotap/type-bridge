@@ -1,4 +1,22 @@
-"""Comparison expressions for value-based filtering."""
+"""Comparison expressions for value-based filtering.
+
+TypeDB 3.x Variable Scoping:
+    TypeDB uses variable bindings to create implicit equality constraints.
+    If the same variable is used twice in a match clause, both bindings
+    must have the same value.
+
+    Wrong approach:
+        $actor has name $name;    -- $name binds to actor's name
+        $target has name $name;   -- CONSTRAINT: target's name must EQUAL actor's name!
+
+    Correct approach (unique variables):
+        $actor has name $actor_name;    -- $actor_name binds to actor's name
+        $target has name $target_name;  -- $target_name binds to target's name (independent)
+
+    This is why expressions generate ${var_prefix}_${attr_name} patterns.
+    For example, when var="$actor" and attr="name":
+        Generated: $actor has name $actor_name; $actor_name > "value"
+"""
 
 from typing import TYPE_CHECKING, Literal
 
@@ -37,10 +55,10 @@ class ComparisonExpr[T: "Attribute"](Expression):
         """
         Generate TypeQL pattern for this comparison.
 
-        Example output: "$e has Age $age; $age > 30"
+        Example output: "$e has Age $e_age; $e_age > 30"
 
         Args:
-            var: Entity variable name
+            var: Entity variable name (e.g., "$e", "$actor")
 
         Returns:
             TypeQL pattern string (without trailing semicolon)
@@ -53,8 +71,11 @@ class ComparisonExpr[T: "Attribute"](Expression):
         # Get attribute type name for schema
         attr_type_name = self.attr_type.get_attribute_name()
 
-        # Generate attribute variable name (lowercased to avoid conflicts)
-        attr_var = f"${attr_type_name.lower()}"
+        # Generate unique attribute variable name by combining entity var and attr name
+        # This prevents collisions when filtering multiple entities by same attribute type
+        # e.g., $actor -> $actor_name, $target -> $target_name
+        var_prefix = var.lstrip("$")
+        attr_var = f"${var_prefix}_{attr_type_name.lower()}"
 
         # Generate pattern (no trailing semicolon - QueryBuilder adds those)
         pattern = (
@@ -73,7 +94,9 @@ class AttributeExistsExpr[T: "Attribute"](Expression):
 
     def to_typeql(self, var: str) -> str:
         attr_type_name = self.attr_type.get_attribute_name()
-        attr_var = f"${attr_type_name.lower()}"
+        # Generate unique attribute variable name by combining entity var and attr name
+        var_prefix = var.lstrip("$")
+        attr_var = f"${var_prefix}_{attr_type_name.lower()}"
 
         # Presence: simple has clause; Absence: negate a has clause block
         if self.present:

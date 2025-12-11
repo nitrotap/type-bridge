@@ -165,7 +165,7 @@ def render_relations(
         "",
         "def _multi(role: Role) -> Role:",
         '    """Attach allowed_player_types for compatibility with MultiRole."""',
-        '    setattr(role, "allowed_player_types", role.player_entity_types)  # noqa: B010',
+        "    role.allowed_player_types = role.player_entity_types",
         "    return role",
         "",
         "",
@@ -190,7 +190,7 @@ def render_relations(
         [
             "def get_roles(relation_cls: type[Relation]) -> dict[str, Role]:",
             '    """Expose relation roles for introspection."""',
-            "    return relation_cls._roles  # noqa: SLF001",
+            "    return relation_cls.get_roles()",
             "",
             "",
         ]

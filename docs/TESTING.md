@@ -1,6 +1,6 @@
 # Testing Guide
 
-TypeBridge uses a comprehensive two-tier testing approach with **100% test pass rate (703/703 tests)**.
+TypeBridge uses a comprehensive two-tier testing approach with **100% test pass rate (1117/1117 tests)**.
 
 ## Table of Contents
 
@@ -19,14 +19,14 @@ TypeBridge employs a two-tier testing approach that balances speed, isolation, a
 - **Isolated**: Test individual components in isolation
 - **No TypeDB required**: Use mocks and in-memory validation
 - **Run by default**: `pytest` runs unit tests only
-- **425 tests total**: Organized by functionality
+- **768 tests total**: Organized by functionality (40 test files)
 
 ### Integration Tests
 - **Sequential**: Use `@pytest.mark.order()` for predictable execution order
 - **Real database**: Require running TypeDB 3.x server
 - **End-to-end**: Test complete workflows from schema to queries
 - **Explicit execution**: Must use `pytest -m integration`
-- **278 tests total**: Full CRUD, schema, and query coverage
+- **349 tests total**: Full CRUD, schema, and query coverage (56 test files)
 
 ## Unit Tests
 
@@ -36,11 +36,7 @@ Unit tests are located in `tests/unit/` with organized subdirectories:
 
 ```
 tests/unit/
-├── core/                     # Core functionality tests
-│   ├── test_basic.py         # Basic entity/relation/attribute API
-│   ├── test_inheritance.py   # Inheritance and type hierarchies
-│   └── test_pydantic.py      # Pydantic integration and validation
-├── attributes/               # Attribute type tests
+├── attributes/               # 10 test files - Attribute type tests
 │   ├── test_boolean.py       # Boolean attribute type
 │   ├── test_date.py          # Date attribute type
 │   ├── test_datetime_tz.py   # DateTimeTZ attribute type
@@ -49,33 +45,56 @@ tests/unit/
 │   ├── test_duration.py      # Duration attribute type (ISO 8601)
 │   ├── test_formatting.py    # Mixed attribute formatting
 │   ├── test_integer.py       # Integer attribute type
-│   ├── test_string.py        # String attribute type
-│   └── test_multivalue_escaping.py # Multi-value string escaping
-├── flags/                    # Flag system tests
-│   ├── test_base_flag.py     # Base flag for schema exclusion
-│   ├── test_cardinality.py   # Card API for cardinality constraints
-│   ├── test_typename_case.py # Entity/Relation type name formatting
-│   └── test_attribute_typename_case.py # Attribute name formatting
-├── expressions/              # Query expression API tests
-│   ├── test_field_refs.py    # Field reference creation
-│   ├── test_comparisons.py   # Comparison operators
-│   ├── test_string_ops.py    # String operations
-│   └── test_aggregations.py  # Aggregation functions
-├── crud/                     # CRUD operation unit tests
+│   ├── test_multivalue_escaping.py # Multi-value string escaping
+│   └── test_string.py        # String attribute type
+├── core/                     # 4 test files - Core functionality tests
+│   ├── test_entity_dict.py   # Entity dict serialization
+│   ├── test_inheritance.py   # Inheritance and type hierarchies
+│   ├── test_inherited_attribute_filter.py # Inherited attribute filtering
+│   └── test_multi_role_players.py # Multi-role player tests
+├── crud/                     # 5 test files - CRUD operation unit tests
+│   ├── test_format_value.py  # Value formatting for TypeQL
 │   ├── test_lookup_parser.py # Lookup filter parsing
+│   ├── test_negative_cases.py # Negative test cases
+│   ├── test_role_lookup_parser.py # Role lookup parsing
 │   └── test_update_queries.py # Update query generation
-├── validation/               # Validation tests
-│   ├── test_keywords.py      # Reserved word validation
-│   └── test_schema_validation.py # Duplicate attribute detection
-└── type-check-except/        # Intentionally excluded from type checking
-    └── test_validation_errors.py # Tests for validation failures
+├── exceptions/               # 1 test file - Exception handling
+│   └── test_exceptions.py    # Exception tests
+├── expressions/              # 2 test files - Query expression API tests
+│   ├── test_field_refs.py    # Field reference creation
+│   └── test_role_player_expr.py # Role player expressions
+├── fields/                   # 1 test file - Field descriptor tests
+│   └── test_field_descriptor.py # Field descriptor functionality
+├── flags/                    # 4 test files - Flag system tests
+│   ├── test_attribute_typename_case.py # Attribute name formatting
+│   ├── test_base_flag.py     # Base flag for schema exclusion
+│   ├── test_deprecated_type_name.py # Deprecated type name handling
+│   └── test_typename_case.py # Entity/Relation type name formatting
+├── generator/                # 3 test files - Code generator tests
+│   ├── test_generator.py     # Generator functionality
+│   ├── test_naming.py        # Naming conventions
+│   └── test_parser.py        # TypeQL parser tests
+├── query/                    # 1 test file - Query builder tests
+│   └── test_query_builder.py # Query builder functionality
+├── session/                  # 1 test file - Session unit tests
+│   └── test_session_unit.py  # Session functionality
+├── type-check-except/        # 6 test files - Type checking validation
+│   ├── test_basic.py         # Basic validation errors
+│   ├── test_cardinality.py   # Cardinality validation
+│   ├── test_list_default.py  # List default validation
+│   ├── test_multi_role_players_invalid.py # Invalid multi-role players
+│   ├── test_pydantic.py      # Pydantic validation
+│   └── test_update_api.py    # Update API validation
+└── validation/               # 2 test files - Validation tests
+    ├── test_duplicate_attributes.py # Duplicate attribute detection
+    └── test_reserved_words.py # Reserved word validation
 ```
 
 ### Running Unit Tests
 
 ```bash
 # Run all unit tests (default)
-uv run pytest                              # All 425 unit tests (~0.3s)
+uv run pytest                              # All 768 unit tests (~1s)
 uv run pytest -v                           # With verbose output
 
 # Run specific test category
@@ -138,41 +157,72 @@ Integration tests are located in `tests/integration/` with organized subdirector
 
 ```
 tests/integration/
-├── crud/                     # CRUD operations organized by type
-│   ├── entities/             # Entity CRUD operations
-│   │   ├── test_insert.py    # Entity insertion
-│   │   ├── test_fetch.py     # Entity fetching
-│   │   ├── test_update.py    # Entity updates
-│   │   └── test_delete.py    # Entity deletion
-│   ├── relations/            # Relation CRUD operations
-│   │   ├── test_insert.py    # Relation insertion
-│   │   ├── test_fetch.py     # Relation fetching
-│   │   ├── test_update.py    # Relation updates
-│   │   ├── test_delete.py    # Relation deletion
-│   │   ├── test_filter.py    # Relation filtering
-│   │   ├── test_chainable.py # Chainable query operations
-│   │   ├── test_multi_role.py # Multi-player role relations
-│   │   └── test_abstract_roles.py # Abstract entity types in roles
-│   ├── attributes/           # Attribute type operations
-│   │   ├── test_all_types.py # All 9 attribute types
-│   │   ├── test_multi_value.py # Multi-value attributes
+├── crud/                         # 35 test files total
+│   ├── attributes/               # 11 test files - Attribute type operations
+│   │   ├── test_boolean.py       # Boolean attribute CRUD
+│   │   ├── test_date.py          # Date attribute CRUD
+│   │   ├── test_datetime.py      # DateTime attribute CRUD
+│   │   ├── test_datetimetz.py    # DateTimeTZ attribute CRUD
+│   │   ├── test_decimal.py       # Decimal attribute CRUD
+│   │   ├── test_double.py        # Double attribute CRUD
+│   │   ├── test_duration.py      # Duration attribute CRUD
+│   │   ├── test_integer.py       # Integer attribute CRUD
 │   │   ├── test_multivalue_escaping.py # String escaping edge cases
-│   │   └── test_conversions.py # DateTime/DateTimeTZ conversions
-│   └── interop/              # Cross-type operations
-│       ├── test_mixed_queries.py # Complex mixed queries
-│       └── test_role_players.py  # Role player operations
-├── queries/                  # Query builder and expression tests
-│   ├── test_expressions.py   # Query expressions
-│   ├── test_aggregations.py  # Database-side aggregations
-│   ├── test_pagination.py    # Limit, offset, sort
-│   └── test_filtering.py     # Filter operations
-├── schema/                   # Schema operations
-│   ├── test_creation.py      # Schema creation
-│   ├── test_conflict.py      # Conflict detection
-│   ├── test_migration.py     # Schema migrations
-│   └── test_inheritance.py   # Inheritance hierarchies
-└── session/                  # Session and transaction tests
-    └── test_transaction_context.py # TransactionContext operations
+│   │   ├── test_multi_value.py   # Multi-value attributes
+│   │   └── test_string.py        # String attribute CRUD
+│   ├── entities/                 # 8 test files - Entity CRUD operations
+│   │   ├── test_bulk_operations.py # Bulk insert/update/delete
+│   │   ├── test_chainable.py     # Chainable query operations
+│   │   ├── test_delete.py        # Entity deletion
+│   │   ├── test_fetch.py         # Entity fetching
+│   │   ├── test_insert.py        # Entity insertion
+│   │   ├── test_integer_key_bug.py # Integer key bug fix
+│   │   ├── test_put.py           # Entity PUT operations
+│   │   └── test_update.py        # Entity updates
+│   ├── interop/                  # 3 test files - Cross-type operations
+│   │   ├── test_mixed_entity.py  # Mixed entity operations
+│   │   ├── test_mixed_queries.py # Complex mixed queries
+│   │   └── test_type_combinations.py # Type combination tests
+│   ├── relations/                # 9 test files - Relation CRUD operations
+│   │   ├── test_abstract_roles.py # Abstract entity types in roles
+│   │   ├── test_chainable.py     # Chainable query operations
+│   │   ├── test_delete.py        # Relation deletion
+│   │   ├── test_fetch.py         # Relation fetching
+│   │   ├── test_filter.py        # Relation filtering
+│   │   ├── test_insert.py        # Relation insertion
+│   │   ├── test_multi_role.py    # Multi-player role relations
+│   │   ├── test_put.py           # Relation PUT operations
+│   │   └── test_update.py        # Relation updates
+│   ├── test_filter_validation.py # Filter validation tests
+│   ├── test_inherited_attribute_filter.py # Inherited attribute filtering
+│   ├── test_issue_47.py          # Issue #47 regression test
+│   └── test_update_advanced.py   # Advanced update operations
+├── generator/                    # 1 test file - Code generator tests
+│   └── test_generate_and_import.py # Generate and import test
+├── queries/                      # 8 test files - Query builder tests
+│   ├── test_expressions.py       # Query expressions
+│   ├── test_filters.py           # Filter operations
+│   ├── test_lookup_filters.py    # Lookup filter tests
+│   ├── test_match.py             # Match clause tests
+│   ├── test_pagination.py        # Limit, offset, sort
+│   ├── test_role_lookup_filters.py # Role lookup filters
+│   ├── test_role_multi_lookup_filters.py # Multi-role lookup filters
+│   └── test_role_players.py      # Role player queries
+├── schema/                       # 9 test files - Schema operations
+│   ├── test_attributes.py        # Attribute schema tests
+│   ├── test_cardinality.py       # Cardinality constraints
+│   ├── test_conflict.py          # Conflict detection
+│   ├── test_creation.py          # Schema creation
+│   ├── test_diff.py              # Schema diff tests
+│   ├── test_inheritance.py       # Inheritance hierarchies
+│   ├── test_migration.py         # Schema migrations
+│   ├── test_relations.py         # Relation schema tests
+│   └── test_types.py             # Type schema tests
+├── session/                      # 2 test files - Session tests
+│   ├── test_session_lifecycle.py # Session lifecycle
+│   └── test_transaction_context.py # TransactionContext operations
+└── validation/                   # 1 test file - Validation tests
+    └── test_reserved_words_integration.py # Reserved words integration
 ```
 
 ### Running Integration Tests
@@ -183,7 +233,7 @@ Integration tests require a running TypeDB 3.x server.
 
 ```bash
 # Run integration tests with Docker (automatic setup)
-./test-integration.sh                     # All 278 integration tests
+./test-integration.sh                     # All 349 integration tests
 ./test-integration.sh -v                  # With verbose output
 
 # Docker is automatically:
@@ -308,13 +358,13 @@ docker compose down -v
 
 ```bash
 # Unit tests only (default, fast)
-uv run pytest                              # All 425 unit tests
+uv run pytest                              # All 768 unit tests
 
 # Integration tests only (requires TypeDB)
-./test-integration.sh                     # All 278 integration tests with Docker
+./test-integration.sh                     # All 349 integration tests with Docker
 
 # All tests (unit + integration)
-uv run pytest -m ""                       # All 703 tests
+uv run pytest -m ""                       # All 1117 tests
 ./test.sh                                 # Full test suite with detailed output
 ```
 
