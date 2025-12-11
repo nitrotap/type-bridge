@@ -40,13 +40,13 @@ def render_package_init(
             ]
         )
 
-    imports = ["attributes", "entities", "relations"]
+    imports = ["attributes", "entities", "registry", "relations"]
     if functions_present:
         imports.append("functions")
 
     lines.extend(
         [
-            f"from . import {', '.join(imports)}",
+            f"from . import {', '.join(sorted(imports))}",
             "",
             f'SCHEMA_VERSION = "{schema_version}"',
             "",
@@ -98,6 +98,7 @@ def render_package_init(
         "SCHEMA_VERSION",
         "attributes",
         "entities",
+        "registry",
         "relations",
     ]
     if functions_present:

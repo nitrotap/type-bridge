@@ -8,7 +8,9 @@ from typing import Any
 
 from lark import Lark, Transformer
 
+from .annotations import extract_annotations
 from .models import (
+    AnnotationValue,
     AttributeSpec,
     Cardinality,
     EntitySpec,
@@ -28,9 +30,18 @@ GRAMMAR_PATH = Path(__file__).parent / "typeql.lark"
 class SchemaTransformer(Transformer):
     """Transform Lark parse tree into TypeBridge schema models."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        entity_annotations: dict[str, dict[str, AnnotationValue]] | None = None,
+        attribute_annotations: dict[str, dict[str, AnnotationValue]] | None = None,
+        relation_annotations: dict[str, dict[str, AnnotationValue]] | None = None,
+        role_annotations: dict[str, dict[str, dict[str, AnnotationValue]]] | None = None,
+    ) -> None:
         self.schema = ParsedSchema()
-        self.pending_annotations: dict[str, Any] = {}
+        self.entity_annotations = entity_annotations or {}
+        self.attribute_annotations = attribute_annotations or {}
+        self.relation_annotations = relation_annotations or {}
+        self.role_annotations = role_annotations or {}
 
     def start(self, items: list[Any]) -> ParsedSchema:
         """Root rule: returns the populated schema."""
@@ -40,6 +51,7 @@ class SchemaTransformer(Transformer):
     # --- Attributes ---
     def attribute_def(self, items: list[Any]) -> None:
         name_token = items[0]
+        name = str(name_token)
         # items[1] is attribute_opts result (list of dicts) if present
         opts_list = items[1] if len(items) > 1 else []
 
@@ -49,12 +61,16 @@ class SchemaTransformer(Transformer):
             opts.update(opt)
 
         attr = AttributeSpec(
-            name=str(name_token),
+            name=name,
             value_type=opts.get("value_type", ""),
             parent=opts.get("parent"),
             abstract=opts.get("abstract", False),
+            independent=opts.get("independent", False),
             regex=opts.get("regex"),
             allowed_values=opts.get("values"),
+            range_min=opts.get("range_min"),
+            range_max=opts.get("range_max"),
+            annotations=self.attribute_annotations.get(name, {}),
         )
         self.schema.attributes[attr.name] = attr
 
@@ -71,12 +87,23 @@ class SchemaTransformer(Transformer):
     def abstract_annotation(self, items: list[Any]) -> dict[str, bool]:
         return {"abstract": True}
 
+    def independent_annotation(self, items: list[Any]) -> dict[str, bool]:
+        return {"independent": True}
+
     def regex_annotation(self, items: list[Any]) -> dict[str, str]:
         raw = str(items[0])
         return {"regex": raw[1:-1]}
 
     def values_annotation(self, items: list[Any]) -> dict[str, tuple[str, ...]]:
         return {"values": tuple(items[0])}
+
+    def range_annotation(self, items: list[Any]) -> dict[str, str | None]:
+        # items[0] is RANGE_EXPR token containing "min..max" or "min.." or "..max"
+        expr = str(items[0])
+        parts = expr.split("..")
+        range_min = parts[0] if parts[0] else None
+        range_max = parts[1] if len(parts) > 1 and parts[1] else None
+        return {"range_min": range_min, "range_max": range_max}
 
     def string_list(self, items: list[Any]) -> list[str]:
         return [str(item)[1:-1] for item in items]
@@ -91,17 +118,19 @@ class SchemaTransformer(Transformer):
         # Collect all opts and clauses
         opts = {}
         owns_list = []
-        plays_set = set()
+        plays_list: list[tuple[str, Cardinality | None]] = []
 
-        # items[1:] contains entity_opts (list of dicts) and entity_clauses (tuple or str)
+        # items[1:] contains entity_opts (list of dicts) and entity_clauses
         for item in items[1:]:
             if isinstance(item, list):  # entity_opts
                 for opt in item:
                     opts.update(opt)
-            elif isinstance(item, tuple):  # owns_statement result
-                owns_list.append(item)
-            elif isinstance(item, str):  # plays_statement result
-                plays_set.add(item)
+            elif isinstance(item, tuple):
+                # Check if it's owns_statement (4 elements) or plays_statement (2 elements)
+                if len(item) == 4:
+                    owns_list.append(item)
+                elif len(item) == 2:
+                    plays_list.append(item)
 
         # Process owns
         owns_set = set()
@@ -120,6 +149,15 @@ class SchemaTransformer(Transformer):
             if card:
                 cardinalities[attr] = card
 
+        # Process plays
+        plays_set = set()
+        plays_cardinalities: dict[str, Cardinality] = {}
+
+        for role_ref, card in plays_list:
+            plays_set.add(role_ref)
+            if card:
+                plays_cardinalities[role_ref] = card
+
         entity = EntitySpec(
             name=name,
             parent=opts.get("parent"),
@@ -130,6 +168,8 @@ class SchemaTransformer(Transformer):
             keys=keys,
             uniques=uniques,
             cardinalities=cardinalities,
+            plays_cardinalities=plays_cardinalities,
+            annotations=self.entity_annotations.get(name, {}),
         )
         self.schema.entities[name] = entity
 
@@ -181,10 +221,25 @@ class SchemaTransformer(Transformer):
 
         return {"card": Cardinality(min_val, max_val)}
 
-    def plays_statement(self, items: list[Any]) -> str:
-        if len(items) == 2 and items[1] is not None:
-            return f"{items[0]}:{items[1]}"
-        return str(items[0])
+    def plays_statement(self, items: list[Any]) -> tuple[str, Cardinality | None]:
+        # items: [relation_name, role_name?, card_annotation?]
+        # Build the role reference
+        role_ref: str
+        card: Cardinality | None = None
+
+        if len(items) >= 2 and items[1] is not None and isinstance(items[1], str):
+            # Has explicit role: plays relation:role
+            role_ref = f"{items[0]}:{items[1]}"
+            # Check if there's a card annotation (items[2] would be a dict with "card")
+            if len(items) >= 3 and isinstance(items[2], dict):
+                card = items[2].get("card")
+        else:
+            role_ref = str(items[0])
+            # Check if there's a card annotation (items[1] would be a dict with "card")
+            if len(items) >= 2 and isinstance(items[1], dict):
+                card = items[1].get("card")
+
+        return (role_ref, card)
 
     # --- Relations ---
     def relation_def(self, items: list[Any]) -> None:
@@ -202,10 +257,13 @@ class SchemaTransformer(Transformer):
                     opts.update(opt)
             elif isinstance(item, RoleSpec):  # relates_statement
                 roles.append(item)
-            elif isinstance(item, tuple):  # owns_statement
-                owns_list.append(item)
-            elif isinstance(item, str):  # plays_statement
-                plays_set.add(item)
+            elif isinstance(item, tuple):
+                # Check if it's owns_statement (4 elements) or plays_statement (2 elements)
+                if len(item) == 4:
+                    owns_list.append(item)
+                elif len(item) == 2:
+                    # plays_statement returns (role_ref, card) - just use role_ref
+                    plays_set.add(item[0])
 
         # Process owns
         owns_set = set()
@@ -224,6 +282,12 @@ class SchemaTransformer(Transformer):
             if card:
                 cardinalities[attr] = card
 
+        # Apply role annotations
+        role_annots = self.role_annotations.get(name, {})
+        for role in roles:
+            if role.name in role_annots:
+                role.annotations.update(role_annots[role.name])
+
         rel = RelationSpec(
             name=name,
             parent=opts.get("parent"),
@@ -234,6 +298,7 @@ class SchemaTransformer(Transformer):
             keys=keys,
             uniques=uniques,
             cardinalities=cardinalities,
+            annotations=self.relation_annotations.get(name, {}),
         )
         self.schema.relations[name] = rel
 
@@ -245,8 +310,17 @@ class SchemaTransformer(Transformer):
 
     def relates_statement(self, items: list[Any]) -> RoleSpec:
         name = str(items[0])
-        overrides = str(items[1]) if len(items) > 1 else None
-        return RoleSpec(name=name, overrides=overrides)
+        overrides: str | None = None
+        cardinality: Cardinality | None = None
+
+        # Parse remaining items - could be: overrides (str), card (dict), or both
+        for item in items[1:]:
+            if isinstance(item, str):
+                overrides = item
+            elif isinstance(item, dict) and "card" in item:
+                cardinality = item["card"]
+
+        return RoleSpec(name=name, overrides=overrides, cardinality=cardinality)
 
     # --- Functions ---
     def function_def(self, items: list[Any]) -> None:
@@ -272,10 +346,27 @@ class SchemaTransformer(Transformer):
         return ParameterSpec(name=str(items[0]), type=str(items[1]))
 
     def return_type_clause(self, items: list[Any]) -> str:
+        # items[0] is either stream_return or single_return result
         return str(items[0])
 
-    def return_type(self, items: list[Any]) -> str:
+    def stream_return(self, items: list[Any]) -> str:
+        # Stream type: { types }
+        return "{ " + str(items[0]) + " }"
+
+    def single_return(self, items: list[Any]) -> str:
+        # Single/tuple type: type or type1, type2
         return str(items[0])
+
+    def return_type_list(self, items: list[Any]) -> str:
+        # Join multiple return types with comma
+        return ", ".join(str(item) for item in items)
+
+    def return_type(self, items: list[Any]) -> str:
+        # items[0] is type name, items[1] (if present) is OPTIONAL "?" token
+        type_name = str(items[0])
+        if len(items) > 1 and items[1] is not None:
+            return type_name + "?"
+        return type_name
 
     def func_body(self, items: list[Any]) -> Any:
         return None  # Ignore body content
@@ -287,12 +378,24 @@ class SchemaTransformer(Transformer):
 
 
 def parse_tql_schema(schema_content: str) -> ParsedSchema:
-    """Parse TQL schema using Lark."""
+    """Parse TQL schema using Lark.
+
+    First extracts custom annotations from comments (# @key(value)),
+    then parses the schema structure and associates annotations with definitions.
+    """
+    # Extract annotations from comments before parsing
+    entity_annots, attr_annots, rel_annots, role_annots = extract_annotations(schema_content)
+
     with open(GRAMMAR_PATH, encoding="utf-8") as f:
         grammar = f.read()
 
     parser = Lark(grammar, start="start", parser="lalr")
     tree = parser.parse(schema_content)
 
-    transformer = SchemaTransformer()
+    transformer = SchemaTransformer(
+        entity_annotations=entity_annots,
+        attribute_annotations=attr_annots,
+        relation_annotations=rel_annots,
+        role_annotations=role_annots,
+    )
     return transformer.transform(tree)

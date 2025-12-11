@@ -95,19 +95,47 @@ print(schema_text())
 
 ## Supported TypeQL Features
 
+The generator supports the full TypeDB 3.0 schema syntax:
+
+| Feature | Status |
+|---------|--------|
+| Attributes with value types | ✓ |
+| `@abstract` types | ✓ |
+| `@independent` attributes | ✓ |
+| `sub` inheritance | ✓ |
+| `@regex` constraints | ✓ |
+| `@values` constraints | ✓ |
+| `@range` constraints | ✓ |
+| `@key` / `@unique` | ✓ |
+| `@card` on owns | ✓ |
+| `@card` on plays | ✓ |
+| `@card` on relates | ✓ |
+| Role overrides (`as`) | ✓ |
+| Functions (`fun`) | ✓ |
+| `#` and `//` comments | ✓ |
+
 ### Attributes
 
 ```typeql
-# Basic attribute with value type
+// Basic attribute with value type
 attribute name, value string;
 
-# Abstract attribute (generates inheritance)
+// Abstract attribute (generates inheritance)
 attribute id @abstract, value string;
 attribute person-id sub id;
 
-# With constraints
+// Independent attribute (can exist without owner)
+attribute language @independent, value string;
+
+// With constraints
 attribute email, value string @regex("^.*@.*$");
 attribute status, value string @values("active", "inactive");
+
+// Range constraints
+attribute age, value integer @range(0..150);
+attribute latitude, value double @range(-90.0..90.0);
+attribute birth-date, value date @range(1900-01-01..2100-12-31);
+attribute created-at, value datetime @range(1970-01-01T00:00:00..);  // Open-ended
 ```
 
 **Generated Python:**
@@ -122,6 +150,10 @@ class Id(String):
 class PersonId(Id):
     flags = AttributeFlags(name="person-id")
 
+class Language(String):
+    flags = AttributeFlags(name="language")
+    independent: ClassVar[bool] = True
+
 class Email(String):
     flags = AttributeFlags(name="email")
     regex: ClassVar[str] = r"^.*@.*$"
@@ -129,18 +161,23 @@ class Email(String):
 class Status(String):
     flags = AttributeFlags(name="status")
     allowed_values: ClassVar[tuple[str, ...]] = ("active", "inactive",)
+
+class Age(Integer):
+    flags = AttributeFlags(name="age")
+    range_min: ClassVar[str] = "0"
+    range_max: ClassVar[str] = "150"
 ```
 
 ### Entities
 
 ```typeql
-# Basic entity
+// Basic entity
 entity person,
     owns name @key,
     owns age,
     plays employment:employee;
 
-# Abstract entity with inheritance
+// Abstract entity with inheritance
 entity content @abstract,
     owns id @key;
 
@@ -148,10 +185,15 @@ entity post sub content,
     owns title,
     owns body;
 
-# Cardinality constraints
+// Cardinality constraints on owns
 entity page,
     owns tag @card(0..10),
     owns name @card(1..3);
+
+// Cardinality constraints on plays
+entity user,
+    plays friendship:friend @card(0..100),
+    plays posting:author @card(0..);
 ```
 
 **Generated Python:**
@@ -181,25 +223,36 @@ class Page(Entity):
 ### Relations
 
 ```typeql
-# Basic relation
+// Basic relation
 relation employment,
     relates employer,
     relates employee;
 
-# Relation with inheritance and role override
+// Relation with inheritance and role override
 relation contribution @abstract,
     relates contributor,
     relates work;
 
 relation authoring sub contribution,
-    relates author as contributor;  # Role override
+    relates author as contributor;  // Role override
 
-# Relation with attributes
+// Relation with attributes
 relation review,
     relates reviewer,
     relates reviewed,
     owns score,
     owns timestamp;
+
+// Cardinality constraints on roles
+relation social-relation @abstract,
+    relates related @card(0..);
+
+relation friendship sub social-relation,
+    relates friend as related @card(0..1000);
+
+relation parentship,
+    relates parent @card(1..2),
+    relates child @card(1..);
 ```
 
 **Generated Python:**
@@ -239,12 +292,23 @@ class Review(Relation):
 | `@key` | `Type = Flag(Key)` | Key (implies required) |
 | `@unique` | `Type = Flag(Unique)` | Unique (implies required) |
 
-## Comment Annotations
+## Comments
+
+The parser supports both `#` (shell-style) and `//` (C-style) comments:
+
+```typeql
+# This is a shell-style comment
+// This is a C-style comment
+attribute name, value string;  // Inline comment
+entity person, owns name;  # Also inline
+```
+
+### Comment Annotations
 
 The generator supports special comment annotations for customizing output:
 
 ```typeql
-# @prefix: PERSON_
+# @prefix(PERSON_)
 # Custom prefix for IDs
 entity person,
     owns id @key;
@@ -253,28 +317,79 @@ entity person,
 # This entity is for internal use
 entity audit-log,
     owns timestamp;
+
+# @tags(api, public)
+entity user,
+    owns username @key;
 ```
 
 | Annotation | Effect |
 |------------|--------|
-| `# @prefix: XXX` | Adds `prefix: ClassVar[str] = "XXX"` |
+| `# @prefix(XXX)` | Adds `prefix: ClassVar[str] = "XXX"` |
 | `# @internal` | Sets `internal = True` on the spec |
-| `# @case: SNAKE_CASE` | Uses specified case for type name |
-| `# @transform: xxx` | Adds `transform = "xxx"` attribute |
+| `# @case(SNAKE_CASE)` | Uses specified case for type name |
+| `# @transform(xxx)` | Adds `transform = "xxx"` attribute |
+| `# @tags(a, b, c)` | Adds list annotation |
 | `# Any other comment` | Becomes the class docstring |
 
 ## Functions
 
-TypeDB functions (`fun` declarations) are automatically skipped during parsing. The generator only processes type definitions.
+TypeDB functions (`fun` declarations) are fully parsed and can be used for metadata. The generator extracts function signatures including parameters and return types.
+
+### Supported Function Syntax
 
 ```typeql
-# This function is ignored by the generator
-fun get_user_posts($user: user) -> { post }:
-    match
-        $post isa post;
-        (author: $user, work: $post) isa authoring;
-    return { $post };
+// Stream return (single type)
+fun user_phones($user: user) -> { phone }:
+    match $user has phone $phone;
+    return { $phone };
+
+// Stream return (tuple)
+fun all_users_and_phones() -> { user, phone, string }:
+    match $user isa user, has phone $phone;
+    return { $user, $phone, "value" };
+
+// Single scalar return
+fun add($x: integer, $y: integer) -> integer:
+    match let $z = $x + $y;
+    return first $z;
+
+// Tuple return
+fun divide($a: integer, $b: integer) -> integer, integer:
+    match let $q = $a / $b;
+    return first $q, $r;
+
+// Bool return type
+fun is_reachable($from: node, $to: node) -> bool:
+    match ($from, $to) isa edge;
+    return first true;
+
+// Optional return type
+fun any_place_with_optional_name() -> place, name?:
+    match $p isa place;
+    return first $p, $n;
+
+// No parameters
+fun mean_karma() -> double:
+    match $user isa user, has karma $karma;
+    return mean($karma);
+
+// Aggregate returns
+fun karma_sum_and_squares() -> double, double:
+    match $karma isa karma;
+    return sum($karma), sum($karma);
 ```
+
+### Function Return Types
+
+| TypeQL | Parsed `return_type` |
+|--------|---------------------|
+| `-> { type }` | `"{ type }"` |
+| `-> { t1, t2 }` | `"{ t1, t2 }"` |
+| `-> type` | `"type"` |
+| `-> t1, t2` | `"t1, t2"` |
+| `-> t1, t2?` | `"t1, t2?"` |
+| `-> bool` | `"bool"` |
 
 ## API Reference
 
@@ -323,9 +438,27 @@ class ParsedSchema:
     attributes: dict[str, AttributeSpec]
     entities: dict[str, EntitySpec]
     relations: dict[str, RelationSpec]
+    functions: dict[str, FunctionSpec]
 
     def accumulate_inheritance(self) -> None:
         """Propagate owns/plays/keys down inheritance hierarchies."""
+```
+
+### `FunctionSpec`
+
+```python
+@dataclass
+class FunctionSpec:
+    """Function definition extracted from a TypeDB schema."""
+    name: str                        # e.g., "calculate-age"
+    parameters: list[ParameterSpec]  # Function parameters
+    return_type: str                 # e.g., "{ person }" or "integer, integer"
+
+@dataclass
+class ParameterSpec:
+    """Parameter definition for a TypeDB function."""
+    name: str   # e.g., "birth-date"
+    type: str   # e.g., "date" or "user"
 ```
 
 ## Best Practices
@@ -372,15 +505,6 @@ If your schema uses `id` as a key by convention:
 ```bash
 python -m type_bridge.generator schema.tql -o ./models/ --implicit-keys id
 ```
-
-## Limitations
-
-The following TypeQL features are not yet supported:
-
-- `@range(min..max)` constraints on numeric attributes
-- `@independent` attribute flag
-- `@card` on `plays` declarations (e.g., `plays posting:page @card(0..)`)
-- `//` style comments (only `#` comments are parsed)
 
 ## See Also
 

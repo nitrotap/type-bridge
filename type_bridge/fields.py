@@ -280,10 +280,9 @@ class FieldDescriptor[T: "Attribute"]:
         if instance is None:
             # Class-level access: return FieldRef for query building
             return self._make_field_ref(owner)
-        else:
-            # Instance-level access: return attribute value from Pydantic model
-            # Pydantic stores field values in instance.__dict__
-            return instance.__dict__.get(self.field_name)
+        # Instance-level access: return attribute value from Pydantic model
+        # Pydantic stores field values in instance.__dict__
+        return instance.__dict__.get(self.field_name)
 
     def __set__(self, instance: "Entity", value: T) -> None:
         """

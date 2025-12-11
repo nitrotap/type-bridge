@@ -13,6 +13,12 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+# Type aliases for annotation values
+# Scalar types: bool (flag), int, float, str
+AnnotationScalar = bool | int | float | str
+# Full annotation value: scalar or list of scalars (e.g., @tags(api, public))
+AnnotationValue = AnnotationScalar | list[AnnotationScalar]
+
 
 @dataclass(frozen=True, slots=True)
 class Cardinality:
@@ -59,18 +65,26 @@ class AttributeSpec:
         value_type: The TypeDB value type (string, integer, double, etc.)
         parent: Parent attribute name for inheritance (sub)
         abstract: Whether this is an abstract attribute
+        independent: Whether this is an independent attribute (@independent)
         regex: Regex constraint from @regex annotation
         allowed_values: Enum values from @values annotation
+        range_min: Minimum value from @range annotation
+        range_max: Maximum value from @range annotation
         docstring: Documentation extracted from comments
+        annotations: Custom annotations from TQL comments (e.g., # @default(new))
     """
 
     name: str
     value_type: str  # string, integer, double, boolean, datetime, etc.
     parent: str | None = None
     abstract: bool = False
+    independent: bool = False
     regex: str | None = None
     allowed_values: tuple[str, ...] | None = None
+    range_min: str | None = None  # String to support integers, floats, and dates
+    range_max: str | None = None
     docstring: str | None = None
+    annotations: dict[str, AnnotationValue] = field(default_factory=dict)
 
     # Legacy fields for custom annotations (can be removed if not needed)
     default: object | None = None
@@ -92,6 +106,8 @@ class EntitySpec:
         keys: Attributes marked with @key
         uniques: Attributes marked with @unique
         cardinalities: Per-attribute cardinality constraints
+        plays_cardinalities: Per-role cardinality constraints (e.g., plays friendship:friend @card(0..5))
+        annotations: Custom annotations from TQL comments (e.g., # @prefix(PROJ))
     """
 
     name: str
@@ -103,7 +119,9 @@ class EntitySpec:
     keys: set[str] = field(default_factory=set)
     uniques: set[str] = field(default_factory=set)
     cardinalities: dict[str, Cardinality] = field(default_factory=dict)
+    plays_cardinalities: dict[str, Cardinality] = field(default_factory=dict)
     docstring: str | None = None
+    annotations: dict[str, AnnotationValue] = field(default_factory=dict)
 
     # Legacy fields for custom annotations
     prefix: str | None = None
@@ -118,11 +136,13 @@ class RoleSpec:
         name: The role name (e.g., "author")
         overrides: Parent role this overrides (from "as" syntax)
         cardinality: Optional cardinality constraint on the role
+        annotations: Custom annotations from TQL comments
     """
 
     name: str
     overrides: str | None = None  # For "relates author as contributor"
     cardinality: Cardinality | None = None
+    annotations: dict[str, AnnotationValue] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -136,6 +156,7 @@ class RelationSpec:
         owns: Set of owned attribute names
         owns_order: Ordered list preserving TQL declaration order
         abstract: Whether this is an abstract relation
+        annotations: Custom annotations from TQL comments
     """
 
     name: str
@@ -148,6 +169,7 @@ class RelationSpec:
     uniques: set[str] = field(default_factory=set)
     cardinalities: dict[str, Cardinality] = field(default_factory=dict)
     docstring: str | None = None
+    annotations: dict[str, AnnotationValue] = field(default_factory=dict)
 
     @property
     def role_names(self) -> list[str]:
@@ -222,6 +244,7 @@ def _accumulate_entity_inheritance(schema: ParsedSchema) -> None:
                 len(entity.keys),
                 len(entity.uniques),
                 len(entity.cardinalities),
+                len(entity.plays_cardinalities),
             )
 
             entity.owns |= parent.owns
@@ -234,6 +257,11 @@ def _accumulate_entity_inheritance(schema: ParsedSchema) -> None:
                 if attr not in entity.cardinalities:
                     entity.cardinalities[attr] = card
 
+            # Inherit parent plays_cardinalities (child can override)
+            for role, card in parent.plays_cardinalities.items():
+                if role not in entity.plays_cardinalities:
+                    entity.plays_cardinalities[role] = card
+
             # Prepend parent's owns_order (parent attrs first)
             parent_attrs = [a for a in parent.owns_order if a not in set(entity.owns_order)]
             if parent_attrs:
@@ -245,6 +273,7 @@ def _accumulate_entity_inheritance(schema: ParsedSchema) -> None:
                 len(entity.keys),
                 len(entity.uniques),
                 len(entity.cardinalities),
+                len(entity.plays_cardinalities),
             )
             changed = changed or after != before
 

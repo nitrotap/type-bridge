@@ -7,8 +7,18 @@ from .base import Expression
 
 
 @dataclass
-class FunctionCallExpr(Expression):
-    """Represents a call to a TypeDB function."""
+class FunctionCallExpr[T](Expression):
+    """Represents a call to a TypeDB function.
+
+    The generic type parameter T represents the return type of the function,
+    allowing for type-safe function call expressions.
+
+    Example:
+        >>> # A function returning an integer stream
+        >>> expr: FunctionCallExpr[int] = calculate_age(birth_date)
+        >>> # A function returning a tuple
+        >>> expr: FunctionCallExpr[tuple[int, int]] = divide(10, 3)
+    """
 
     name: str
     args: list[Any]

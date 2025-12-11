@@ -12,8 +12,6 @@ from type_bridge.reserved_words import is_reserved_word
 class ValidationError(ValueError):
     """Base class for validation errors in TypeBridge."""
 
-    pass
-
 
 class ReservedWordError(ValidationError):
     """Raised when a type name conflicts with a TypeQL reserved word.

@@ -200,7 +200,7 @@ class TestRenderPackageInit:
         )
 
         assert 'SCHEMA_VERSION = "2.0.0"' in source
-        assert "from . import attributes, entities, relations" in source
+        assert "from . import attributes, entities, registry, relations" in source
         assert "attributes.Name," in source
         assert "entities.Person," in source
         assert "relations.Friendship," in source

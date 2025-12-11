@@ -62,6 +62,35 @@ class TestParseAttributes:
         attr = schema.attributes["emoji"]
         assert attr.allowed_values == ("like", "love", "sad")
 
+    def test_attribute_independent(self) -> None:
+        """Parse attribute with @independent flag."""
+        schema = parse_tql_schema("""
+            define
+            attribute language @independent, value string;
+        """)
+        attr = schema.attributes["language"]
+        assert attr.independent is True
+        assert attr.value_type == "string"
+
+    def test_attribute_independent_with_abstract(self) -> None:
+        """Parse attribute with both @abstract and @independent."""
+        schema = parse_tql_schema("""
+            define
+            attribute tag @abstract @independent, value string;
+        """)
+        attr = schema.attributes["tag"]
+        assert attr.abstract is True
+        assert attr.independent is True
+
+    def test_attribute_not_independent_by_default(self) -> None:
+        """Attribute without @independent should have independent=False."""
+        schema = parse_tql_schema("""
+            define
+            attribute name, value string;
+        """)
+        attr = schema.attributes["name"]
+        assert attr.independent is False
+
 
 class TestParseEntities:
     """Tests for entity parsing."""
@@ -253,7 +282,7 @@ class TestParseFunctionsHandling:
 
         # Should parse the function
         assert "get_person" in schema.functions
-        assert schema.functions["get_person"].return_type == "person"
+        assert schema.functions["get_person"].return_type == "{ person }"
 
 
 class TestParseCardinality:
@@ -379,3 +408,278 @@ class TestInheritanceAccumulation:
         assert "a" in child.owns
         assert "b" in child.owns
         assert "c" in child.owns
+
+
+class TestParseRange:
+    """Tests for @range annotation on attributes."""
+
+    def test_range_integer(self) -> None:
+        """Parse @range on integer attribute."""
+        schema = parse_tql_schema("""
+            define
+            attribute age, value integer @range(0..150);
+        """)
+        attr = schema.attributes["age"]
+        assert attr.range_min == "0"
+        assert attr.range_max == "150"
+
+    def test_range_negative(self) -> None:
+        """Parse @range with negative values."""
+        schema = parse_tql_schema("""
+            define
+            attribute temperature, value double @range(-50..50);
+        """)
+        attr = schema.attributes["temperature"]
+        assert attr.range_min == "-50"
+        assert attr.range_max == "50"
+
+    def test_range_float(self) -> None:
+        """Parse @range with float values."""
+        schema = parse_tql_schema("""
+            define
+            attribute percentage, value double @range(0.0..100.0);
+        """)
+        attr = schema.attributes["percentage"]
+        assert attr.range_min == "0.0"
+        assert attr.range_max == "100.0"
+
+    def test_range_date(self) -> None:
+        """Parse @range with date values."""
+        schema = parse_tql_schema("""
+            define
+            attribute birth-date, value date @range(1900-01-01..2100-12-31);
+        """)
+        attr = schema.attributes["birth-date"]
+        assert attr.range_min == "1900-01-01"
+        assert attr.range_max == "2100-12-31"
+
+    def test_range_datetime(self) -> None:
+        """Parse @range with datetime (timestamp) values."""
+        schema = parse_tql_schema("""
+            define
+            attribute event-time, value datetime @range(2020-01-01T00:00:00..2030-12-31T23:59:59);
+        """)
+        attr = schema.attributes["event-time"]
+        assert attr.range_min == "2020-01-01T00:00:00"
+        assert attr.range_max == "2030-12-31T23:59:59"
+
+    def test_range_open_ended_min_only(self) -> None:
+        """Parse @range with only minimum value (open-ended)."""
+        schema = parse_tql_schema("""
+            define
+            attribute creation-timestamp, value datetime @range(1970-01-01T00:00:00..);
+        """)
+        attr = schema.attributes["creation-timestamp"]
+        assert attr.range_min == "1970-01-01T00:00:00"
+        assert attr.range_max is None
+
+    def test_range_open_ended_integer(self) -> None:
+        """Parse @range with only minimum integer value."""
+        schema = parse_tql_schema("""
+            define
+            attribute score, value integer @range(0..);
+        """)
+        attr = schema.attributes["score"]
+        assert attr.range_min == "0"
+        assert attr.range_max is None
+
+
+class TestParseCardOnPlays:
+    """Tests for @card annotation on plays declarations."""
+
+    def test_plays_with_card(self) -> None:
+        """Parse plays with @card annotation."""
+        schema = parse_tql_schema("""
+            define
+            entity person,
+                owns name,
+                plays friendship:friend @card(0..10);
+            attribute name, value string;
+            relation friendship, relates friend;
+        """)
+        entity = schema.entities["person"]
+        assert "friendship:friend" in entity.plays
+        assert "friendship:friend" in entity.plays_cardinalities
+        card = entity.plays_cardinalities["friendship:friend"]
+        assert card.min == 0
+        assert card.max == 10
+
+    def test_plays_unbounded_card(self) -> None:
+        """Parse plays with unbounded @card."""
+        schema = parse_tql_schema("""
+            define
+            entity person,
+                plays friendship:friend @card(1..);
+            relation friendship, relates friend;
+        """)
+        entity = schema.entities["person"]
+        card = entity.plays_cardinalities["friendship:friend"]
+        assert card.min == 1
+        assert card.max is None
+
+    def test_plays_without_card(self) -> None:
+        """Parse plays without @card - no cardinality recorded."""
+        schema = parse_tql_schema("""
+            define
+            entity person,
+                plays friendship:friend;
+            relation friendship, relates friend;
+        """)
+        entity = schema.entities["person"]
+        assert "friendship:friend" in entity.plays
+        assert "friendship:friend" not in entity.plays_cardinalities
+
+    def test_plays_cardinality_inheritance(self) -> None:
+        """Plays cardinalities should be inherited."""
+        schema = parse_tql_schema("""
+            define
+            entity person @abstract,
+                plays friendship:friend @card(0..5);
+            entity employee sub person;
+            relation friendship, relates friend;
+        """)
+        child = schema.entities["employee"]
+        assert "friendship:friend" in child.plays
+        assert "friendship:friend" in child.plays_cardinalities
+        card = child.plays_cardinalities["friendship:friend"]
+        assert card.min == 0
+        assert card.max == 5
+
+
+class TestParseCardOnRelates:
+    """Tests for @card annotation on relates declarations in relations."""
+
+    def test_relates_with_card(self) -> None:
+        """Parse relates with @card annotation."""
+        schema = parse_tql_schema("""
+            define
+            relation social-relation @abstract,
+                relates related @card(0..);
+        """)
+        rel = schema.relations["social-relation"]
+        assert len(rel.roles) == 1
+        role = rel.roles[0]
+        assert role.name == "related"
+        assert role.cardinality is not None
+        assert role.cardinality.min == 0
+        assert role.cardinality.max is None
+
+    def test_relates_with_card_bounded(self) -> None:
+        """Parse relates with bounded @card annotation."""
+        schema = parse_tql_schema("""
+            define
+            relation family,
+                relates relative @card(0..1000);
+        """)
+        rel = schema.relations["family"]
+        role = rel.roles[0]
+        assert role.cardinality is not None
+        assert role.cardinality.min == 0
+        assert role.cardinality.max == 1000
+
+    def test_relates_with_card_exact(self) -> None:
+        """Parse relates with exact @card annotation."""
+        schema = parse_tql_schema("""
+            define
+            relation parentship,
+                relates parent @card(1..2),
+                relates child @card(1..);
+        """)
+        rel = schema.relations["parentship"]
+
+        parent_role = next(r for r in rel.roles if r.name == "parent")
+        assert parent_role.cardinality is not None
+        assert parent_role.cardinality.min == 1
+        assert parent_role.cardinality.max == 2
+
+        child_role = next(r for r in rel.roles if r.name == "child")
+        assert child_role.cardinality is not None
+        assert child_role.cardinality.min == 1
+        assert child_role.cardinality.max is None
+
+    def test_relates_with_overrides_and_card(self) -> None:
+        """Parse relates with both 'as' override and @card annotation."""
+        schema = parse_tql_schema("""
+            define
+            relation friendship,
+                relates friend as related @card(0..100);
+        """)
+        rel = schema.relations["friendship"]
+        role = rel.roles[0]
+        assert role.name == "friend"
+        assert role.overrides == "related"
+        assert role.cardinality is not None
+        assert role.cardinality.min == 0
+        assert role.cardinality.max == 100
+
+    def test_relates_without_card(self) -> None:
+        """Parse relates without @card - no cardinality recorded."""
+        schema = parse_tql_schema("""
+            define
+            relation viewing,
+                relates viewer,
+                relates viewed;
+        """)
+        rel = schema.relations["viewing"]
+        for role in rel.roles:
+            assert role.cardinality is None
+
+    def test_relates_mixed_card(self) -> None:
+        """Parse relation with some roles having @card and some not."""
+        schema = parse_tql_schema("""
+            define
+            relation siblingship,
+                relates sibling @card(2..),
+                relates family;
+        """)
+        rel = schema.relations["siblingship"]
+
+        sibling_role = next(r for r in rel.roles if r.name == "sibling")
+        assert sibling_role.cardinality is not None
+        assert sibling_role.cardinality.min == 2
+        assert sibling_role.cardinality.max is None
+
+        family_role = next(r for r in rel.roles if r.name == "family")
+        assert family_role.cardinality is None
+
+
+class TestParseComments:
+    """Tests for comment handling."""
+
+    def test_hash_comments(self) -> None:
+        """Parse schema with # style comments."""
+        schema = parse_tql_schema("""
+            define
+            # This is a hash comment
+            attribute name, value string;
+            entity person,
+                owns name;  # inline comment
+        """)
+        assert "name" in schema.attributes
+        assert "person" in schema.entities
+
+    def test_cpp_style_comments(self) -> None:
+        """Parse schema with // style comments."""
+        schema = parse_tql_schema("""
+            define
+            // This is a C++ style comment
+            attribute name, value string;
+            entity person,
+                owns name;  // inline comment
+        """)
+        assert "name" in schema.attributes
+        assert "person" in schema.entities
+
+    def test_mixed_comments(self) -> None:
+        """Parse schema with both # and // style comments."""
+        schema = parse_tql_schema("""
+            define
+            # Hash comment
+            // C++ comment
+            attribute name, value string;
+            // Another C++ comment
+            entity person,
+                owns name;  # inline hash
+        """)
+        assert "name" in schema.attributes
+        assert "person" in schema.entities

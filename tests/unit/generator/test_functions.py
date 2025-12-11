@@ -27,7 +27,7 @@ class TestParseFunctions:
         assert "calculate-age" in schema.functions
         func = schema.functions["calculate-age"]
         assert func.name == "calculate-age"
-        assert func.return_type == "int"
+        assert func.return_type == "{ int }"
         assert len(func.parameters) == 1
         assert func.parameters[0].name == "birth-date"
         assert func.parameters[0].type == "date"
@@ -52,6 +52,100 @@ class TestParseFunctions:
         assert func.parameters[1].name == "income"
         assert func.parameters[1].type == "double"
 
+    def test_parse_stream_tuple_return(self) -> None:
+        """Parse function with stream tuple return type."""
+        schema_text = """
+            define
+            fun all_users_and_phones() -> { user, phone, string }:
+                match $u isa user, has phone $p;
+                return { $u, $p, "x" };
+        """
+        schema = parse_tql_schema(schema_text)
+
+        func = schema.functions["all_users_and_phones"]
+        assert func.return_type == "{ user, phone, string }"
+        assert len(func.parameters) == 0
+
+    def test_parse_single_scalar_return(self) -> None:
+        """Parse function with single scalar return (no braces)."""
+        schema_text = """
+            define
+            fun add($x: integer, $y: integer) -> integer:
+                match let $z = $x + $y;
+                return first $z;
+        """
+        schema = parse_tql_schema(schema_text)
+
+        func = schema.functions["add"]
+        assert func.return_type == "integer"
+        assert len(func.parameters) == 2
+
+    def test_parse_tuple_return(self) -> None:
+        """Parse function with tuple return type."""
+        schema_text = """
+            define
+            fun divide($a: integer, $b: integer) -> integer, integer:
+                match let $q = $a / $b;
+                return first $q, $r;
+        """
+        schema = parse_tql_schema(schema_text)
+
+        func = schema.functions["divide"]
+        assert func.return_type == "integer, integer"
+
+    def test_parse_bool_return(self) -> None:
+        """Parse function with bool return type."""
+        schema_text = """
+            define
+            fun is_reachable($from: node, $to: node) -> bool:
+                match ($from, $to) isa edge;
+                return first true;
+        """
+        schema = parse_tql_schema(schema_text)
+
+        func = schema.functions["is_reachable"]
+        assert func.return_type == "bool"
+
+    def test_parse_optional_return_type(self) -> None:
+        """Parse function with optional return type."""
+        schema_text = """
+            define
+            fun any_place_with_optional_name() -> place, name?:
+                match $p isa place;
+                return first $p, $n;
+        """
+        schema = parse_tql_schema(schema_text)
+
+        func = schema.functions["any_place_with_optional_name"]
+        assert func.return_type == "place, name?"
+
+    def test_parse_no_parameters(self) -> None:
+        """Parse function with no parameters."""
+        schema_text = """
+            define
+            fun mean_karma() -> double:
+                match $user isa user, has karma $karma;
+                return mean($karma);
+        """
+        schema = parse_tql_schema(schema_text)
+
+        func = schema.functions["mean_karma"]
+        assert func.return_type == "double"
+        assert len(func.parameters) == 0
+
+    def test_parse_aggregate_return(self) -> None:
+        """Parse function with aggregate return."""
+        schema_text = """
+            define
+            fun karma_sum_and_sum_squares() -> double, double:
+                match $karma isa karma;
+                return sum($karma), sum($karma);
+        """
+        schema = parse_tql_schema(schema_text)
+
+        func = schema.functions["karma_sum_and_sum_squares"]
+        assert func.return_type == "double, double"
+
 
 class TestRenderFunctions:
     """Tests for function rendering."""
@@ -66,7 +160,10 @@ class TestRenderFunctions:
         schema = parse_tql_schema(schema_text)
         source = render_functions(schema)
 
-        assert "def calculate_age(birth_date: date | Expression) -> FunctionCallExpr:" in source
+        assert (
+            "def calculate_age(birth_date: date | Expression) -> FunctionCallExpr[Iterator[int]]:"
+            in source
+        )
         assert 'return FunctionCallExpr("calculate-age", [birth_date])' in source
         assert "from datetime import date" in source
         assert "from type_bridge.expressions import Expression, FunctionCallExpr" in source
@@ -82,7 +179,7 @@ class TestRenderFunctions:
         source = render_functions(schema)
 
         assert (
-            "def risk_score(age: int | Expression, income: float | Expression) -> FunctionCallExpr:"
+            "def risk_score(age: int | Expression, income: float | Expression) -> FunctionCallExpr[Iterator[float]]:"
             in source
         )
         assert 'return FunctionCallExpr("risk-score", [age, income])' in source
@@ -112,7 +209,9 @@ class TestGenerateFunctions:
 
             # Check __init__.py exports functions
             init_content = (output / "__init__.py").read_text()
-            assert "from . import attributes, entities, relations, functions" in init_content
+            assert (
+                "from . import attributes, entities, functions, registry, relations" in init_content
+            )
             assert '"functions",' in init_content
 
             # Check content compiles

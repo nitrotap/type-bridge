@@ -148,6 +148,7 @@ class Database:
             return results
 
     def get_schema(self) -> str:
+        """Get the schema definition for this database."""
         db = self.driver.databases.get(self.database_name)
         return db.schema()
 

@@ -42,6 +42,7 @@ from .render import (
     render_entities,
     render_functions,
     render_package_init,
+    render_registry,
     render_relations,
 )
 
@@ -130,6 +131,19 @@ def generate_models(
     if functions_content:
         (output / "functions.py").write_text(functions_content, encoding="utf-8")
         functions_present = True
+
+    # Render registry with pre-computed metadata
+    (output / "registry.py").write_text(
+        render_registry(
+            parsed,
+            attr_class_names,
+            entity_class_names,
+            relation_class_names,
+            schema_version=schema_version,
+            schema_text=schema_text,
+        ),
+        encoding="utf-8",
+    )
 
     (output / "__init__.py").write_text(
         render_package_init(

@@ -15,13 +15,18 @@ statement: attribute_def
 attribute_def: "attribute" IDENTIFIER [attribute_opts] ";"
 
 // Allow optional commas between options for flexibility
-attribute_opts: (","? (sub_clause | abstract_annotation | value_type_clause | regex_annotation | values_annotation))+
+attribute_opts: (","? (sub_clause | abstract_annotation | independent_annotation | value_type_clause | regex_annotation | values_annotation | range_annotation))+
+
+// Match the entire range value flexibly - will be parsed in the transformer
+range_annotation: "@range" "(" RANGE_EXPR ")"
+RANGE_EXPR: /[^)]+/
 
 sub_clause: "sub" IDENTIFIER
 value_type_clause: "value" value_type
 regex_annotation: "@regex" "(" STRING ")"
 values_annotation: "@values" "(" string_list ")"
 abstract_annotation: "@abstract"
+independent_annotation: "@independent"
 
 // --- Entities ---
 entity_def: "entity" IDENTIFIER [entity_opts] (","? entity_clause)* ";"
@@ -37,7 +42,7 @@ key_annotation: "@key"
 unique_annotation: "@unique"
 card_annotation: "@card" "(" INT [DOT_DOT [INT]] ")"
 
-plays_statement: "plays" IDENTIFIER [":" IDENTIFIER]
+plays_statement: "plays" IDENTIFIER [":" IDENTIFIER] [card_annotation]
 
 // --- Relations ---
 relation_def: "relation" IDENTIFIER [relation_opts] (","? relation_clause)* ";"
@@ -46,7 +51,7 @@ relation_opts: (sub_clause | abstract_annotation)+
 
 relation_clause: relates_statement | owns_statement | plays_statement
 
-relates_statement: "relates" IDENTIFIER ["as" IDENTIFIER]
+relates_statement: "relates" IDENTIFIER ["as" IDENTIFIER] [card_annotation]
 
 // --- Functions ---
 function_def: "fun" IDENTIFIER "(" param_list? ")" "->" return_type_clause ":" func_body
@@ -54,26 +59,38 @@ function_def: "fun" IDENTIFIER "(" param_list? ")" "->" return_type_clause ":" f
 param_list: param ("," param)*
 param: "$" IDENTIFIER ":" (VALUE_TYPE_NAME | IDENTIFIER)
 
-func_body: /.*?return\s*\{[^}]*\};/s
+// Match function body - any content up to and including a return statement ending with ;
+func_body: /.*?return[^;]*;/s
 
-return_type_clause: "{" return_type "}" | return_type
-return_type: IDENTIFIER | VALUE_TYPE_NAME
+// Return types: stream { type, ... }, single type, or tuple type1, type2
+return_type_clause: stream_return | single_return
+stream_return: "{" return_type_list "}"
+single_return: return_type_list
+return_type_list: return_type ("," return_type)*
+return_type: (IDENTIFIER | VALUE_TYPE_NAME) OPTIONAL?
+OPTIONAL: "?"
 
 // --- Common ---
 value_type: VALUE_TYPE_NAME
 
-VALUE_TYPE_NAME: "string" | "integer" | "int" | "long" | "double" | "boolean" | "date" | "datetime" | "datetime-tz" | "decimal" | "duration"
+VALUE_TYPE_NAME: "string" | "integer" | "int" | "long" | "double" | "boolean" | "bool" | "date" | "datetime" | "datetime-tz" | "decimal" | "duration"
 
 string_list: STRING ("," STRING)*
 
-comment_annotation: /#\s*@[\w-]+(?::\s*.*)?/
+// Custom annotations in comments: # @name or # @name(value) or # @name(a, b, c)
+comment_annotation: /#\s*@[\w-]+(?:\([^)]*\))?/
 
 IDENTIFIER: /[a-zA-Z_][a-zA-Z0-9_-]*/
 STRING: /"[^"]*"/ | /'[^']*'/
 INT: /[0-9]+/
 DOT_DOT: ".."
+// Range values: ISO dates/datetimes, OR integers/floats (with optional sign)
+// Date patterns must come first to avoid partial matching
+RANGE_VALUE: /\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?/ | /-?[0-9]+(\.[0-9]+)?/
 
 %import common.WS
 %import common.SH_COMMENT
+%import common.CPP_COMMENT
 %ignore WS
 %ignore SH_COMMENT
+%ignore CPP_COMMENT
