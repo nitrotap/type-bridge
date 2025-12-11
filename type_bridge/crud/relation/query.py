@@ -43,6 +43,8 @@ class RelationQuery[R: Relation]:
         self._role_player_expressions: dict[str, list[Any]] = {}  # role_name -> expressions
         self._limit_value: int | None = None
         self._offset_value: int | None = None
+        # [(field_name, direction, role_name or None)]
+        self._order_by_fields: list[tuple[str, str, str | None]] = []
 
     def filter(self, *expressions: Any) -> "RelationQuery[R]":
         """Add expression-based filters to the query.
@@ -110,6 +112,96 @@ class RelationQuery[R: Relation]:
             Self for chaining
         """
         self._offset_value = offset
+        return self
+
+    def order_by(self, *fields: str) -> "RelationQuery[R]":
+        """Sort query results by one or more fields.
+
+        Args:
+            *fields: Field names to sort by. Prefix with '-' for descending order.
+                     Use 'role__attr' syntax for role-player attributes.
+
+        Returns:
+            Self for chaining
+
+        Raises:
+            ValueError: If field name does not exist
+            ValueError: If role name does not exist
+            ValueError: If role player does not have the specified attribute
+
+        Example:
+            # Relation attribute
+            query.order_by('salary')
+            query.order_by('-salary')
+
+            # Role-player attribute
+            query.order_by('employee__age')
+            query.order_by('-employee__age')
+
+            # Multiple
+            query.order_by('employee__age', '-salary')
+        """
+        all_attrs = self.model_class.get_all_attributes()
+        roles = self.model_class._roles
+
+        for field in fields:
+            # Parse direction prefix
+            if field.startswith("-"):
+                direction = "desc"
+                field_spec = field[1:]
+            else:
+                direction = "asc"
+                field_spec = field
+
+            # Check if this is a role-player attribute (contains '__')
+            if "__" in field_spec:
+                parts = field_spec.split("__", 1)
+                if len(parts) != 2:
+                    raise ValueError(
+                        f"Invalid sort field format '{field_spec}'. "
+                        "Use 'role__attr' for role-player attributes."
+                    )
+
+                role_name, attr_name = parts
+
+                # Validate role exists
+                if role_name not in roles:
+                    raise ValueError(
+                        f"Unknown role '{role_name}' for {self.model_class.__name__}. "
+                        f"Available roles: {list(roles.keys())}"
+                    )
+
+                # Validate attribute exists on at least one player type
+                role = roles[role_name]
+                all_player_attrs: set[str] = set()
+                for player_type in role.player_entity_types:
+                    player_attrs = player_type.get_all_attributes()
+                    all_player_attrs.update(player_attrs.keys())
+
+                if attr_name not in all_player_attrs:
+                    raise ValueError(
+                        f"Role '{role_name}' players do not have attribute '{attr_name}'. "
+                        f"Available attributes: {sorted(all_player_attrs)}"
+                    )
+
+                self._order_by_fields.append((attr_name, direction, role_name))
+            else:
+                # Direct relation attribute
+                if field_spec not in all_attrs:
+                    raise ValueError(
+                        f"Unknown sort field '{field_spec}' for {self.model_class.__name__}. "
+                        f"Available fields: {list(all_attrs.keys())}"
+                    )
+
+                # Reject multi-value attributes
+                if is_multi_value_attribute(all_attrs[field_spec].flags):
+                    raise ValueError(
+                        f"Cannot sort by multi-value attribute '{field_spec}'. "
+                        "Multi-value attributes can have multiple values per relation."
+                    )
+
+                self._order_by_fields.append((field_spec, direction, None))
+
         return self
 
     def execute(self) -> list[R]:
@@ -207,10 +299,43 @@ class RelationQuery[R: Relation]:
 
         fetch_body = ",\n  ".join(fetch_items)
 
-        # Add sorting for pagination (required for stable limit/offset)
+        # Apply sorting - either user-specified or auto-select for pagination
         sort_clause = ""
-        if self._limit_value is not None or self._offset_value is not None:
-            # Find a required attribute to sort by (not already filtered)
+        sort_match_clauses: list[str] = []
+
+        if self._order_by_fields:
+            # User-specified sort fields
+            sort_parts = []
+            for i, (field_name, direction, role_name) in enumerate(self._order_by_fields):
+                sort_var = f"$sort_{i}"
+
+                if role_name is not None:
+                    # Role-player attribute: get attribute name from player type
+                    role = self.model_class._roles[role_name]
+                    # Find attribute info from first player type that has it
+                    attr_name = None
+                    for player_type in role.player_entity_types:
+                        player_attrs = player_type.get_all_attributes()
+                        if field_name in player_attrs:
+                            attr_info = player_attrs[field_name]
+                            attr_name = attr_info.typ.get_attribute_name()
+                            break
+
+                    if attr_name:
+                        role_var = f"${role_name}"
+                        sort_match_clauses.append(f"{role_var} has {attr_name} {sort_var}")
+                        sort_parts.append(f"{sort_var} {direction}")
+                else:
+                    # Relation attribute
+                    attr_info = all_attrs[field_name]
+                    attr_name = attr_info.typ.get_attribute_name()
+                    sort_match_clauses.append(f"$r has {attr_name} {sort_var}")
+                    sort_parts.append(f"{sort_var} {direction}")
+
+            if sort_parts:
+                sort_clause = "\nsort " + ", ".join(sort_parts) + ";"
+        elif self._limit_value is not None or self._offset_value is not None:
+            # Auto-select a sort attribute for pagination (required for stable limit/offset)
             sort_attr = None
             already_matched_attrs = set()
             for field_name in attr_filters.keys():
@@ -228,10 +353,13 @@ class RelationQuery[R: Relation]:
                         break
 
             if sort_attr:
-                # Add sort binding to match
-                match_str = match_str.rstrip(";")
-                match_str += f";\n$r has {sort_attr} $sort_attr;"
+                sort_match_clauses.append(f"$r has {sort_attr} $sort_attr")
                 sort_clause = "\nsort $sort_attr;"
+
+        # Add sort bindings to match clause
+        if sort_match_clauses:
+            match_str = match_str.rstrip(";")
+            match_str += ";\n" + ";\n".join(sort_match_clauses) + ";"
 
         # Add limit/offset clauses
         pagination_clause = ""

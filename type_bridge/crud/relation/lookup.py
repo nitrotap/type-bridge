@@ -84,9 +84,7 @@ def parse_role_lookup_filters(
                 )
 
             # Parse remaining as attr or attr__lookup
-            expr = _parse_role_attribute_lookup(
-                model_class, role_name, remaining_parts, raw_value
-            )
+            expr = _parse_role_attribute_lookup(model_class, role_name, remaining_parts, raw_value)
 
             if role_name not in role_expressions:
                 role_expressions[role_name] = []

@@ -1,5 +1,7 @@
 """Unit tests for Query and QueryBuilder classes."""
 
+from datetime import UTC
+
 import pytest
 
 from type_bridge import Entity, Flag, Integer, Key, Relation, Role, String, TypeFlags
@@ -123,11 +125,11 @@ class TestQuerySorting:
             query.sort("$p", "invalid")
 
     def test_multiple_sort_clauses(self):
-        """Multiple sort clauses should all be included."""
+        """Multiple sort clauses should be comma-separated in a single sort statement."""
         query = Query().match("$p isa person").sort("$p", "asc").sort("$n", "desc")
         result = query.build()
-        assert "sort $p asc" in result
-        assert "sort $n desc" in result
+        # TypeQL uses comma-separated sort variables: sort $p asc, $n desc;
+        assert "sort $p asc, $n desc;" in result
 
 
 class TestQueryPagination:
@@ -340,9 +342,9 @@ class TestFormatValue:
 
     def test_format_datetime_with_timezone(self):
         """Timezone-aware datetime should include timezone."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        dt = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+        dt = datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
         result = _format_value(dt)
         assert "2024-01-15T10:30:00" in result
         assert "+00:00" in result or "Z" in result or "UTC" in result

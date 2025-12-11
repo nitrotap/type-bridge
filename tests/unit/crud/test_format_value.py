@@ -1,12 +1,11 @@
 """Unit tests for CRUD utility functions."""
 
-import pytest
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
 
 import isodate
 
-from type_bridge import String, Integer
+from type_bridge import Integer, String
 from type_bridge.attribute import AttributeFlags
 from type_bridge.crud.utils import format_value, is_multi_value_attribute
 
@@ -149,7 +148,7 @@ class TestFormatValueDateTimes:
 
     def test_format_datetime_with_utc_timezone(self):
         """UTC timezone-aware datetime should include timezone."""
-        dt = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+        dt = datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
         result = format_value(dt)
         assert "2024-01-15T10:30:00" in result
 

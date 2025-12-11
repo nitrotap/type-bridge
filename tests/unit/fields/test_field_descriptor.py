@@ -1,7 +1,5 @@
 """Unit tests for FieldDescriptor and FieldRef classes."""
 
-import pytest
-
 from type_bridge import Entity, TypeFlags
 from type_bridge.attribute import Boolean, DateTime, Double, Integer, String
 from type_bridge.attribute.decimal import Decimal
@@ -147,6 +145,7 @@ class TestFieldRefEntityType:
 
         ref = Person.name
         # entity_type stores the class or metaclass depending on implementation
+        assert isinstance(ref, FieldRef)
         assert ref.entity_type is not None
 
     def test_own_field_refs_work(self):

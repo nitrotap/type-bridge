@@ -94,7 +94,7 @@ class RolePlayerExpr[T: "Entity"](Expression):
         """
         return self.inner_expr.to_typeql(var)
 
-    def get_attribute_types(self) -> set[type["Attribute"]]:
+    def get_attribute_types(self) -> set[type[Attribute]]:
         """Get all attribute types referenced by this expression.
 
         Delegates to the inner expression.

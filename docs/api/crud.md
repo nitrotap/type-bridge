@@ -280,6 +280,9 @@ class EntityQuery[E: Entity]:
     def filter(self, **filters) -> EntityQuery[E]:
         """Add additional filters."""
 
+    def order_by(self, *fields: str) -> EntityQuery[E]:
+        """Sort results by one or more fields. Prefix with '-' for descending."""
+
     def limit(self, n: int) -> EntityQuery[E]:
         """Limit number of results."""
 
@@ -301,6 +304,47 @@ class EntityQuery[E: Entity]:
     def update_with(self, func: Callable[[E], None]) -> list[E]:
         """Update entities by applying function. Returns updated entities."""
 ```
+
+### Sorting Results
+
+Use `order_by()` to sort query results:
+
+```python
+# Ascending order (default)
+results = person_manager.filter().order_by('age').execute()
+
+# Descending order (prefix with '-')
+results = person_manager.filter().order_by('-age').execute()
+
+# Multiple sort fields (primary, then secondary)
+results = person_manager.filter().order_by('city', '-age').execute()
+
+# Combined with filter and pagination
+results = (
+    person_manager
+    .filter(Person.city.eq(City("NYC")))
+    .order_by('-age')
+    .limit(10)
+    .execute()
+)
+```
+
+#### Role-Player Sorting (Relations Only)
+
+For relations, you can sort by role-player attributes using `role__attr` syntax:
+
+```python
+# Sort by employee's age
+results = employment_manager.filter().order_by('employee__age').execute()
+
+# Descending by role-player attribute
+results = employment_manager.filter().order_by('-employee__age').execute()
+
+# Mixed: role-player and relation attributes
+results = employment_manager.filter().order_by('employee__age', '-salary').execute()
+```
+
+> **Note**: Multi-value attributes (those with `Card(max=None)`) cannot be used for sorting.
 
 ## Update Operations
 
@@ -775,6 +819,9 @@ print(f"Found {count} engineers")
 class RelationQuery[R: Relation]:
     def filter(self, **filters) -> RelationQuery[R]:
         """Add additional filters (attributes and role players)."""
+
+    def order_by(self, *fields: str) -> RelationQuery[R]:
+        """Sort results by fields. Use 'role__attr' for role-player attributes."""
 
     def limit(self, n: int) -> RelationQuery[R]:
         """Limit number of results."""

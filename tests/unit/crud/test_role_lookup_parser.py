@@ -5,7 +5,6 @@ import pytest
 from type_bridge import Entity, Flag, Integer, Key, Relation, Role, String, TypeFlags
 from type_bridge.crud.relation.lookup import (
     _build_lookup_expression,
-    _parse_role_attribute_lookup,
     parse_role_lookup_filters,
 )
 from type_bridge.expressions import (
@@ -176,9 +175,7 @@ def test_parse_role_lookup_lte():
 
 def test_parse_role_lookup_contains():
     """Test __contains lookup on string attribute wrapped in RolePlayerExpr."""
-    _, _, role_exprs = parse_role_lookup_filters(
-        Employment, {"employer__name__contains": "Tech"}
-    )
+    _, _, role_exprs = parse_role_lookup_filters(Employment, {"employer__name__contains": "Tech"})
     role_expr = role_exprs["employer"][0]
     assert isinstance(role_expr, RolePlayerExpr)
     assert isinstance(role_expr.inner_expr, StringExpr)
@@ -187,9 +184,7 @@ def test_parse_role_lookup_contains():
 
 def test_parse_role_lookup_startswith():
     """Test __startswith lookup wrapped in RolePlayerExpr."""
-    _, _, role_exprs = parse_role_lookup_filters(
-        Employment, {"employer__name__startswith": "Tech"}
-    )
+    _, _, role_exprs = parse_role_lookup_filters(Employment, {"employer__name__startswith": "Tech"})
     role_expr = role_exprs["employer"][0]
     assert isinstance(role_expr, RolePlayerExpr)
     assert isinstance(role_expr.inner_expr, StringExpr)
@@ -198,9 +193,7 @@ def test_parse_role_lookup_startswith():
 
 def test_parse_role_lookup_endswith():
     """Test __endswith lookup wrapped in RolePlayerExpr."""
-    _, _, role_exprs = parse_role_lookup_filters(
-        Employment, {"employer__name__endswith": "Corp"}
-    )
+    _, _, role_exprs = parse_role_lookup_filters(Employment, {"employer__name__endswith": "Corp"})
     role_expr = role_exprs["employer"][0]
     assert isinstance(role_expr, RolePlayerExpr)
     assert isinstance(role_expr.inner_expr, StringExpr)
@@ -208,9 +201,7 @@ def test_parse_role_lookup_endswith():
 
 def test_parse_role_lookup_regex():
     """Test __regex lookup wrapped in RolePlayerExpr."""
-    _, _, role_exprs = parse_role_lookup_filters(
-        Employment, {"employer__name__regex": "^Tech.*"}
-    )
+    _, _, role_exprs = parse_role_lookup_filters(Employment, {"employer__name__regex": "^Tech.*"})
     role_expr = role_exprs["employer"][0]
     assert isinstance(role_expr, RolePlayerExpr)
     assert isinstance(role_expr.inner_expr, StringExpr)
@@ -253,9 +244,7 @@ def test_parse_role_lookup_in_requires_non_empty():
 
 def test_parse_role_lookup_isnull_true():
     """Test __isnull=True creates AttributeExistsExpr wrapped in RolePlayerExpr."""
-    _, _, role_exprs = parse_role_lookup_filters(
-        Employment, {"employee__age__isnull": True}
-    )
+    _, _, role_exprs = parse_role_lookup_filters(Employment, {"employee__age__isnull": True})
     role_expr = role_exprs["employee"][0]
     assert isinstance(role_expr, RolePlayerExpr)
     assert isinstance(role_expr.inner_expr, AttributeExistsExpr)
@@ -264,9 +253,7 @@ def test_parse_role_lookup_isnull_true():
 
 def test_parse_role_lookup_isnull_false():
     """Test __isnull=False creates AttributeExistsExpr wrapped in RolePlayerExpr."""
-    _, _, role_exprs = parse_role_lookup_filters(
-        Employment, {"employee__age__isnull": False}
-    )
+    _, _, role_exprs = parse_role_lookup_filters(Employment, {"employee__age__isnull": False})
     role_expr = role_exprs["employee"][0]
     assert isinstance(role_expr, RolePlayerExpr)
     assert isinstance(role_expr.inner_expr, AttributeExistsExpr)

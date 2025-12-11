@@ -1,9 +1,7 @@
 """Unit tests for RolePlayerExpr type-safe role-player expression wrapper."""
 
-import pytest
-
 from type_bridge import Entity, Flag, Integer, Key, String, TypeFlags
-from type_bridge.expressions import ComparisonExpr, RolePlayerExpr, StringExpr
+from type_bridge.expressions import RolePlayerExpr
 
 
 # Test models

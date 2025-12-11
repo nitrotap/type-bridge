@@ -174,7 +174,8 @@ def test_filter_multi_role_by_type_specific_attribute(setup_multi_role_data):
     assert len(results) == 2
     for r in results:
         # Actor should be a Person with age > 20
-        assert hasattr(r.actor, "age")
+        assert isinstance(r.actor, Person)
+        assert r.actor.age is not None
         assert r.actor.age.value > 20
 
 
@@ -216,13 +217,12 @@ def test_filter_multi_role_combined_with_relation_attr(setup_multi_role_data):
     manager = Interaction.manager(db)
 
     # Filter by actor age > 25 AND action = "read"
-    results = manager.filter(
-        ActionType.eq(ActionType("read")), actor__age__gt=25
-    ).execute()
+    results = manager.filter(ActionType.eq(ActionType("read")), actor__age__gt=25).execute()
 
     # Only Alice (30) with action "read"
     assert len(results) == 1
     assert results[0].actor.name.value == "Alice"
+    assert results[0].action is not None
     assert results[0].action.value == "read"
 
 
@@ -242,9 +242,7 @@ def test_filter_multi_role_combined_with_other_role(setup_multi_role_data):
     assert len(resource1_results) == 2  # Alice->Resource1 and HelperBot->Resource1
 
     # Combined filter: actor name contains "Bot" AND target name = "Resource1"
-    results = manager.filter(
-        actor__name__contains="Bot", target__name="Resource1"
-    ).execute()
+    results = manager.filter(actor__name__contains="Bot", target__name="Resource1").execute()
 
     # Only HelperBot -> Resource1
     assert len(results) == 1

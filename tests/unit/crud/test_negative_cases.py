@@ -1,6 +1,5 @@
 """Unit tests for CRUD negative/edge cases."""
 
-import pytest
 from typing import Any, cast
 from unittest.mock import MagicMock
 

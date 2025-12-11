@@ -412,6 +412,65 @@ page2 = manager.filter(Person.active.eq(Active(True))).limit(10).offset(10).exec
 page3 = manager.filter(Person.active.eq(Active(True))).limit(10).offset(20).execute()
 ```
 
+### Sorting
+
+Sort query results using Django-style field syntax:
+
+```python
+# Sort by single field (ascending)
+results = manager.filter().order_by('name').execute()
+
+# Descending order (prefix with '-')
+results = manager.filter().order_by('-age').execute()
+
+# Multiple fields (primary, secondary sort)
+results = manager.filter().order_by('city', '-age').execute()
+```
+
+#### Available Sort Syntax
+
+| Syntax | Description | Example |
+|--------|-------------|---------|
+| `'field'` | Ascending by field | `order_by('age')` |
+| `'-field'` | Descending by field | `order_by('-age')` |
+| `'f1', 'f2'` | Multiple fields | `order_by('city', '-age')` |
+| `'role__attr'` | Role-player attribute (Relations) | `order_by('employee__age')` |
+
+#### Sorting Role-Player Attributes
+
+For `RelationQuery`, you can sort by attributes of role players:
+
+```python
+# Sort employments by employee age
+results = Employment.manager(db).filter().order_by('employee__age').execute()
+
+# Sort by employer name descending
+results = Employment.manager(db).filter().order_by('-employer__name').execute()
+
+# Combined with role-player lookup filter
+results = (
+    Employment.manager(db)
+    .filter(employee__age__gte=30)
+    .order_by('-salary')
+    .execute()
+)
+```
+
+#### Sorting with Pagination
+
+`order_by()` works with `limit()` and `offset()` for paginated results:
+
+```python
+# Page 1: First 10 results, sorted by age
+page1 = manager.filter().order_by('age').limit(10).execute()
+
+# Page 2: Next 10 results
+page2 = manager.filter().order_by('age').limit(10).offset(10).execute()
+```
+
+> **Note**: When using `limit()` or `offset()` without `order_by()`, a default sort
+> attribute is automatically selected to ensure stable pagination.
+
 ### Get First Result
 
 ```python

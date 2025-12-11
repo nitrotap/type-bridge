@@ -137,7 +137,25 @@ person_manager.filter(name__startswith="Al", age__gt=30).execute()
 person_manager.filter(status__in=["active", "pending"]).execute()
 ```
 
-### 8. Dict Helpers for Serialization
+### 8. Sorting Results
+
+Sort query results with `order_by()`:
+
+```python
+# Ascending (default)
+person_manager.filter().order_by('age').execute()
+
+# Descending (prefix with '-')
+person_manager.filter().order_by('-age').execute()
+
+# Multiple fields
+person_manager.filter().order_by('city', '-age').execute()
+
+# Role-player attributes (relations only)
+employment_manager.filter().order_by('employee__age').execute()
+```
+
+### 9. Dict Helpers for Serialization
 
 Easy conversion to/from dictionaries:
 

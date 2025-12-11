@@ -160,6 +160,7 @@ def test_filter_by_role_player_attribute_gt(setup_employment_data):
 
     assert len(results) == 3  # Alice (30) x2 and Charlie (40)
     for emp in results:
+        assert emp.employee.age is not None
         assert emp.employee.age.value > 28
 
 
@@ -176,6 +177,7 @@ def test_filter_by_role_player_attribute_gte(setup_employment_data):
 
     assert len(results) == 3  # Alice (30) x2 and Charlie (40)
     for emp in results:
+        assert emp.employee.age is not None
         assert emp.employee.age.value >= 30
 
 
@@ -280,6 +282,8 @@ def test_filter_role_player_and_relation_attribute(setup_employment_data):
     # Alice (30) at TechCorp (100k), Alice (30) at FinCo (150k), Charlie (40) at FinCo (120k)
     assert len(results) == 3
     for emp in results:
+        assert emp.employee.age is not None
+        assert emp.salary is not None
         assert emp.employee.age.value > 25
         assert emp.salary.value > 90000
 
@@ -293,9 +297,7 @@ def test_filter_multiple_role_players(setup_employment_data):
     manager = Employment.manager(db)
 
     # Filter by employee age >= 30 AND employer industry = Technology
-    results = manager.filter(
-        employee__age__gte=30, employer__industry="Technology"
-    ).execute()
+    results = manager.filter(employee__age__gte=30, employer__industry="Technology").execute()
 
     # Only Alice (30) at TechCorp
     assert len(results) == 1
@@ -317,6 +319,7 @@ def test_filter_multiple_lookups_same_role(setup_employment_data):
     # Alice (30) x2
     assert len(results) == 2
     for emp in results:
+        assert emp.employee.age is not None
         assert 25 < emp.employee.age.value < 35
 
 
@@ -355,6 +358,7 @@ def test_filter_role_player_city_exact(setup_employment_data):
     # Alice x2 and Charlie are from NYC
     assert len(results) == 3
     for emp in results:
+        assert emp.employee.city is not None
         assert emp.employee.city.value == "NYC"
 
 
@@ -398,9 +402,7 @@ def test_delete_with_combined_role_player_filters(setup_employment_data):
     manager = Employment.manager(db)
 
     # Delete high salary employments where employee is older than 35
-    deleted_count = manager.filter(
-        Salary.gt(Salary(100000)), employee__age__gt=35
-    ).delete()
+    deleted_count = manager.filter(Salary.gt(Salary(100000)), employee__age__gt=35).delete()
 
     assert deleted_count == 1  # Only Charlie (40) at FinCo (120k)
 

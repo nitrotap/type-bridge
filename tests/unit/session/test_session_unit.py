@@ -1,8 +1,8 @@
 """Unit tests for session module classes (without TypeDB connection)."""
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
+import pytest
 from typedb.driver import TransactionType
 
 from type_bridge.session import (
