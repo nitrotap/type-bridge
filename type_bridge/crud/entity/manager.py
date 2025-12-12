@@ -1,5 +1,6 @@
 """Entity CRUD operations manager."""
 
+import logging
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -12,12 +13,14 @@ from type_bridge.query import QueryBuilder
 from type_bridge.session import Connection, ConnectionExecutor
 
 from ..base import E
-from ..exceptions import EntityNotFoundError, NotUniqueError
+from ..exceptions import EntityNotFoundError, KeyAttributeError, NotUniqueError
 from ..utils import format_value, is_multi_value_attribute
 
 if TYPE_CHECKING:
     from .group_by import GroupByQuery
     from .query import EntityQuery
+
+logger = logging.getLogger(__name__)
 
 
 class EntityManager[E: Entity]:
@@ -59,10 +62,14 @@ class EntityManager[E: Entity]:
             )
             Person.manager(db).insert(person)
         """
+        logger.debug(f"Inserting entity: {self.model_class.__name__}")
         query = QueryBuilder.insert_entity(entity)
+        query_str = query.build()
+        logger.debug(f"Insert query: {query_str}")
 
-        self._execute(query.build(), TransactionType.WRITE)
+        self._execute(query_str, TransactionType.WRITE)
 
+        logger.info(f"Entity inserted: {self.model_class.__name__}")
         return entity
 
     def put(self, entity: E) -> E:
@@ -90,11 +97,14 @@ class EntityManager[E: Entity]:
             Person.manager(db).put(person)  # No duplicate created
         """
         # Build PUT query similar to insert, but use "put" instead of "insert"
+        logger.debug(f"Put entity: {self.model_class.__name__}")
         pattern = entity.to_insert_query("$e")
         query = f"put\n{pattern};"
+        logger.debug(f"Put query: {query}")
 
         self._execute(query, TransactionType.WRITE)
 
+        logger.info(f"Entity put: {self.model_class.__name__}")
         return entity
 
     def put_many(self, entities: list[E]) -> list[E]:
@@ -122,8 +132,10 @@ class EntityManager[E: Entity]:
             Person.manager(db).put_many(persons)
         """
         if not entities:
+            logger.debug("put_many called with empty list")
             return []
 
+        logger.debug(f"Put {len(entities)} entities: {self.model_class.__name__}")
         # Build a single TypeQL PUT query with multiple patterns
         put_patterns = []
         for i, entity in enumerate(entities):
@@ -134,9 +146,11 @@ class EntityManager[E: Entity]:
 
         # Combine all patterns into a single put query
         query = "put\n" + ";\n".join(put_patterns) + ";"
+        logger.debug(f"Put many query: {query}")
 
         self._execute(query, TransactionType.WRITE)
 
+        logger.info(f"Put {len(entities)} entities: {self.model_class.__name__}")
         return entities
 
     def update_many(self, entities: list[E]) -> list[E]:
@@ -152,11 +166,14 @@ class EntityManager[E: Entity]:
             The list of updated entities
         """
         if not entities:
+            logger.debug("update_many called with empty list")
             return []
 
+        logger.debug(f"Updating {len(entities)} entities: {self.model_class.__name__}")
         if self._executor.has_transaction:
             for entity in entities:
                 self.update(entity)
+            logger.info(f"Updated {len(entities)} entities: {self.model_class.__name__}")
             return entities
 
         assert self._executor.database is not None
@@ -165,6 +182,7 @@ class EntityManager[E: Entity]:
             for entity in entities:
                 temp_manager.update(entity)
 
+        logger.info(f"Updated {len(entities)} entities: {self.model_class.__name__}")
         return entities
 
     def insert_many(self, entities: list[E]) -> list[E]:
@@ -187,8 +205,10 @@ class EntityManager[E: Entity]:
             Person.manager(db).insert_many(persons)
         """
         if not entities:
+            logger.debug("insert_many called with empty list")
             return []
 
+        logger.debug(f"Inserting {len(entities)} entities: {self.model_class.__name__}")
         # Build a single TypeQL query with multiple insert patterns
         insert_patterns = []
         for i, entity in enumerate(entities):
@@ -199,9 +219,11 @@ class EntityManager[E: Entity]:
 
         # Combine all patterns into a single insert query
         query = "insert\n" + ";\n".join(insert_patterns) + ";"
+        logger.debug(f"Insert many query: {query}")
 
         self._execute(query, TransactionType.WRITE)
 
+        logger.info(f"Inserted {len(entities)} entities: {self.model_class.__name__}")
         return entities
 
     def get(self, **filters) -> list[E]:
@@ -213,10 +235,14 @@ class EntityManager[E: Entity]:
         Returns:
             List of matching entities
         """
+        logger.debug(f"Get entities: {self.model_class.__name__}, filters={filters}")
         query = QueryBuilder.match_entity(self.model_class, **filters)
         query.fetch("$e")  # Fetch all attributes with $e.*
+        query_str = query.build()
+        logger.debug(f"Get query: {query_str}")
 
-        results = self._execute(query.build(), TransactionType.READ)
+        results = self._execute(query_str, TransactionType.READ)
+        logger.debug(f"Query returned {len(results)} results")
 
         # Convert results to entity instances
         entities = []
@@ -226,6 +252,7 @@ class EntityManager[E: Entity]:
             entity = self.model_class(**attrs)
             entities.append(entity)
 
+        logger.info(f"Retrieved {len(entities)} entities: {self.model_class.__name__}")
         return entities
 
     def filter(self, *expressions: Any, **filters: Any) -> "EntityQuery[E]":
@@ -254,6 +281,10 @@ class EntityManager[E: Entity]:
         Raises:
             ValueError: If expression references attribute type not owned by entity
         """
+        logger.debug(
+            f"Creating filter query: {self.model_class.__name__}, "
+            f"expressions={len(expressions)}, filters={filters}"
+        )
         # Import here to avoid circular dependency
         from .query import EntityQuery
 
@@ -412,6 +443,7 @@ class EntityManager[E: Entity]:
         Returns:
             List of all entities
         """
+        logger.debug(f"Getting all entities: {self.model_class.__name__}")
         return self.get()
 
     def delete(self, entity: E) -> E:
@@ -440,6 +472,7 @@ class EntityManager[E: Entity]:
             # Delete using the instance
             deleted = person_manager.delete(alice)
         """
+        logger.debug(f"Deleting entity: {self.model_class.__name__}")
         owned_attrs = self.model_class.get_all_attributes()
 
         # Extract key attributes from entity for matching (same pattern as update)
@@ -448,8 +481,11 @@ class EntityManager[E: Entity]:
             if attr_info.flags.is_key:
                 key_value = getattr(entity, field_name, None)
                 if key_value is None:
-                    msg = f"Key attribute '{field_name}' is required for delete"
-                    raise ValueError(msg)
+                    raise KeyAttributeError(
+                        entity_type=self.model_class.__name__,
+                        operation="delete",
+                        field_name=field_name,
+                    )
                 # Extract value from Attribute instance if needed
                 if hasattr(key_value, "value"):
                     key_value = key_value.value
@@ -509,8 +545,10 @@ class EntityManager[E: Entity]:
             parts.append(f"has {attr_name} {format_value(attr_value)}")
 
         query_str = f"match\n{', '.join(parts)};\ndelete\n$e;"
+        logger.debug(f"Delete query: {query_str}")
         self._execute(query_str, TransactionType.WRITE)
 
+        logger.info(f"Entity deleted: {self.model_class.__name__}")
         return entity
 
     def delete_many(self, entities: list[E]) -> list[E]:
@@ -530,11 +568,14 @@ class EntityManager[E: Entity]:
             ValueError: If any key attribute value is None
         """
         if not entities:
+            logger.debug("delete_many called with empty list")
             return []
 
+        logger.debug(f"Deleting {len(entities)} entities: {self.model_class.__name__}")
         if self._executor.has_transaction:
             for entity in entities:
                 self.delete(entity)
+            logger.info(f"Deleted {len(entities)} entities: {self.model_class.__name__}")
             return entities
 
         assert self._executor.database is not None
@@ -543,6 +584,7 @@ class EntityManager[E: Entity]:
             for entity in entities:
                 temp_manager.delete(entity)
 
+        logger.info(f"Deleted {len(entities)} entities: {self.model_class.__name__}")
         return entities
 
     def update(self, entity: E) -> E:
@@ -572,6 +614,7 @@ class EntityManager[E: Entity]:
             # Update in database
             person_manager.update(alice)
         """
+        logger.debug(f"Updating entity: {self.model_class.__name__}")
         # Get all attributes (including inherited) to determine cardinality
         owned_attrs = self.model_class.get_all_attributes()
 
@@ -581,8 +624,11 @@ class EntityManager[E: Entity]:
             if attr_info.flags.is_key:
                 key_value = getattr(entity, field_name, None)
                 if key_value is None:
-                    msg = f"Key attribute '{field_name}' is required for update"
-                    raise ValueError(msg)
+                    raise KeyAttributeError(
+                        entity_type=self.model_class.__name__,
+                        operation="update",
+                        field_name=field_name,
+                    )
                 # Extract value from Attribute instance if needed
                 if hasattr(key_value, "value"):
                     key_value = key_value.value
@@ -590,8 +636,11 @@ class EntityManager[E: Entity]:
                 match_filters[attr_name] = key_value
 
         if not match_filters:
-            msg = "Entity must have at least one @key attribute to be updated"
-            raise ValueError(msg)
+            raise KeyAttributeError(
+                entity_type=self.model_class.__name__,
+                operation="update",
+                all_fields=list(owned_attrs.keys()),
+            )
 
         # Separate single-value and multi-value updates from entity state
         single_value_updates = {}
@@ -712,9 +761,11 @@ class EntityManager[E: Entity]:
 
         # Combine and execute
         full_query = "\n".join(query_parts)
+        logger.debug(f"Update query: {full_query}")
 
         self._execute(full_query, TransactionType.WRITE)
 
+        logger.info(f"Entity updated: {self.model_class.__name__}")
         return entity
 
     def _extract_attributes(self, result: dict[str, Any]) -> dict[str, Any]:

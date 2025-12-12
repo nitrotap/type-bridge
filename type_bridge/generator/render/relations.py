@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from ..models import minimal_role_players
@@ -9,6 +10,8 @@ from ..naming import render_all_export, to_class_name, to_python_name
 
 if TYPE_CHECKING:
     from ..models import ParsedSchema
+
+logger = logging.getLogger(__name__)
 
 
 def _render_role_field(
@@ -151,6 +154,7 @@ def render_relations(
     Returns:
         Complete Python source code for relations.py
     """
+    logger.debug(f"Rendering {len(schema.relations)} relation classes")
     if relation_class_names is None:
         relation_class_names = {name: to_class_name(name) for name in schema.relations}
 
@@ -199,4 +203,5 @@ def render_relations(
     # Add __all__ export
     lines.extend(render_all_export(rendered_names, extras=["get_roles"]))
 
+    logger.info(f"Rendered {len(rendered_names)} relation classes")
     return "\n".join(lines)

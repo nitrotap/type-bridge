@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from ..naming import render_all_export, to_python_name
 
 if TYPE_CHECKING:
     from ..models import Cardinality, ParsedSchema
+
+logger = logging.getLogger(__name__)
 
 
 def _render_attr_field(
@@ -187,6 +190,7 @@ def render_entities(
     Returns:
         Complete Python source code for entities.py
     """
+    logger.debug(f"Rendering {len(schema.entities)} entity classes")
     implicit_keys = implicit_key_attributes or set()
     needs_card = _needs_card_import(schema)
 
@@ -225,4 +229,5 @@ def render_entities(
     # Add __all__ export
     lines.extend(render_all_export(rendered_names))
 
+    logger.info(f"Rendered {len(rendered_names)} entity classes")
     return "\n".join(lines)

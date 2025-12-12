@@ -1,5 +1,6 @@
 """RelationManager for relation CRUD operations."""
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from typedb.driver import TransactionType
@@ -11,6 +12,8 @@ from type_bridge.session import Connection, ConnectionExecutor
 from ..base import R
 from ..exceptions import RelationNotFoundError
 from ..utils import format_value, is_multi_value_attribute
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .group_by import RelationGroupByQuery
@@ -53,6 +56,7 @@ class RelationManager[R: Relation]:
             )
             employment_manager.insert(employment)
         """
+        logger.debug(f"Inserting relation: {self.model_class.__name__}")
         # Extract role players from relation instance
         roles = self.model_class._roles
         role_players = {}
@@ -125,9 +129,11 @@ class RelationManager[R: Relation]:
         match_clause = "match\n" + ";\n".join(match_parts) + ";"
         insert_clause = "insert\n" + insert_pattern + ";"
         query = match_clause + "\n" + insert_clause
+        logger.debug(f"Insert query: {query}")
 
         self._execute(query, TransactionType.WRITE)
 
+        logger.info(f"Relation inserted: {self.model_class.__name__}")
         return relation
 
     def put(self, relation: R) -> R:
@@ -155,6 +161,7 @@ class RelationManager[R: Relation]:
             employment_manager.put(employment)
             employment_manager.put(employment)  # No duplicate created
         """
+        logger.debug(f"Put relation: {self.model_class.__name__}")
         # Extract role players from relation instance
         roles = self.model_class._roles
         role_players = {}
@@ -227,9 +234,11 @@ class RelationManager[R: Relation]:
         match_clause = "match\n" + ";\n".join(match_parts) + ";"
         put_clause = "put\n" + put_pattern + ";"
         query = match_clause + "\n" + put_clause
+        logger.debug(f"Put query: {query}")
 
         self._execute(query, TransactionType.WRITE)
 
+        logger.info(f"Relation put: {self.model_class.__name__}")
         return relation
 
     def put_many(self, relations: list[R]) -> list[R]:
@@ -264,8 +273,10 @@ class RelationManager[R: Relation]:
             Employment.manager(db).put_many(employments)
         """
         if not relations:
+            logger.debug("put_many called with empty list")
             return []
 
+        logger.debug(f"Put {len(relations)} relations: {self.model_class.__name__}")
         # Build query
         query = Query()
 
@@ -386,8 +397,10 @@ class RelationManager[R: Relation]:
             query_str = f"put\n{put_section};"
 
         # Execute the query
+        logger.debug(f"Put many query: {query_str}")
         self._execute(query_str, TransactionType.WRITE)
 
+        logger.info(f"Put {len(relations)} relations: {self.model_class.__name__}")
         return relations
 
     def insert_many(self, relations: list[R]) -> list[R]:
@@ -419,8 +432,10 @@ class RelationManager[R: Relation]:
             Employment.manager(db).insert_many(employments)
         """
         if not relations:
+            logger.debug("insert_many called with empty list")
             return []
 
+        logger.debug(f"Inserting {len(relations)} relations: {self.model_class.__name__}")
         # Build query
         query = Query()
 
@@ -533,8 +548,10 @@ class RelationManager[R: Relation]:
 
         # Execute the query
         query_str = query.build()
+        logger.debug(f"Insert many query: {query_str}")
         self._execute(query_str, TransactionType.WRITE)
 
+        logger.info(f"Inserted {len(relations)} relations: {self.model_class.__name__}")
         return relations
 
     def get(self, **filters) -> list[R]:
@@ -560,6 +577,7 @@ class RelationManager[R: Relation]:
             # Filter by both
             Employment.manager(db).get(position="Manager", employer=tech_corp)
         """
+        logger.debug(f"Get relations: {self.model_class.__name__}, filters={filters}")
         # Build TypeQL 3.x query with correct syntax for fetching relations with role players
         # Use get_all_attributes to include inherited attributes for filtering
         all_attrs = self.model_class.get_all_attributes()
@@ -637,8 +655,10 @@ class RelationManager[R: Relation]:
         fetch_str = f"fetch {{\n  {fetch_body}\n}};"
 
         query_str = f"match\n{match_str}\n{fetch_str}"
+        logger.debug(f"Get query: {query_str}")
 
         results = self._execute(query_str, TransactionType.READ)
+        logger.debug(f"Query returned {len(results)} results")
 
         # Convert results to relation instances
         relations = []
@@ -730,6 +750,7 @@ class RelationManager[R: Relation]:
 
             relations.append(relation)
 
+        logger.info(f"Retrieved {len(relations)} relations: {self.model_class.__name__}")
         return relations
 
     def all(self) -> list[R]:
@@ -743,6 +764,7 @@ class RelationManager[R: Relation]:
         Example:
             all_employments = Employment.manager(db).all()
         """
+        logger.debug(f"Getting all relations: {self.model_class.__name__}")
         return self.get()
 
     def update(self, relation: R) -> R:
@@ -772,6 +794,7 @@ class RelationManager[R: Relation]:
             # Update in database
             employment_manager.update(emp)
         """
+        logger.debug(f"Updating relation: {self.model_class.__name__}")
         # Get all attributes (including inherited)
         all_attrs = self.model_class.get_all_attributes()
 
@@ -917,9 +940,11 @@ class RelationManager[R: Relation]:
 
         # Combine and execute
         full_query = "\n".join(query_parts)
+        logger.debug(f"Update query: {full_query}")
 
         self._execute(full_query, TransactionType.WRITE)
 
+        logger.info(f"Relation updated: {self.model_class.__name__}")
         return relation
 
     def delete(self, relation: R) -> R:
@@ -944,6 +969,7 @@ class RelationManager[R: Relation]:
             # Delete using the instance
             deleted = employment_manager.delete(employment)
         """
+        logger.debug(f"Deleting relation: {self.model_class.__name__}")
         # Extract role players from relation instance for matching
         roles = self.model_class._roles
         role_players = {}
@@ -1000,8 +1026,11 @@ class RelationManager[R: Relation]:
         query.match(pattern)
         query.delete("$r")
 
-        self._execute(query.build(), TransactionType.WRITE)
+        query_str = query.build()
+        logger.debug(f"Delete query: {query_str}")
+        self._execute(query_str, TransactionType.WRITE)
 
+        logger.info(f"Relation deleted: {self.model_class.__name__}")
         return relation
 
     def delete_many(self, relations: list[R]) -> list[R]:
@@ -1020,11 +1049,14 @@ class RelationManager[R: Relation]:
             ValueError: If any relation has missing role players
         """
         if not relations:
+            logger.debug("delete_many called with empty list")
             return []
 
+        logger.debug(f"Deleting {len(relations)} relations: {self.model_class.__name__}")
         if self._executor.has_transaction:
             for relation in relations:
                 self.delete(relation)
+            logger.info(f"Deleted {len(relations)} relations: {self.model_class.__name__}")
             return relations
 
         assert self._executor.database is not None
@@ -1033,6 +1065,7 @@ class RelationManager[R: Relation]:
             for relation in relations:
                 temp_manager.delete(relation)
 
+        logger.info(f"Deleted {len(relations)} relations: {self.model_class.__name__}")
         return relations
 
     def filter(self, *expressions: Any, **filters: Any) -> "RelationQuery[R]":

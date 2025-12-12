@@ -1,5 +1,6 @@
 """Query builder for TypeQL."""
 
+import logging
 from datetime import date, datetime, timedelta
 from decimal import Decimal as DecimalType
 from typing import Any
@@ -8,6 +9,8 @@ import isodate
 from isodate import Duration as IsodateDuration
 
 from type_bridge.models import Entity, Relation
+
+logger = logging.getLogger(__name__)
 
 
 class Query:
@@ -126,6 +129,7 @@ class Query:
         Returns:
             Complete TypeQL query
         """
+        logger.debug("Building TypeQL query")
         parts = []
 
         # Match clause
@@ -163,7 +167,9 @@ class Query:
             fetch_body = ",\n".join(fetch_items)
             parts.append(f"fetch {{\n{fetch_body}\n}};")
 
-        return "\n".join(parts)
+        query = "\n".join(parts)
+        logger.debug(f"Built query: {query}")
+        return query
 
     def __str__(self) -> str:
         """String representation of query."""
@@ -185,6 +191,9 @@ class QueryBuilder:
         Returns:
             Query object
         """
+        logger.debug(
+            f"QueryBuilder.match_entity: {model_class.__name__}, var={var}, filters={filters}"
+        )
         query = Query()
 
         # Basic entity match
@@ -215,6 +224,7 @@ class QueryBuilder:
         Returns:
             Query object
         """
+        logger.debug(f"QueryBuilder.insert_entity: {instance.__class__.__name__}, var={var}")
         query = Query()
         insert_pattern = instance.to_insert_query(var)
         query.insert(insert_pattern)
@@ -234,6 +244,10 @@ class QueryBuilder:
         Returns:
             Query object
         """
+        logger.debug(
+            f"QueryBuilder.match_relation: {model_class.__name__}, var={var}, "
+            f"role_players={role_players}"
+        )
         query = Query()
 
         # Basic relation match

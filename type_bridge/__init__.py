@@ -22,6 +22,7 @@ from type_bridge.attribute import (
 from type_bridge.crud import (
     EntityManager,
     EntityNotFoundError,
+    KeyAttributeError,
     NotUniqueError,
     RelationManager,
     RelationNotFoundError,
@@ -32,7 +33,7 @@ from type_bridge.schema import MigrationManager, SchemaManager
 from type_bridge.session import Connection, Database, TransactionContext
 from type_bridge.typedb_driver import Credentials, TransactionType, TypeDB
 
-__version__ = "0.9.1"
+__version__ = "0.9.3"
 
 __all__ = [
     # Database and session
@@ -79,6 +80,7 @@ __all__ = [
     "EntityNotFoundError",
     "RelationNotFoundError",
     "NotUniqueError",
+    "KeyAttributeError",
     # Schema
     "SchemaManager",
     "MigrationManager",

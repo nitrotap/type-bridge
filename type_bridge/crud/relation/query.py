@@ -1,5 +1,6 @@
 """RelationQuery for chainable relation queries."""
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from typedb.driver import TransactionType
@@ -10,6 +11,8 @@ from type_bridge.session import Connection, ConnectionExecutor
 
 from ..base import R
 from ..utils import format_value, is_multi_value_attribute
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .group_by import RelationGroupByQuery
@@ -285,6 +288,10 @@ class RelationQuery[R: Relation]:
         Returns:
             List of matching relations
         """
+        logger.debug(
+            f"Executing RelationQuery: {self.model_class.__name__}, "
+            f"filters={self.filters}, expressions={len(self._expressions)}"
+        )
 
         # Get all attributes (including inherited)
         all_attrs = self.model_class.get_all_attributes()
@@ -445,8 +452,10 @@ class RelationQuery[R: Relation]:
 
         fetch_str = f"fetch {{\n  {fetch_body}\n}};"
         query_str = f"match\n{match_str}{sort_clause}{pagination_clause}\n{fetch_str}"
+        logger.debug(f"RelationQuery: {query_str}")
 
         results = self._execute(query_str, TransactionType.READ)
+        logger.debug(f"Query returned {len(results)} results")
 
         # Convert results to relation instances
         relations = []
@@ -538,6 +547,7 @@ class RelationQuery[R: Relation]:
 
             relations.append(relation)
 
+        logger.info(f"RelationQuery executed: {len(relations)} relations returned")
         return relations
 
     def first(self) -> R | None:
@@ -569,7 +579,7 @@ class RelationQuery[R: Relation]:
         Example:
             # Delete all high-salary employments
             count = Employment.manager(db).filter(Salary.gt(Salary(150000))).delete()
-            print(f"Deleted {count} employments")
+            logger.info(f"Deleted {count} employments")
 
             # Delete with multiple filters
             count = Employment.manager(db).filter(
@@ -663,9 +673,13 @@ class RelationQuery[R: Relation]:
         query.delete("$r")
 
         # Execute in single transaction
-        results = self._execute(query.build(), TransactionType.WRITE)
+        query_str = query.build()
+        logger.debug(f"Delete query: {query_str}")
+        results = self._execute(query_str, TransactionType.WRITE)
+        count = len(results) if results else 0
+        logger.info(f"Deleted {count} relations via filter")
 
-        return len(results) if results else 0
+        return count
 
     def update_with(self, func: Any) -> list[R]:
         """Update relations by applying a function to each matching relation.

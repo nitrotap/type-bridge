@@ -1,9 +1,13 @@
 """Schema manager for TypeDB schema operations."""
 
+import logging
+
 from type_bridge.models import Entity, Relation
 from type_bridge.schema.exceptions import SchemaConflictError
 from type_bridge.schema.info import SchemaInfo
 from type_bridge.session import Database
+
+logger = logging.getLogger(__name__)
 
 
 class SchemaManager:
@@ -29,7 +33,10 @@ class SchemaManager:
         """
         for model in models:
             if model not in self.registered_models:
+                logger.debug(f"Registering model: {model.__name__}")
                 self.registered_models.append(model)
+            else:
+                logger.debug(f"Model already registered: {model.__name__}")
 
     def collect_schema_info(self) -> SchemaInfo:
         """Collect schema information from registered models.
@@ -37,19 +44,29 @@ class SchemaManager:
         Returns:
             SchemaInfo with entities, relations, and attributes
         """
+        logger.debug(f"Collecting schema info from {len(self.registered_models)} registered models")
         schema_info = SchemaInfo()
 
         for model in self.registered_models:
             if issubclass(model, Entity) and model is not Entity:
+                logger.debug(f"Adding entity to schema: {model.__name__}")
                 schema_info.entities.append(model)
             elif issubclass(model, Relation) and model is not Relation:
+                logger.debug(f"Adding relation to schema: {model.__name__}")
                 schema_info.relations.append(model)
 
             # Collect all attribute classes owned by this model
             owned_attrs = model.get_owned_attributes()
             for field_name, attr_info in owned_attrs.items():
+                logger.debug(
+                    f"Adding attribute class: {attr_info.typ.__name__} (owned by {model.__name__})"
+                )
                 schema_info.attribute_classes.add(attr_info.typ)
 
+        logger.info(
+            f"Schema info collected: {len(schema_info.entities)} entities, "
+            f"{len(schema_info.relations)} relations, {len(schema_info.attribute_classes)} attributes"
+        )
         return schema_info
 
     def generate_schema(self) -> str:
@@ -58,9 +75,13 @@ class SchemaManager:
         Returns:
             TypeQL schema definition string
         """
+        logger.debug("Generating TypeQL schema definition")
         # Collect schema information and generate TypeQL
         schema_info = self.collect_schema_info()
-        return schema_info.to_typeql()
+        typeql = schema_info.to_typeql()
+        logger.debug(f"Generated TypeQL schema ({len(typeql)} chars)")
+        logger.debug(f"Schema:\n{typeql}")
+        return typeql
 
     def has_existing_schema(self) -> bool:
         """Check if database has existing schema defined.
@@ -68,7 +89,9 @@ class SchemaManager:
         Returns:
             True if database exists and has custom schema beyond built-in types
         """
+        logger.debug("Checking for existing schema in database")
         if not self.db.database_exists():
+            logger.debug("Database does not exist, no existing schema")
             return False
 
         # Check if any of the registered types already exist in the schema
@@ -77,12 +100,15 @@ class SchemaManager:
             if issubclass(model, Entity) and model is not Entity:
                 type_name = model.get_type_name()
                 if self._type_exists(type_name, "entity"):
+                    logger.debug(f"Found existing entity type: {type_name}")
                     return True
             elif issubclass(model, Relation) and model is not Relation:
                 type_name = model.get_type_name()
                 if self._type_exists(type_name, "relation"):
+                    logger.debug(f"Found existing relation type: {type_name}")
                     return True
 
+        logger.debug("No existing schema found for registered models")
         return False
 
     def introspect_current_schema_info(self) -> SchemaInfo | None:
@@ -113,6 +139,7 @@ class SchemaManager:
         Raises:
             SchemaConflictError: If breaking changes are detected
         """
+        logger.debug("Verifying schema compatibility")
         new_schema_info = self.collect_schema_info()
         diff = old_schema_info.compare(new_schema_info)
 
@@ -126,7 +153,10 @@ class SchemaManager:
         )
 
         if has_breaking_changes:
+            logger.warning(f"Breaking schema changes detected: {diff}")
             raise SchemaConflictError(diff)
+
+        logger.debug("Schema compatibility verified - no breaking changes")
 
     def sync_schema(self, force: bool = False) -> None:
         """Synchronize database schema with registered models.
@@ -140,8 +170,10 @@ class SchemaManager:
         Raises:
             SchemaConflictError: If database has existing schema and force=False
         """
+        logger.info(f"Syncing schema (force={force})")
         # Check for existing schema before making changes
         if not force and self.has_existing_schema():
+            logger.debug("Existing schema detected, checking for conflicts")
             # In TypeDB 3.x, schema introspection is limited without instances
             # For safety, we treat any attempt to redefine existing types as a potential conflict
             existing_types = []
@@ -159,6 +191,7 @@ class SchemaManager:
                 from type_bridge.schema.diff import SchemaDiff
 
                 types_str = ", ".join(existing_types)
+                logger.error(f"Schema conflict: types already exist: {types_str}")
                 raise SchemaConflictError(
                     SchemaDiff(),
                     message=(
@@ -179,20 +212,25 @@ class SchemaManager:
 
         if force:
             # Delete and recreate database
+            logger.info("Force mode: recreating database from scratch")
             if self.db.database_exists():
+                logger.debug("Deleting existing database")
                 self.db.delete_database()
             self.db.create_database()
 
         # Ensure database exists
         if not self.db.database_exists():
+            logger.debug("Creating database")
             self.db.create_database()
 
         # Generate and apply schema
         schema = self.generate_schema()
 
+        logger.debug("Applying schema to database")
         with self.db.transaction("schema") as tx:
             tx.execute(schema)
             tx.commit()
+        logger.info("Schema synchronized successfully")
 
     def _check_schema_conflicts(self) -> str:
         """Check if registered models conflict with existing database schema.
@@ -345,8 +383,12 @@ class SchemaManager:
 
     def drop_schema(self) -> None:
         """Drop all schema definitions."""
+        logger.info("Dropping schema")
         if self.db.database_exists():
             self.db.delete_database()
+            logger.info("Schema dropped (database deleted)")
+        else:
+            logger.debug("Database does not exist, nothing to drop")
 
     def introspect_schema(self) -> dict[str, list[str]]:
         """Introspect current database schema.
@@ -354,6 +396,7 @@ class SchemaManager:
         Returns:
             Dictionary of schema information
         """
+        logger.debug("Introspecting database schema")
         # Query to get all types
         query = """
         match
@@ -372,4 +415,5 @@ class SchemaManager:
             # This is a simplified implementation
             pass
 
+        logger.debug(f"Schema introspection complete: {schema_info}")
         return schema_info

@@ -2,6 +2,106 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [0.9.4] - 2025-12-12
+
+### New Features
+
+#### Debug Logging Support (Issue #43)
+- **Added comprehensive logging throughout TypeBridge using Python's standard `logging` module**
+  - See generated TQL queries during CRUD operations
+  - Hierarchical logger structure for fine-grained control
+  - Documentation: `docs/api/logging.md`
+
+### Bug Fixes
+
+#### Type Safety Improvements
+- Fixed pyright errors for `TransactionType.name` access in session.py
+  - Added `_tx_type_name()` helper function for type-safe transaction type logging
+
+### Documentation
+
+- Added `docs/api/logging.md` - Comprehensive logging configuration guide
+- Updated `docs/DEVELOPMENT.md` with logging section
+
+### Key Files Modified
+
+- `type_bridge/session.py` - Fixed type errors, added logging
+- `type_bridge/query.py` - Added logging
+- `type_bridge/validation.py` - Added logging
+- `type_bridge/schema/manager.py` - Added logging
+- `type_bridge/schema/migration.py` - Added logging
+- `type_bridge/crud/entity/manager.py` - Added logging
+- `type_bridge/crud/entity/query.py` - Added logging
+- `type_bridge/crud/entity/group_by.py` - Added logging
+- `type_bridge/crud/relation/manager.py` - Added logging
+- `type_bridge/crud/relation/query.py` - Added logging
+- `type_bridge/crud/relation/group_by.py` - Added logging
+- `type_bridge/generator/__main__.py` - Added logging
+- `type_bridge/generator/render/attributes.py` - Added logging
+- `type_bridge/generator/render/entities.py` - Added logging
+- `type_bridge/generator/render/relations.py` - Added logging
+- `type_bridge/models/entity.py` - Added logging
+- `type_bridge/models/relation.py` - Added logging
+- `docs/api/logging.md` - New documentation
+- `docs/DEVELOPMENT.md` - Added logging section
+
+## [0.9.3] - 2025-12-12
+
+### Documentation
+
+#### @key Attribute Requirement for update() (Issue #45)
+- **Added prominent documentation explaining that `update()` requires @key attributes**
+  - New section "Important: @key Attributes Required for update()" in CRUD docs
+  - Clear examples showing proper `@key` attribute definition
+  - Error scenarios documented: no `@key` defined, `@key` value is `None`
+  - Guidance for UUID/ID fields as `@key` attributes
+  - Cross-reference to Exception Handling section
+  - Location: `docs/api/crud.md` (lines 369-413)
+
+### Key Files Modified
+
+- `docs/api/crud.md` - Added @key requirement documentation in Update Operations section
+
+## [0.9.2] - 2025-12-12
+
+### New Features
+
+#### KeyAttributeError Exception (Issue #44)
+- **Added `KeyAttributeError` exception for @key validation failures**
+  - Raised when @key attribute is None during update/delete
+  - Raised when no @key attributes are defined on entity
+  - Structured attributes: `entity_type`, `operation`, `field_name`, `all_fields`
+  - Helpful error messages with hints for fixing issues
+  - Inherits from `ValueError` for backward compatibility
+  - Location: `type_bridge/crud/exceptions.py`
+
+### Testing
+
+- Added 7 unit tests for `KeyAttributeError`
+- **813 unit tests** passing
+
+### Key Files Added/Modified
+
+- `type_bridge/crud/exceptions.py` - Added `KeyAttributeError` class
+- `type_bridge/crud/__init__.py` - Export `KeyAttributeError`
+- `type_bridge/__init__.py` - Export `KeyAttributeError` in public API
+- `type_bridge/crud/entity/manager.py` - Use `KeyAttributeError`
+- `type_bridge/crud/entity/query.py` - Use `KeyAttributeError`
+- `tests/unit/exceptions/test_exceptions.py` - Added KeyAttributeError tests
+
+### Usage Example
+
+```python
+from type_bridge import KeyAttributeError
+
+try:
+    manager.update(entity_with_none_key)
+except KeyAttributeError as e:
+    print(f"Entity: {e.entity_type}")
+    print(f"Operation: {e.operation}")
+    print(f"Field: {e.field_name}")
+```
+
 ## [0.9.1] - 2025-12-11
 
 ### New Features

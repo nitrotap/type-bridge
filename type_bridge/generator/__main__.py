@@ -12,10 +12,13 @@ destination clear in version control.
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
 from . import generate_models
+
+logger = logging.getLogger(__name__)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -67,17 +70,23 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     args = parser.parse_args(argv)
+    logger.debug(
+        f"CLI arguments: schema={args.schema}, output={args.output}, version={args.version}"
+    )
 
     # Validate schema file exists
     if not args.schema.exists():
+        logger.error(f"Schema file not found: {args.schema}")
         print(f"Error: Schema file not found: {args.schema}", file=sys.stderr)
         return 1
 
     if not args.schema.is_file():
+        logger.error(f"Not a file: {args.schema}")
         print(f"Error: Not a file: {args.schema}", file=sys.stderr)
         return 1
 
     try:
+        logger.info(f"Generating models from {args.schema} to {args.output}")
         generate_models(
             schema=args.schema,
             output_dir=args.output,
@@ -86,9 +95,11 @@ def main(argv: list[str] | None = None) -> int:
             copy_schema=not args.no_copy_schema,
         )
     except Exception as e:
+        logger.error(f"Generation failed: {e}", exc_info=True)
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
+    logger.info(f"Successfully generated models in: {args.output}")
     print(f"Generated TypeBridge models in: {args.output}")
     return 0
 

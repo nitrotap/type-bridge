@@ -4,9 +4,12 @@ This module provides validation functions to ensure type names, attribute names,
 and role names don't conflict with TypeQL reserved words/keywords.
 """
 
+import logging
 from typing import Literal
 
 from type_bridge.reserved_words import is_reserved_word
+
+logger = logging.getLogger(__name__)
 
 
 class ValidationError(ValueError):
@@ -129,21 +132,29 @@ def validate_type_name(
         ReservedWordError: If the name is a TypeQL reserved word
         ValidationError: If the name is invalid for other reasons
     """
+    logger.debug(f"Validating {context} name: {name}")
+
     if not name:
+        logger.warning(f"Empty {context} name attempted")
         raise ValidationError(f"Empty {context} name is not allowed")
 
     # Check for reserved words (case-insensitive to be safe)
     if is_reserved_word(name):
+        logger.warning(f"Reserved word used as {context} name: {name}")
         raise ReservedWordError(name, context)
 
     # TypeQL identifiers must start with a letter and contain only letters, numbers,
     # underscores, and hyphens
     if not name[0].isalpha():
+        logger.warning(f"{context.capitalize()} name '{name}' does not start with a letter")
         raise ValidationError(f"{context.capitalize()} name '{name}' must start with a letter")
 
     # Check for invalid characters
     for char in name:
         if not (char.isalnum() or char in {"_", "-"}):
+            logger.warning(
+                f"{context.capitalize()} name '{name}' contains invalid character: {char}"
+            )
             raise ValidationError(
                 f"{context.capitalize()} name '{name}' contains invalid character '{char}'. "
                 f"Only letters, numbers, underscores, and hyphens are allowed."

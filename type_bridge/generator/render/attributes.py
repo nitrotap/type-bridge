@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
@@ -9,6 +10,8 @@ from ..naming import render_all_export
 
 if TYPE_CHECKING:
     from ..models import ParsedSchema
+
+logger = logging.getLogger(__name__)
 
 # Mapping from TypeDB value types to type-bridge attribute classes
 VALUE_TYPE_MAP: Mapping[str, str] = {
@@ -171,6 +174,7 @@ def render_attributes(schema: ParsedSchema, class_names: dict[str, str]) -> str:
     Returns:
         Complete Python source code for attributes.py
     """
+    logger.debug(f"Rendering {len(schema.attributes)} attribute classes")
     # Check what imports we need
     imports = _get_required_imports(schema, class_names)
     uses_classvar = any(attr.allowed_values or attr.regex for attr in schema.attributes.values())
@@ -200,4 +204,5 @@ def render_attributes(schema: ParsedSchema, class_names: dict[str, str]) -> str:
     # Add __all__ export
     lines.extend(render_all_export(rendered_names))
 
+    logger.info(f"Rendered {len(rendered_names)} attribute classes")
     return "\n".join(lines)
