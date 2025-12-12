@@ -159,7 +159,9 @@ class Database:
         else:
             tx_type = transaction_type
 
-        logger.debug(f"Creating {_tx_type_name(tx_type)} transaction for database: {self.database_name}")
+        logger.debug(
+            f"Creating {_tx_type_name(tx_type)} transaction for database: {self.database_name}"
+        )
         return TransactionContext(self, tx_type)
 
     def execute_query(self, query: str, transaction_type: str = "read") -> list[dict[str, Any]]:
