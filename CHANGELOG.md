@@ -2,6 +2,23 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [0.9.3] - 2025-12-12
+
+### Documentation
+
+#### @key Attribute Requirement for update() (Issue #45)
+- **Added prominent documentation explaining that `update()` requires @key attributes**
+  - New section "Important: @key Attributes Required for update()" in CRUD docs
+  - Clear examples showing proper `@key` attribute definition
+  - Error scenarios documented: no `@key` defined, `@key` value is `None`
+  - Guidance for UUID/ID fields as `@key` attributes
+  - Cross-reference to Exception Handling section
+  - Location: `docs/api/crud.md` (lines 369-413)
+
+### Key Files Modified
+
+- `docs/api/crud.md` - Added @key requirement documentation in Update Operations section
+
 ## [0.9.2] - 2025-12-12
 
 ### New Features

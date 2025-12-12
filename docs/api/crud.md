@@ -366,6 +366,52 @@ alice.status = Status("active")
 person_manager.update(alice)
 ```
 
+### Important: @key Attributes Required for update()
+
+The `update()` method uses `@key` attributes to identify which entity to update in the database. Your entity class must have at least one `@key` attribute defined:
+
+```python
+class Person(Entity):
+    flags = TypeFlags(name="person")
+    name: Name = Flag(Key)  # @key attribute - required for update()
+    age: Age | None = None
+
+# This works because Person has @key attribute "name"
+alice = person_manager.get(name="Alice")[0]
+alice.age = Age(31)
+person_manager.update(alice)  # Uses "name" to match entity in database
+```
+
+**Without a @key attribute**, `update()` will raise `KeyAttributeError`:
+
+```python
+class Counter(Entity):
+    flags = TypeFlags(name="counter")
+    value: Value  # No @key attribute!
+
+counter = counter_manager.get(value=42)[0]
+counter.value = Value(100)
+counter_manager.update(counter)  # Raises KeyAttributeError
+```
+
+**If a @key attribute value is None**, `update()` will also raise `KeyAttributeError`:
+
+```python
+alice = Person(name=None, age=Age(30))  # Invalid: @key is None
+person_manager.update(alice)  # Raises KeyAttributeError
+```
+
+If your entity uses a UUID or ID field, make sure it's marked as `@key`:
+
+```python
+class Document(Entity):
+    flags = TypeFlags(name="document")
+    id: Id = Flag(Key)  # Mark as @key for update() to work
+    title: Title
+```
+
+See [Exception Handling](#exception-handling-v072) for details on handling `KeyAttributeError`.
+
 ### Update Single-Value Attributes
 
 ```python
