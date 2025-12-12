@@ -64,3 +64,58 @@ class NotUniqueError(ValueError):
     """
 
     pass
+
+
+class KeyAttributeError(ValueError):
+    """Raised when @key attribute validation fails during update/delete.
+
+    This exception is raised when:
+    - A @key attribute has a None value
+    - No @key attributes are defined on the entity
+
+    Attributes:
+        entity_type: Name of the entity class
+        operation: The operation that failed ("update" or "delete")
+        field_name: The @key field that was None (if applicable)
+        all_fields: List of all defined fields (when no @key exists)
+
+    Example:
+        try:
+            manager.update(entity_with_none_key)
+        except KeyAttributeError as e:
+            print(f"Key validation failed: {e}")
+            print(f"Entity type: {e.entity_type}")
+            print(f"Operation: {e.operation}")
+    """
+
+    def __init__(
+        self,
+        entity_type: str,
+        operation: str,
+        field_name: str | None = None,
+        all_fields: list[str] | None = None,
+    ):
+        self.entity_type = entity_type
+        self.operation = operation
+        self.field_name = field_name
+        self.all_fields = all_fields
+
+        if field_name is not None:
+            # Key attribute is None
+            message = (
+                f"Cannot {operation} {entity_type}: "
+                f"key attribute '{field_name}' is None. "
+                f"Ensure the entity has a valid '{field_name}' value "
+                f"before calling {operation}()."
+            )
+        else:
+            # No @key attributes defined
+            message = (
+                f"Cannot {operation} {entity_type}: no @key attributes found. "
+                f"The {operation}() method requires at least one @key attribute "
+                f"to identify the entity. "
+                f"Defined attributes: {all_fields} (none marked as @key). "
+                f"Hint: Add Flag(Key) to an attribute, e.g., `id: Id = Flag(Key)`"
+            )
+
+        super().__init__(message)

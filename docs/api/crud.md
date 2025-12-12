@@ -631,10 +631,10 @@ Person(name=Name("Temp")).insert(db).delete(db)
 
 ### Exception Handling (v0.7.2+)
 
-Delete operations now raise specific exceptions for better error handling:
+Delete and update operations raise specific exceptions for better error handling:
 
 ```python
-from type_bridge import EntityNotFoundError, NotUniqueError
+from type_bridge import EntityNotFoundError, KeyAttributeError, NotUniqueError
 
 # Handle non-existent entity
 try:
@@ -648,11 +648,22 @@ try:
 except NotUniqueError:
     # Use filter().delete() for bulk deletion instead
     count = manager.filter(value=keyless_entity.value).delete()
+
+# Handle @key validation failures (v0.9.2+)
+try:
+    manager.update(entity_with_none_key)
+except KeyAttributeError as e:
+    print(f"Cannot {e.operation} {e.entity_type}: key '{e.field_name}' is None")
+    # e.entity_type: "Person"
+    # e.operation: "update" or "delete"
+    # e.field_name: "name" (if key is None)
+    # e.all_fields: ["title", "desc"] (if no @key defined)
 ```
 
 **Exception hierarchy**:
 - `EntityNotFoundError(LookupError)` - Entity not found in database
 - `NotUniqueError(ValueError)` - Multiple matches for keyless entity
+- `KeyAttributeError(ValueError)` - @key attribute is None or no @key defined (v0.9.2+)
 
 ## RelationManager
 

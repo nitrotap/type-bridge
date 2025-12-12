@@ -8,6 +8,7 @@ from type_bridge import (
     Flag,
     Integer,
     Key,
+    KeyAttributeError,
     NotUniqueError,
     String,
     TypeFlags,
@@ -94,7 +95,9 @@ def test_delete_entity_with_none_key_raises(db_with_schema):
     person = Person(name=Name("Test"))
     person.__dict__["name"] = None
 
-    with pytest.raises(ValueError, match="Key attribute 'name' is required for delete"):
+    with pytest.raises(
+        KeyAttributeError, match="Cannot delete Person: key attribute 'name' is None"
+    ):
         manager.delete(person)
 
 

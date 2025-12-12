@@ -4,6 +4,7 @@ import pytest
 
 from type_bridge.crud.exceptions import (
     EntityNotFoundError,
+    KeyAttributeError,
     NotFoundError,
     NotUniqueError,
     RelationNotFoundError,
@@ -64,6 +65,80 @@ class TestCrudExceptions:
         """NotUniqueError should accept a message."""
         error = NotUniqueError("Multiple matches found")
         assert "Multiple" in str(error)
+
+
+class TestKeyAttributeError:
+    """Tests for KeyAttributeError exception class."""
+
+    def test_key_attribute_error_inherits_from_value_error(self):
+        """KeyAttributeError should inherit from ValueError."""
+        assert issubclass(KeyAttributeError, ValueError)
+
+    def test_key_attribute_error_none_key_message(self):
+        """KeyAttributeError should build message for None key."""
+        error = KeyAttributeError(
+            entity_type="Person",
+            operation="update",
+            field_name="name",
+        )
+        assert "Cannot update Person" in str(error)
+        assert "key attribute 'name' is None" in str(error)
+        assert "before calling update()" in str(error)
+
+    def test_key_attribute_error_no_keys_message(self):
+        """KeyAttributeError should build message for no @key attributes."""
+        error = KeyAttributeError(
+            entity_type="Person",
+            operation="update",
+            all_fields=["title", "description", "priority"],
+        )
+        assert "Cannot update Person" in str(error)
+        assert "no @key attributes found" in str(error)
+        assert "['title', 'description', 'priority']" in str(error)
+        assert "Hint: Add Flag(Key)" in str(error)
+
+    def test_key_attribute_error_delete_operation(self):
+        """KeyAttributeError should work for delete operation."""
+        error = KeyAttributeError(
+            entity_type="User",
+            operation="delete",
+            field_name="id",
+        )
+        assert "Cannot delete User" in str(error)
+        assert "before calling delete()" in str(error)
+
+    def test_key_attribute_error_stores_attributes(self):
+        """KeyAttributeError should store entity_type, operation, field_name."""
+        error = KeyAttributeError(
+            entity_type="Person",
+            operation="update",
+            field_name="name",
+        )
+        assert error.entity_type == "Person"
+        assert error.operation == "update"
+        assert error.field_name == "name"
+        assert error.all_fields is None
+
+    def test_key_attribute_error_stores_all_fields(self):
+        """KeyAttributeError should store all_fields when no @key defined."""
+        error = KeyAttributeError(
+            entity_type="Task",
+            operation="update",
+            all_fields=["title", "status"],
+        )
+        assert error.entity_type == "Task"
+        assert error.operation == "update"
+        assert error.field_name is None
+        assert error.all_fields == ["title", "status"]
+
+    def test_key_attribute_error_catchable_as_value_error(self):
+        """KeyAttributeError should be catchable as ValueError."""
+        with pytest.raises(ValueError):
+            raise KeyAttributeError(
+                entity_type="Person",
+                operation="update",
+                field_name="name",
+            )
 
 
 class TestSchemaExceptions:

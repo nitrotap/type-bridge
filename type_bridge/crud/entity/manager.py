@@ -12,7 +12,7 @@ from type_bridge.query import QueryBuilder
 from type_bridge.session import Connection, ConnectionExecutor
 
 from ..base import E
-from ..exceptions import EntityNotFoundError, NotUniqueError
+from ..exceptions import EntityNotFoundError, KeyAttributeError, NotUniqueError
 from ..utils import format_value, is_multi_value_attribute
 
 if TYPE_CHECKING:
@@ -448,8 +448,11 @@ class EntityManager[E: Entity]:
             if attr_info.flags.is_key:
                 key_value = getattr(entity, field_name, None)
                 if key_value is None:
-                    msg = f"Key attribute '{field_name}' is required for delete"
-                    raise ValueError(msg)
+                    raise KeyAttributeError(
+                        entity_type=self.model_class.__name__,
+                        operation="delete",
+                        field_name=field_name,
+                    )
                 # Extract value from Attribute instance if needed
                 if hasattr(key_value, "value"):
                     key_value = key_value.value
@@ -581,8 +584,11 @@ class EntityManager[E: Entity]:
             if attr_info.flags.is_key:
                 key_value = getattr(entity, field_name, None)
                 if key_value is None:
-                    msg = f"Key attribute '{field_name}' is required for update"
-                    raise ValueError(msg)
+                    raise KeyAttributeError(
+                        entity_type=self.model_class.__name__,
+                        operation="update",
+                        field_name=field_name,
+                    )
                 # Extract value from Attribute instance if needed
                 if hasattr(key_value, "value"):
                     key_value = key_value.value
@@ -590,8 +596,11 @@ class EntityManager[E: Entity]:
                 match_filters[attr_name] = key_value
 
         if not match_filters:
-            msg = "Entity must have at least one @key attribute to be updated"
-            raise ValueError(msg)
+            raise KeyAttributeError(
+                entity_type=self.model_class.__name__,
+                operation="update",
+                all_fields=list(owned_attrs.keys()),
+            )
 
         # Separate single-value and multi-value updates from entity state
         single_value_updates = {}

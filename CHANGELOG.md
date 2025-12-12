@@ -2,6 +2,46 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [0.9.2] - 2025-12-12
+
+### New Features
+
+#### KeyAttributeError Exception (Issue #44)
+- **Added `KeyAttributeError` exception for @key validation failures**
+  - Raised when @key attribute is None during update/delete
+  - Raised when no @key attributes are defined on entity
+  - Structured attributes: `entity_type`, `operation`, `field_name`, `all_fields`
+  - Helpful error messages with hints for fixing issues
+  - Inherits from `ValueError` for backward compatibility
+  - Location: `type_bridge/crud/exceptions.py`
+
+### Testing
+
+- Added 7 unit tests for `KeyAttributeError`
+- **813 unit tests** passing
+
+### Key Files Added/Modified
+
+- `type_bridge/crud/exceptions.py` - Added `KeyAttributeError` class
+- `type_bridge/crud/__init__.py` - Export `KeyAttributeError`
+- `type_bridge/__init__.py` - Export `KeyAttributeError` in public API
+- `type_bridge/crud/entity/manager.py` - Use `KeyAttributeError`
+- `type_bridge/crud/entity/query.py` - Use `KeyAttributeError`
+- `tests/unit/exceptions/test_exceptions.py` - Added KeyAttributeError tests
+
+### Usage Example
+
+```python
+from type_bridge import KeyAttributeError
+
+try:
+    manager.update(entity_with_none_key)
+except KeyAttributeError as e:
+    print(f"Entity: {e.entity_type}")
+    print(f"Operation: {e.operation}")
+    print(f"Field: {e.field_name}")
+```
+
 ## [0.9.1] - 2025-12-11
 
 ### New Features

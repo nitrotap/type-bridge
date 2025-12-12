@@ -15,6 +15,7 @@ The module is organized into submodules:
 from .entity import EntityManager, EntityQuery, GroupByQuery
 from .exceptions import (
     EntityNotFoundError,
+    KeyAttributeError,
     NotFoundError,
     NotUniqueError,
     RelationNotFoundError,
@@ -35,4 +36,5 @@ __all__ = [
     "EntityNotFoundError",
     "RelationNotFoundError",
     "NotUniqueError",
+    "KeyAttributeError",
 ]
