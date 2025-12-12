@@ -1,5 +1,6 @@
 """Chainable query operations for entities."""
 
+import logging
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -11,6 +12,8 @@ from type_bridge.session import Connection, ConnectionExecutor
 
 from ..base import E
 from ..utils import format_value, is_multi_value_attribute
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .group_by import GroupByQuery
@@ -112,6 +115,10 @@ class EntityQuery[E: Entity]:
         Returns:
             List of matching entities
         """
+        logger.debug(
+            f"Executing EntityQuery: {self.model_class.__name__}, "
+            f"filters={self.filters}, expressions={len(self._expressions)}"
+        )
         query = QueryBuilder.match_entity(self.model_class, **self.filters)
 
         # Apply expression-based filters
@@ -152,7 +159,10 @@ class EntityQuery[E: Entity]:
         if self._offset_value is not None:
             query.offset(self._offset_value)
 
-        results = self._execute(query.build(), TransactionType.READ)
+        query_str = query.build()
+        logger.debug(f"EntityQuery: {query_str}")
+        results = self._execute(query_str, TransactionType.READ)
+        logger.debug(f"Query returned {len(results)} results")
 
         # Convert results to entity instances
         entities = []
@@ -175,6 +185,7 @@ class EntityQuery[E: Entity]:
             entity = self.model_class(**attrs)
             entities.append(entity)
 
+        logger.info(f"EntityQuery executed: {len(entities)} entities returned")
         return entities
 
     def first(self) -> E | None:
@@ -240,9 +251,13 @@ class EntityQuery[E: Entity]:
         query.delete("$e")
 
         # Execute in single transaction
-        results = self._execute(query.build(), TransactionType.WRITE)
+        query_str = query.build()
+        logger.debug(f"Delete query: {query_str}")
+        results = self._execute(query_str, TransactionType.WRITE)
+        count = len(results) if results else 0
+        logger.info(f"Deleted {count} entities via filter")
 
-        return len(results) if results else 0
+        return count
 
     def update_with(self, func: Any) -> list[E]:
         """Update entities by applying a function to each matching entity.

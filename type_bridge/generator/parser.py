@@ -342,6 +342,8 @@ def parse_tql_schema(schema_content: str) -> ParsedSchema:
     Returns:
         ParsedSchema containing all parsed attributes, entities, and relations
     """
+    logger.debug("Starting TQL schema parsing")
+
     # Check for functions
     if RE_FUNCTION.search(schema_content):
         logger.debug("Schema contains function definitions which are not yet supported")
@@ -354,6 +356,7 @@ def parse_tql_schema(schema_content: str) -> ParsedSchema:
 
     # Split into individual statements
     statements = _split_statements(content)
+    logger.debug(f"Found {len(statements)} statements to parse")
 
     schema = ParsedSchema()
     pending_annotations: dict[str, object] = {}
@@ -379,14 +382,22 @@ def parse_tql_schema(schema_content: str) -> ParsedSchema:
         # Try parsing as each type
         if attr := _parse_attribute(statement):
             schema.attributes[attr.name] = attr
+            logger.debug(f"Parsed attribute: {attr.name}")
         elif entity := _parse_entity(statement, pending_annotations):
             schema.entities[entity.name] = entity
+            logger.debug(f"Parsed entity: {entity.name}")
         elif relation := _parse_relation(statement):
             schema.relations[relation.name] = relation
+            logger.debug(f"Parsed relation: {relation.name}")
 
         pending_annotations = {}
 
     # Resolve inheritance
+    logger.debug("Resolving inheritance")
     schema.accumulate_inheritance()
 
+    logger.info(
+        f"Schema parsed: {len(schema.attributes)} attributes, "
+        f"{len(schema.entities)} entities, {len(schema.relations)} relations"
+    )
     return schema

@@ -294,6 +294,91 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 ```
 
+## Logging
+
+TypeBridge uses Python's standard `logging` module for comprehensive logging throughout the library. This follows the best practice of letting library users configure logging as they prefer.
+
+### Logger Hierarchy
+
+TypeBridge loggers follow Python's module hierarchy:
+
+```
+type_bridge                              # Root logger
+├── type_bridge.session                  # Connection, Database, Transaction
+├── type_bridge.schema.manager           # SchemaManager operations
+├── type_bridge.schema.migration         # Migration operations
+├── type_bridge.crud.entity.manager      # Entity CRUD
+├── type_bridge.crud.entity.query        # Entity queries
+├── type_bridge.crud.entity.group_by     # Entity aggregations
+├── type_bridge.crud.relation.manager    # Relation CRUD
+├── type_bridge.crud.relation.query      # Relation queries
+├── type_bridge.crud.relation.group_by   # Relation aggregations
+├── type_bridge.query                    # Query builder
+├── type_bridge.generator                # Code generation
+│   ├── type_bridge.generator.parser
+│   └── type_bridge.generator.render.*
+├── type_bridge.models.entity            # Entity model
+├── type_bridge.models.relation          # Relation model
+└── type_bridge.validation               # Validation
+```
+
+### Enabling Logging
+
+Since TypeBridge is a library, it doesn't configure logging by default. Enable logging in your application:
+
+```python
+import logging
+
+# Enable all TypeBridge logging at DEBUG level
+logging.basicConfig(level=logging.DEBUG)
+logging.getLogger("type_bridge").setLevel(logging.DEBUG)
+
+# Or enable specific modules
+logging.getLogger("type_bridge.session").setLevel(logging.DEBUG)      # Connection/transaction logs
+logging.getLogger("type_bridge.crud").setLevel(logging.DEBUG)         # CRUD operations
+logging.getLogger("type_bridge.generator").setLevel(logging.INFO)     # Code generator
+```
+
+### Log Levels
+
+| Level   | Use Case                                      | Example                                    |
+|---------|-----------------------------------------------|-------------------------------------------|
+| DEBUG   | Query text, detailed internal operations      | `Executing: match $e isa person; fetch...` |
+| INFO    | Significant events, operation completion      | `Inserted 5 entities`                      |
+| WARNING | Recoverable issues, validation warnings       | `Reserved word used as entity name`        |
+| ERROR   | Failures (with exc_info where appropriate)    | `Connection failed: ...`                   |
+
+### Example: Debugging Queries
+
+```python
+import logging
+
+# Set up detailed logging for CRUD operations
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(name)s - %(levelname)s - %(message)s'
+)
+
+# Enable only CRUD logging
+logging.getLogger("type_bridge.crud").setLevel(logging.DEBUG)
+logging.getLogger("type_bridge.session").setLevel(logging.DEBUG)
+
+# Your code - will now show query details
+persons = Person.manager(db).filter(age=Age(30)).execute()
+```
+
+### Logging in Tests
+
+```bash
+# Show TypeBridge logs during tests
+uv run pytest --log-cli-level=DEBUG
+
+# Show logs only for specific modules
+uv run pytest --log-cli-level=DEBUG -k "test_entity_insert"
+```
+
+For more details on logging configuration, see [docs/api/logging.md](api/logging.md).
+
 ## Environment Setup
 
 ### Python Version

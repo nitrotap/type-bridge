@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -23,6 +24,8 @@ from type_bridge.models.utils import ModelAttrInfo, extract_metadata
 if TYPE_CHECKING:
     from type_bridge.crud import RelationManager
     from type_bridge.session import Connection
+
+logger = logging.getLogger(__name__)
 
 # Type variable for self type
 R = TypeVar("R", bound="Relation")
@@ -133,6 +136,7 @@ class Relation(TypeDBType, metaclass=RelationMeta):
     def __init_subclass__(cls) -> None:
         """Initialize relation subclass."""
         super().__init_subclass__()
+        logger.debug(f"Initializing Relation subclass: {cls.__name__}")
 
         # Collect roles from type hints
         roles = {}

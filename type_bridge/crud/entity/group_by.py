@@ -1,5 +1,6 @@
 """Grouped aggregation queries for entities."""
 
+import logging
 import re
 from typing import Any
 
@@ -8,6 +9,8 @@ from typedb.driver import TransactionType
 from type_bridge.models import Entity
 from type_bridge.query import QueryBuilder
 from type_bridge.session import Connection, ConnectionExecutor
+
+logger = logging.getLogger(__name__)
 
 
 class GroupByQuery[E: Entity]:
@@ -61,6 +64,10 @@ class GroupByQuery[E: Entity]:
         if not aggregates:
             raise ValueError("At least one aggregation expression required")
 
+        logger.debug(
+            f"GroupByQuery.aggregate: {self.model_class.__name__}, "
+            f"group_fields={len(self.group_fields)}, aggregates={len(aggregates)}"
+        )
         # Build base match query
         query = QueryBuilder.match_entity(self.model_class, **self.filters)
 
@@ -100,8 +107,10 @@ class GroupByQuery[E: Entity]:
         group_clause = ", ".join(group_vars)
         reduce_clause = ", ".join(reduce_clauses)
         reduce_query = f"{match_clause}\nreduce {reduce_clause} groupby {group_clause};"
+        logger.debug(f"GroupBy query: {reduce_query}")
 
         results = self._execute(reduce_query, TransactionType.READ)
+        logger.debug(f"GroupBy query returned {len(results)} results")
 
         # Parse grouped results
         # TypeDB 3.x reduce with groupby returns formatted strings
@@ -161,6 +170,7 @@ class GroupByQuery[E: Entity]:
 
             output[group_key] = group_aggs
 
+        logger.info(f"GroupBy aggregation complete: {len(output)} groups")
         return output
 
     def _execute(self, query: str, tx_type: TransactionType) -> list[dict[str, Any]]:

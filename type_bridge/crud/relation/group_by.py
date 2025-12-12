@@ -1,5 +1,6 @@
 """RelationGroupByQuery for grouped aggregations on relations."""
 
+import logging
 from typing import Any
 
 from typedb.driver import TransactionType
@@ -8,6 +9,8 @@ from type_bridge.models import Relation
 from type_bridge.session import Connection, ConnectionExecutor
 
 from ..utils import format_value
+
+logger = logging.getLogger(__name__)
 
 
 class RelationGroupByQuery[R: Relation]:
@@ -61,6 +64,10 @@ class RelationGroupByQuery[R: Relation]:
         if not aggregates:
             raise ValueError("At least one aggregation expression required")
 
+        logger.debug(
+            f"RelationGroupByQuery.aggregate: {self.model_class.__name__}, "
+            f"group_fields={len(self.group_fields)}, aggregates={len(aggregates)}"
+        )
         # Get all attributes (including inherited)
         all_attrs = self.model_class.get_all_attributes()
 
@@ -148,8 +155,10 @@ class RelationGroupByQuery[R: Relation]:
         group_clause = ", ".join(group_vars)
         reduce_clause = ", ".join(reduce_clauses)
         reduce_query = f"match\n{match_clause}\nreduce {reduce_clause} groupby {group_clause};"
+        logger.debug(f"RelationGroupBy query: {reduce_query}")
 
         results = self._execute(reduce_query, TransactionType.READ)
+        logger.debug(f"RelationGroupBy query returned {len(results)} results")
 
         # Parse grouped results
         import re
@@ -208,6 +217,7 @@ class RelationGroupByQuery[R: Relation]:
 
             output[group_key] = group_aggs
 
+        logger.info(f"RelationGroupBy aggregation complete: {len(output)} groups")
         return output
 
     def _execute(self, query: str, tx_type: TransactionType) -> list[dict[str, Any]]:

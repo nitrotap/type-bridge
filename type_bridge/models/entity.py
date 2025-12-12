@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -22,6 +23,8 @@ from type_bridge.models.utils import ModelAttrInfo, extract_metadata
 if TYPE_CHECKING:
     from type_bridge.crud import EntityManager
     from type_bridge.session import Connection
+
+logger = logging.getLogger(__name__)
 
 # Type variable for self type
 E = TypeVar("E", bound="Entity")
@@ -134,6 +137,7 @@ class Entity(TypeDBType, metaclass=EntityMeta):
     def __init_subclass__(cls) -> None:
         """Called when Entity subclass is created."""
         super().__init_subclass__()
+        logger.debug(f"Initializing Entity subclass: {cls.__name__}")
 
         # Extract owned attributes from type hints
         owned_attrs: dict[str, ModelAttrInfo] = {}

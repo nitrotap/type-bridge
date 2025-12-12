@@ -1,6 +1,10 @@
 """Migration manager for TypeDB schema migrations."""
 
+import logging
+
 from type_bridge.session import Database
+
+logger = logging.getLogger(__name__)
 
 
 class MigrationManager:
@@ -22,18 +26,22 @@ class MigrationManager:
             name: Migration name
             schema: TypeQL schema definition
         """
+        logger.debug(f"Adding migration: {name} ({len(schema)} chars)")
         self.migrations.append((name, schema))
 
     def apply_migrations(self) -> None:
         """Apply all pending migrations."""
+        logger.info(f"Applying {len(self.migrations)} migration(s)")
         for name, schema in self.migrations:
-            print(f"Applying migration: {name}")
+            logger.info(f"Applying migration: {name}")
+            logger.debug(f"Migration schema:\n{schema}")
 
             with self.db.transaction("schema") as tx:
                 tx.execute(schema)
                 tx.commit()
 
-            print(f"Migration {name} applied successfully")
+            logger.info(f"Migration {name} applied successfully")
+        logger.info("All migrations applied")
 
     def create_attribute_migration(self, attr_name: str, value_type: str) -> str:
         """Create a migration to add an attribute.

@@ -1,5 +1,6 @@
 """Session and transaction management for TypeDB."""
 
+import logging
 from typing import Any, overload
 
 from typedb.driver import (
@@ -12,6 +13,8 @@ from typedb.driver import (
 from typedb.driver import (
     Transaction as TypeDBTransaction,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class Database:
@@ -41,6 +44,7 @@ class Database:
     def connect(self) -> None:
         """Connect to TypeDB server."""
         if self._driver is None:
+            logger.debug(f"Connecting to TypeDB at {self.address} (database: {self.database_name})")
             # Create credentials if username/password provided
             credentials = (
                 Credentials(self.username, self.password)
@@ -52,21 +56,31 @@ class Database:
             # Disable TLS for local connections (non-HTTPS addresses)
             is_tls_enabled = self.address.startswith("https://")
             driver_options = DriverOptions(is_tls_enabled=is_tls_enabled)
+            logger.debug(f"TLS enabled: {is_tls_enabled}")
 
             # Connect to TypeDB
-            if credentials:
-                self._driver = TypeDB.driver(self.address, credentials, driver_options)
-            else:
-                # For local TypeDB Core without authentication
-                self._driver = TypeDB.driver(
-                    self.address, Credentials("admin", "password"), driver_options
-                )
+            try:
+                if credentials:
+                    logger.debug("Using provided credentials for authentication")
+                    self._driver = TypeDB.driver(self.address, credentials, driver_options)
+                else:
+                    # For local TypeDB Core without authentication
+                    logger.debug("Using default credentials for local connection")
+                    self._driver = TypeDB.driver(
+                        self.address, Credentials("admin", "password"), driver_options
+                    )
+                logger.info(f"Connected to TypeDB at {self.address}")
+            except Exception as e:
+                logger.error(f"Failed to connect to TypeDB at {self.address}: {e}")
+                raise
 
     def close(self) -> None:
         """Close connection to TypeDB server."""
         if self._driver:
+            logger.debug(f"Closing connection to TypeDB at {self.address}")
             self._driver.close()
             self._driver = None
+            logger.info(f"Disconnected from TypeDB at {self.address}")
 
     def __enter__(self) -> "Database":
         """Context manager entry."""
@@ -88,16 +102,26 @@ class Database:
     def create_database(self) -> None:
         """Create the database if it doesn't exist."""
         if not self.driver.databases.contains(self.database_name):
+            logger.debug(f"Creating database: {self.database_name}")
             self.driver.databases.create(self.database_name)
+            logger.info(f"Database created: {self.database_name}")
+        else:
+            logger.debug(f"Database already exists: {self.database_name}")
 
     def delete_database(self) -> None:
         """Delete the database."""
         if self.driver.databases.contains(self.database_name):
+            logger.debug(f"Deleting database: {self.database_name}")
             self.driver.databases.get(self.database_name).delete()
+            logger.info(f"Database deleted: {self.database_name}")
+        else:
+            logger.debug(f"Database does not exist, skipping delete: {self.database_name}")
 
     def database_exists(self) -> bool:
         """Check if database exists."""
-        return self.driver.databases.contains(self.database_name)
+        exists = self.driver.databases.contains(self.database_name)
+        logger.debug(f"Database exists check for '{self.database_name}': {exists}")
+        return exists
 
     @overload
     def transaction(self, transaction_type: TransactionType) -> "TransactionContext": ...
@@ -125,6 +149,7 @@ class Database:
         else:
             tx_type = transaction_type
 
+        logger.debug(f"Creating {tx_type.name} transaction for database: {self.database_name}")
         return TransactionContext(self, tx_type)
 
     def execute_query(self, query: str, transaction_type: str = "read") -> list[dict[str, Any]]:
@@ -137,6 +162,8 @@ class Database:
         Returns:
             List of result dictionaries
         """
+        logger.debug(f"Executing query (type={transaction_type}, {len(query)} chars)")
+        logger.debug(f"Query: {query}")
         with self.transaction(transaction_type) as tx:
             results = tx.execute(query)
             if isinstance(transaction_type, str):
@@ -145,11 +172,15 @@ class Database:
                 needs_commit = transaction_type in (TransactionType.WRITE, TransactionType.SCHEMA)
             if needs_commit:
                 tx.commit()
+            logger.debug(f"Query returned {len(results)} results")
             return results
 
     def get_schema(self) -> str:
+        logger.debug(f"Fetching schema for database: {self.database_name}")
         db = self.driver.databases.get(self.database_name)
-        return db.schema()
+        schema = db.schema()
+        logger.debug(f"Schema fetched ({len(schema)} chars)")
+        return schema
 
 
 class Transaction:
@@ -172,6 +203,8 @@ class Transaction:
         Returns:
             List of result dictionaries
         """
+        logger.debug(f"Transaction.execute: query ({len(query)} chars)")
+        logger.debug(f"Query: {query}")
         # Execute query - returns a Promise[QueryAnswer]
         promise = self._tx.query(query)
         answer = promise.resolve()
@@ -194,15 +227,20 @@ class Transaction:
                         dict(item) if hasattr(item, "__iter__") else {"result": str(item)}
                     )
 
+        logger.debug(f"Query executed, {len(results)} results returned")
         return results
 
     def commit(self) -> None:
         """Commit the transaction."""
+        logger.debug("Committing transaction")
         self._tx.commit()
+        logger.info("Transaction committed")
 
     def rollback(self) -> None:
         """Rollback the transaction."""
+        logger.debug("Rolling back transaction")
         self._tx.rollback()
+        logger.info("Transaction rolled back")
 
     @property
     def is_open(self) -> bool:
@@ -212,6 +250,7 @@ class Transaction:
     def close(self) -> None:
         """Close the transaction if open."""
         if self._tx.is_open():
+            logger.debug("Closing transaction")
             self._tx.close()
 
 
@@ -224,9 +263,13 @@ class TransactionContext:
         self._tx: Transaction | None = None
 
     def __enter__(self) -> "TransactionContext":
+        logger.debug(
+            f"Opening {self.tx_type.name} transaction context for database: {self.db.database_name}"
+        )
         self.db.connect()
         raw_tx = self.db.driver.transaction(self.db.database_name, self.tx_type)
         self._tx = Transaction(raw_tx)
+        logger.debug(f"Transaction context opened: {self.tx_type.name}")
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -236,13 +279,18 @@ class TransactionContext:
         if self._tx.is_open:
             if exc_type is None:
                 if self.tx_type in (TransactionType.WRITE, TransactionType.SCHEMA):
+                    logger.debug("Transaction context exiting normally, committing")
                     self._tx.commit()
             else:
                 # Only rollback WRITE/SCHEMA transactions - READ can't be rolled back
                 if self.tx_type in (TransactionType.WRITE, TransactionType.SCHEMA):
+                    logger.warning(
+                        f"Transaction context exiting with exception, rolling back: {exc_type.__name__}"
+                    )
                     self._tx.rollback()
 
         self._tx.close()
+        logger.debug("Transaction context closed")
 
     @property
     def transaction(self) -> Transaction:
@@ -300,12 +348,15 @@ class ConnectionExecutor:
             connection: Database, Transaction, or TransactionContext
         """
         if isinstance(connection, TransactionContext):
+            logger.debug("ConnectionExecutor initialized with TransactionContext")
             self._transaction: Transaction | None = connection.transaction
             self._database: Database | None = None
         elif isinstance(connection, Transaction):
+            logger.debug("ConnectionExecutor initialized with Transaction")
             self._transaction = connection
             self._database = None
         else:
+            logger.debug("ConnectionExecutor initialized with Database")
             self._transaction = None
             self._database = connection
 
@@ -320,8 +371,10 @@ class ConnectionExecutor:
             List of result dictionaries
         """
         if self._transaction:
+            logger.debug("ConnectionExecutor: using existing transaction")
             return self._transaction.execute(query)
         assert self._database is not None
+        logger.debug(f"ConnectionExecutor: creating new {tx_type.name} transaction")
         with self._database.transaction(tx_type) as tx:
             return tx.execute(query)
 
