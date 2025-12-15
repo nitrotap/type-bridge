@@ -6,6 +6,7 @@ from type_bridge.schema.diff import (
     AttributeFlagChange,
     EntityChanges,
     RelationChanges,
+    RolePlayerChange,
     SchemaDiff,
 )
 
@@ -230,33 +231,43 @@ class SchemaInfo:
         """
         diff = SchemaDiff()
 
-        # Compare entities
-        self_entity_set = set(self.entities)
-        other_entity_set = set(other.entities)
+        # Compare entities by type name (not Python object identity)
+        self_entity_by_name = {e.get_type_name(): e for e in self.entities}
+        other_entity_by_name = {e.get_type_name(): e for e in other.entities}
 
-        diff.added_entities = other_entity_set - self_entity_set
-        diff.removed_entities = self_entity_set - other_entity_set
+        self_ent_names = set(self_entity_by_name.keys())
+        other_ent_names = set(other_entity_by_name.keys())
 
-        # Compare entities that exist in both (for modifications)
-        common_entities = self_entity_set & other_entity_set
-        for entity in common_entities:
-            entity_changes = self._compare_entity(entity, entity)
+        diff.added_entities = {other_entity_by_name[n] for n in other_ent_names - self_ent_names}
+        diff.removed_entities = {self_entity_by_name[n] for n in self_ent_names - other_ent_names}
+
+        # Compare entities that exist in both (by type name)
+        for type_name in self_ent_names & other_ent_names:
+            self_ent = self_entity_by_name[type_name]
+            other_ent = other_entity_by_name[type_name]
+            entity_changes = self._compare_entity(self_ent, other_ent)
             if entity_changes:
-                diff.modified_entities[entity] = entity_changes
+                diff.modified_entities[other_ent] = entity_changes
 
-        # Compare relations
-        self_relation_set = set(self.relations)
-        other_relation_set = set(other.relations)
+        # Compare relations by type name (not Python object identity)
+        self_relation_by_name = {r.get_type_name(): r for r in self.relations}
+        other_relation_by_name = {r.get_type_name(): r for r in other.relations}
 
-        diff.added_relations = other_relation_set - self_relation_set
-        diff.removed_relations = self_relation_set - other_relation_set
+        self_rel_names = set(self_relation_by_name.keys())
+        other_rel_names = set(other_relation_by_name.keys())
 
-        # Compare relations that exist in both (for modifications)
-        common_relations = self_relation_set & other_relation_set
-        for relation in common_relations:
-            relation_changes = self._compare_relation(relation, relation)
+        diff.added_relations = {other_relation_by_name[n] for n in other_rel_names - self_rel_names}
+        diff.removed_relations = {
+            self_relation_by_name[n] for n in self_rel_names - other_rel_names
+        }
+
+        # Compare relations that exist in both (by type name)
+        for type_name in self_rel_names & other_rel_names:
+            self_rel = self_relation_by_name[type_name]
+            other_rel = other_relation_by_name[type_name]
+            relation_changes = self._compare_relation(self_rel, other_rel)
             if relation_changes:
-                diff.modified_relations[relation] = relation_changes
+                diff.modified_relations[other_rel] = relation_changes
 
         # Compare attributes
         diff.added_attributes = other.attribute_classes - self.attribute_classes
@@ -313,6 +324,11 @@ class SchemaInfo:
     ) -> RelationChanges | None:
         """Compare two relation types for differences.
 
+        Detects:
+        - Added/removed roles
+        - Role player type changes (which entities can play each role)
+        - Added/removed/modified attributes
+
         Args:
             self_relation: Relation from this schema
             other_relation: Relation from other schema
@@ -327,18 +343,62 @@ class SchemaInfo:
         added_roles = list(other_roles - self_roles)
         removed_roles = list(self_roles - other_roles)
 
-        # Compare owned attributes (same as entities)
+        # Compare role player types for common roles
+        common_roles = self_roles & other_roles
+        modified_role_players: list[RolePlayerChange] = []
+
+        for role_name in common_roles:
+            self_role = self_relation._roles[role_name]
+            other_role = other_relation._roles[role_name]
+
+            # Get player types as sets for comparison
+            self_player_types = set(self_role.player_types)
+            other_player_types = set(other_role.player_types)
+
+            if self_player_types != other_player_types:
+                added_player_types = list(other_player_types - self_player_types)
+                removed_player_types = list(self_player_types - other_player_types)
+
+                modified_role_players.append(
+                    RolePlayerChange(
+                        role_name=role_name,
+                        added_player_types=added_player_types,
+                        removed_player_types=removed_player_types,
+                    )
+                )
+
+        # Compare owned attributes
         self_attrs = self_relation.get_owned_attributes()
         other_attrs = other_relation.get_owned_attributes()
 
         added_attrs = list(set(other_attrs.keys()) - set(self_attrs.keys()))
         removed_attrs = list(set(self_attrs.keys()) - set(other_attrs.keys()))
 
+        # Compare attribute flags for common attributes
+        common_attrs = set(self_attrs.keys()) & set(other_attrs.keys())
+        modified_attrs: list[AttributeFlagChange] = []
+
+        for attr_name in common_attrs:
+            self_info = self_attrs[attr_name]
+            other_info = other_attrs[attr_name]
+
+            # Compare flags
+            if self_info.flags != other_info.flags:
+                modified_attrs.append(
+                    AttributeFlagChange(
+                        name=attr_name,
+                        old_flags=str(self_info.flags.to_typeql_annotations()),
+                        new_flags=str(other_info.flags.to_typeql_annotations()),
+                    )
+                )
+
         changes = RelationChanges(
             added_roles=added_roles,
             removed_roles=removed_roles,
+            modified_role_players=modified_role_players,
             added_attributes=added_attrs,
             removed_attributes=removed_attrs,
+            modified_attributes=modified_attrs,
         )
 
         return changes if changes.has_changes() else None

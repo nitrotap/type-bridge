@@ -2,6 +2,146 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [1.0.0] - 2025-12-15
+
+### New Features
+
+#### Django-style Migration System
+- **Complete migration framework for TypeDB schema evolution**
+  - Auto-generate migrations from Python model changes
+  - Apply and rollback migrations with transaction safety
+  - Track migration state in TypeDB database
+  - CLI commands: `type-bridge makemigrations`, `type-bridge migrate`
+  - Location: `type_bridge/migration/` (2872 lines)
+
+- **Migration Operations**
+  - `AddAttribute` - Add new attribute types
+  - `AddEntity` - Add new entity types
+  - `AddRelation` - Add new relation types with roles
+  - `AddOwnership` - Add attribute ownership to types
+  - `AddRolePlayer` - Add role players to relations
+  - `RemoveAttribute`, `RemoveEntity`, `RemoveRelation` - Remove types
+  - `RunTypeQL` - Execute raw TypeQL for custom migrations
+  - All operations support forward and rollback
+  - Location: `type_bridge/migration/operations.py`
+
+- **Migration Generator**
+  - Auto-detect schema changes by comparing Python models to database
+  - Generate migration files with operations
+  - Support for incremental migrations (detect only changes)
+  - Location: `type_bridge/migration/generator.py`
+
+- **Migration Executor**
+  - Apply pending migrations in order
+  - Rollback migrations in reverse order
+  - Dry-run mode for previewing changes
+  - `sqlmigrate` for viewing generated TypeQL
+  - Location: `type_bridge/migration/executor.py`
+
+- **Migration State Tracking**
+  - Track applied migrations in TypeDB
+  - Location: `type_bridge/migration/state.py`
+
+- **Model Registry**
+  - Register models for migration tracking
+  - Auto-discover models from modules
+  - Location: `type_bridge/migration/registry.py`
+
+#### Schema Introspection
+- **Query existing schema from TypeDB database**
+  - Introspect entities, relations, attributes, and ownerships
+  - TypeDB 3.x compatible queries
+  - Model-aware introspection for efficient checking
+  - Location: `type_bridge/schema/introspection.py` (527 lines)
+
+#### Breaking Change Detection
+- **Analyze schema changes for safety**
+  - Detect breaking vs safe changes
+  - Categories: BREAKING, SAFE, WARNING
+  - Check role player narrowing, type removal, etc.
+  - Location: `type_bridge/schema/breaking.py` (411 lines)
+
+#### Enhanced Schema Diff
+- **Improved schema comparison**
+  - Compare by TypeDB type name instead of Python object identity
+  - Detect modified entities, relations, and role players
+  - Track attribute and ownership changes
+  - Location: `type_bridge/schema/info.py`, `type_bridge/schema/diff.py`
+
+### Bug Fixes
+
+#### TypeDB 3.x Compatibility
+- **Fixed schema comparison using Python object identity instead of type name**
+  - `SchemaInfo.compare()` now correctly matches entities/relations by type name
+
+- **Fixed migration executor to execute operations separately**
+  - TypeDB 3.x doesn't allow multiple `define` blocks in single query
+
+- **Fixed schema introspection to query ownership from schema definition**
+  - Uses `match {type_name} owns $a;` for schema queries
+
+- **Fixed migration state tracking for TypeDB 3.x @key semantics**
+  - Uses composite key (`migration_id`) instead of dual `@key` attributes
+
+### Testing
+
+- **All 391 integration tests passing**
+- Added comprehensive migration test suite
+- Added role player diff tests
+- Added schema introspection tests
+
+### Key Files Added
+
+- `type_bridge/migration/__init__.py` - Migration module exports
+- `type_bridge/migration/__main__.py` - CLI commands
+- `type_bridge/migration/base.py` - Migration base class
+- `type_bridge/migration/operations.py` - Migration operations
+- `type_bridge/migration/generator.py` - Auto-generation
+- `type_bridge/migration/executor.py` - Apply/rollback
+- `type_bridge/migration/loader.py` - Load migration files
+- `type_bridge/migration/state.py` - State tracking
+- `type_bridge/migration/registry.py` - Model registry
+- `type_bridge/schema/introspection.py` - Schema introspection
+- `type_bridge/schema/breaking.py` - Breaking change detection
+- `tests/integration/migration/` - Migration integration tests
+- `tests/integration/schema/test_role_player_diff.py` - Role player tests
+
+### Usage Example
+
+```python
+from type_bridge.migration import MigrationGenerator, MigrationExecutor
+from type_bridge import Database
+
+db = Database("localhost:1729", "mydb")
+
+# Generate migration from models
+generator = MigrationGenerator(db, "./migrations")
+generator.generate(models=[Person, Company], name="initial")
+
+# Apply migrations
+executor = MigrationExecutor(db, "./migrations")
+results = executor.migrate()
+
+# Rollback
+executor.rollback()
+```
+
+### CLI Usage
+
+```bash
+# Generate migrations
+type-bridge makemigrations ./migrations --models myapp.models
+
+# Apply migrations
+type-bridge migrate ./migrations
+
+# Show migration status
+type-bridge showmigrations ./migrations
+
+# Preview TypeQL
+type-bridge sqlmigrate ./migrations 0001_initial
+```
+
 ## [0.9.4] - 2025-12-12
 
 ### New Features

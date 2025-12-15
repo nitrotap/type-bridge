@@ -16,6 +16,40 @@ class AttributeFlagChange:
 
 
 @dataclass
+class RolePlayerChange:
+    """Represents a change in role player types.
+
+    Tracks when entity types are added to or removed from a role's allowed players.
+
+    Example:
+        If a role changes from Role[Person] to Role[Person, Company]:
+        - added_player_types = ["company"]
+        - removed_player_types = []
+    """
+
+    role_name: str
+    added_player_types: list[str] = field(default_factory=list)
+    removed_player_types: list[str] = field(default_factory=list)
+
+    def has_changes(self) -> bool:
+        """Check if there are any player type changes."""
+        return bool(self.added_player_types or self.removed_player_types)
+
+
+@dataclass
+class RoleCardinalityChange:
+    """Represents a change in role cardinality constraints.
+
+    Tracks cardinality (min, max) changes on roles.
+    None values indicate unbounded.
+    """
+
+    role_name: str
+    old_cardinality: tuple[int | None, int | None]  # (min, max)
+    new_cardinality: tuple[int | None, int | None]  # (min, max)
+
+
+@dataclass
 class EntityChanges:
     """Represents changes to an entity type."""
 
@@ -30,20 +64,33 @@ class EntityChanges:
 
 @dataclass
 class RelationChanges:
-    """Represents changes to a relation type."""
+    """Represents changes to a relation type.
+
+    Tracks:
+    - Role additions/removals
+    - Role player type changes (which entities can play each role)
+    - Role cardinality changes
+    - Attribute additions/removals/modifications
+    """
 
     added_roles: list[str] = field(default_factory=list)
     removed_roles: list[str] = field(default_factory=list)
+    modified_role_players: list[RolePlayerChange] = field(default_factory=list)
+    modified_role_cardinality: list[RoleCardinalityChange] = field(default_factory=list)
     added_attributes: list[str] = field(default_factory=list)
     removed_attributes: list[str] = field(default_factory=list)
+    modified_attributes: list[AttributeFlagChange] = field(default_factory=list)
 
     def has_changes(self) -> bool:
         """Check if there are any changes."""
         return bool(
             self.added_roles
             or self.removed_roles
+            or self.modified_role_players
+            or self.modified_role_cardinality
             or self.added_attributes
             or self.removed_attributes
+            or self.modified_attributes
         )
 
 
@@ -155,9 +202,29 @@ class SchemaDiff:
                     lines.append(f"    added_roles: {relation_changes.added_roles}")
                 if relation_changes.removed_roles:
                     lines.append(f"    removed_roles: {relation_changes.removed_roles}")
+                if relation_changes.modified_role_players:
+                    lines.append("    modified_role_players:")
+                    for rpc in relation_changes.modified_role_players:
+                        lines.append(f"      - {rpc.role_name}:")
+                        if rpc.added_player_types:
+                            lines.append(f"          added: {rpc.added_player_types}")
+                        if rpc.removed_player_types:
+                            lines.append(f"          removed: {rpc.removed_player_types}")
+                if relation_changes.modified_role_cardinality:
+                    lines.append("    modified_role_cardinality:")
+                    for rcc in relation_changes.modified_role_cardinality:
+                        lines.append(f"      - {rcc.role_name}:")
+                        lines.append(f"          old: {rcc.old_cardinality}")
+                        lines.append(f"          new: {rcc.new_cardinality}")
                 if relation_changes.added_attributes:
                     lines.append(f"    added_attributes: {relation_changes.added_attributes}")
                 if relation_changes.removed_attributes:
                     lines.append(f"    removed_attributes: {relation_changes.removed_attributes}")
+                if relation_changes.modified_attributes:
+                    lines.append("    modified_attributes:")
+                    for attr_change in relation_changes.modified_attributes:
+                        lines.append(f"      - {attr_change.name}:")
+                        lines.append(f"          old: {attr_change.old_flags}")
+                        lines.append(f"          new: {attr_change.new_flags}")
 
         return "\n".join(lines)

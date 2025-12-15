@@ -27,13 +27,21 @@ from type_bridge.crud import (
     RelationManager,
     RelationNotFoundError,
 )
+from type_bridge.migration import Migration, MigrationError, MigrationExecutor, ModelRegistry
+from type_bridge.migration import operations as migration_ops
 from type_bridge.models import Entity, Relation, Role, TypeDBType
 from type_bridge.query import Query, QueryBuilder
-from type_bridge.schema import MigrationManager, SchemaManager
+from type_bridge.schema import (
+    BreakingChangeAnalyzer,
+    ChangeCategory,
+    MigrationManager,
+    RolePlayerChange,
+    SchemaManager,
+)
 from type_bridge.session import Connection, Database, TransactionContext
 from type_bridge.typedb_driver import Credentials, TransactionType, TypeDB
 
-__version__ = "0.9.3"
+__version__ = "1.0.0"
 
 __all__ = [
     # Database and session
@@ -81,7 +89,17 @@ __all__ = [
     "RelationNotFoundError",
     "NotUniqueError",
     "KeyAttributeError",
-    # Schema
+    # Schema (legacy)
     "SchemaManager",
     "MigrationManager",
+    # Schema analysis
+    "BreakingChangeAnalyzer",
+    "ChangeCategory",
+    "RolePlayerChange",
+    # Migration system
+    "Migration",
+    "MigrationExecutor",
+    "MigrationError",
+    "ModelRegistry",
+    "migration_ops",
 ]
