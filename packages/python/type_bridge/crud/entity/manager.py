@@ -233,7 +233,7 @@ class EntityManager[E: Entity]:
             filters: Attribute filters
 
         Returns:
-            List of matching entities
+            List of matching entities with _iid populated
         """
         logger.debug(f"Get entities: {self.model_class.__name__}, filters={filters}")
         query = QueryBuilder.match_entity(self.model_class, **filters)
@@ -252,8 +252,60 @@ class EntityManager[E: Entity]:
             entity = self.model_class(**attrs)
             entities.append(entity)
 
+        # Populate IIDs by fetching them in a second query
+        if entities:
+            self._populate_iids(entities)
+
         logger.info(f"Retrieved {len(entities)} entities: {self.model_class.__name__}")
         return entities
+
+    def get_by_iid(self, iid: str) -> E | None:
+        """Get a single entity by its TypeDB Internal ID (IID).
+
+        Args:
+            iid: TypeDB IID hex string (e.g., '0x1e00000000000000000000')
+
+        Returns:
+            Entity instance with _iid populated, or None if not found
+
+        Example:
+            entity = manager.get_by_iid("0x1e00000000000000000000")
+            if entity:
+                print(f"Found: {entity.name}")
+        """
+        logger.debug(f"Get entity by IID: {self.model_class.__name__}, iid={iid}")
+
+        # Validate IID format
+        if not iid or not iid.startswith("0x"):
+            raise ValueError(f"Invalid IID format: {iid}. Expected hex string like '0x1e00...'")
+
+        # Build match query with IID filter and fetch attributes
+        # TypeQL: match $e isa <type>, iid <iid>; fetch { $e.* };
+        query_str = (
+            f"match\n"
+            f"$e isa {self.model_class.get_type_name()}, iid {iid};\n"
+            f"fetch {{\n"
+            f"  $e.*\n"
+            f"}};"
+        )
+        logger.debug(f"Get by IID query: {query_str}")
+
+        results = self._execute(query_str, TransactionType.READ)
+
+        if not results:
+            logger.debug(f"No entity found with IID {iid}")
+            return None
+
+        # Convert result to entity instance
+        result = results[0]
+        attrs = self._extract_attributes(result)
+        entity = self.model_class(**attrs)
+
+        # Set the IID directly since we know it
+        object.__setattr__(entity, "_iid", iid)
+
+        logger.info(f"Retrieved entity by IID: {self.model_class.__name__}")
+        return entity
 
     def filter(self, *expressions: Any, **filters: Any) -> "EntityQuery[E]":
         """Create a query for filtering entities.
@@ -790,6 +842,68 @@ class EntityManager[E: Entity]:
                 is_multi_value = is_multi_value_attribute(attr_info.flags)
                 attrs[field_name] = [] if is_multi_value else None
         return attrs
+
+    def _populate_iids(self, entities: list[E]) -> None:
+        """Populate _iid field on entities by querying TypeDB.
+
+        Since fetch queries cannot return IIDs, this method makes a second
+        query to get IIDs for each entity based on their key attributes.
+
+        Args:
+            entities: List of entities to populate IIDs for
+        """
+        if not entities:
+            return
+
+        # Get key attributes for matching
+        owned_attrs = self.model_class.get_all_attributes()
+        key_attrs = {
+            field_name: attr_info
+            for field_name, attr_info in owned_attrs.items()
+            if attr_info.flags.is_key
+        }
+
+        if not key_attrs:
+            # No key attributes - cannot reliably match IIDs to entities
+            logger.debug("No key attributes found, skipping IID population")
+            return
+
+        # For each entity, query its IID using key attributes
+        for entity in entities:
+            # Build match clause using key attributes
+            match_parts = [f"$e isa {self.model_class.get_type_name()}"]
+            for field_name, attr_info in key_attrs.items():
+                value = getattr(entity, field_name, None)
+                if value is not None:
+                    if hasattr(value, "value"):
+                        value = value.value
+                    attr_name = attr_info.typ.get_attribute_name()
+                    formatted_value = format_value(value)
+                    match_parts.append(f"has {attr_name} {formatted_value}")
+
+            # Build query to get entity with IID
+            # TypeQL: match $e isa <type>, has key_attr value; select $e;
+            query_str = f"match\n{', '.join(match_parts)};\nselect $e;"
+            logger.debug(f"IID lookup query: {query_str}")
+
+            results = self._execute(query_str, TransactionType.READ)
+
+            if not results:
+                continue
+
+            # Extract IID from result
+            result = results[0]
+            iid = None
+
+            # Try different result formats
+            if "e" in result and isinstance(result["e"], dict):
+                iid = result["e"].get("_iid")
+            elif "_iid" in result:
+                iid = result["_iid"]
+
+            if iid:
+                object.__setattr__(entity, "_iid", iid)
+                logger.debug(f"Set IID {iid} for entity {self.model_class.__name__}")
 
     def _execute(self, query: str, tx_type: TransactionType) -> list[dict[str, Any]]:
         """Execute a query using existing transaction if provided."""

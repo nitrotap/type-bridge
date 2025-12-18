@@ -750,8 +750,162 @@ class RelationManager[R: Relation]:
 
             relations.append(relation)
 
+        # Populate IIDs by fetching them in a second query
+        if relations:
+            self._populate_iids(relations)
+
         logger.info(f"Retrieved {len(relations)} relations: {self.model_class.__name__}")
         return relations
+
+    def get_by_iid(self, iid: str) -> R | None:
+        """Get a single relation by its TypeDB Internal ID (IID).
+
+        Args:
+            iid: TypeDB IID hex string (e.g., '0x1e00000000000000000000')
+
+        Returns:
+            Relation instance with _iid populated, or None if not found
+
+        Example:
+            relation = manager.get_by_iid("0x1e00000000000000000000")
+            if relation:
+                print(f"Found: {relation}")
+        """
+        logger.debug(f"Get relation by IID: {self.model_class.__name__}, iid={iid}")
+
+        # Validate IID format
+        if not iid or not iid.startswith("0x"):
+            raise ValueError(f"Invalid IID format: {iid}. Expected hex string like '0x1e00...'")
+
+        # Build match query with IID filter
+        # Get all attributes (including inherited)
+        all_attrs = self.model_class.get_all_attributes()
+
+        # Build match clause with role players
+        role_parts = []
+        role_info = {}  # role_name -> (var, allowed_entity_classes)
+        for role_name, role in self.model_class._roles.items():
+            role_var = f"${role_name}"
+            role_parts.append(f"{role.role_name}: {role_var}")
+            role_info[role_name] = (role_var, role.player_entity_types)
+
+        roles_str = ", ".join(role_parts)
+        match_clause = f"$r isa {self.model_class.get_type_name()} ({roles_str}), iid {iid};"
+
+        # Build fetch clause with nested structure for role players
+        fetch_items = []
+
+        # Add relation attributes (including inherited)
+        for field_name, attr_info in all_attrs.items():
+            attr_name = attr_info.typ.get_attribute_name()
+            # Multi-value attributes need to be wrapped in [] for TypeQL fetch
+            if is_multi_value_attribute(attr_info.flags):
+                fetch_items.append(f'"{attr_name}": [$r.{attr_name}]')
+            else:
+                fetch_items.append(f'"{attr_name}": $r.{attr_name}')
+
+        # Add each role player as nested object
+        for role_name, (role_var, allowed_entity_classes) in role_info.items():
+            fetch_items.append(f'"{role_name}": {{\n    {role_var}.*\n  }}')
+
+        fetch_body = ",\n  ".join(fetch_items)
+        fetch_str = f"fetch {{\n  {fetch_body}\n}};"
+
+        query_str = f"match\n{match_clause}\n{fetch_str}"
+        logger.debug(f"Get by IID query: {query_str}")
+
+        results = self._execute(query_str, TransactionType.READ)
+
+        if not results:
+            logger.debug(f"No relation found with IID {iid}")
+            return None
+
+        # Convert result to relation instance
+        result = results[0]
+
+        # Extract relation attributes (including inherited)
+        attrs: dict[str, Any] = {}
+        for field_name, attr_info in all_attrs.items():
+            attr_class = attr_info.typ
+            attr_name = attr_class.get_attribute_name()
+            if attr_name in result:
+                raw_value = result[attr_name]
+                # Multi-value attributes need explicit conversion from list of raw values
+                if is_multi_value_attribute(attr_info.flags) and isinstance(raw_value, list):
+                    # Convert each raw value to Attribute instance
+                    attrs[field_name] = [attr_class(v) for v in raw_value]
+                else:
+                    # Single value - let Pydantic handle conversion via model constructor
+                    attrs[field_name] = raw_value
+            else:
+                # For list fields (has_explicit_card), default to empty list
+                # For other optional fields, explicitly set to None
+                if attr_info.flags.has_explicit_card:
+                    attrs[field_name] = []
+                else:
+                    attrs[field_name] = None
+
+        # Create relation instance
+        relation = self.model_class(**attrs)
+
+        # Set the IID directly since we know it
+        object.__setattr__(relation, "_iid", iid)
+
+        # Extract role players from nested objects in result
+        for role_name, (role_var, allowed_entity_classes) in role_info.items():
+            if role_name in result and isinstance(result[role_name], dict):
+                player_data = result[role_name]
+                # Choose entity class based on key attributes present; fallback to first allowed
+                entity_class = allowed_entity_classes[0]
+                for candidate in allowed_entity_classes:
+                    key_attr_names = [
+                        attr_info.typ.get_attribute_name()
+                        for attr_info in candidate.get_all_attributes().values()
+                        if attr_info.flags.is_key
+                    ]
+                    if any(key in player_data for key in key_attr_names):
+                        entity_class = candidate
+                        break
+                # Extract player attributes (including inherited)
+                player_attrs: dict[str, Any] = {}
+                for field_name, attr_info in entity_class.get_all_attributes().items():
+                    attr_class = attr_info.typ
+                    attr_name = attr_class.get_attribute_name()
+                    if attr_name in player_data:
+                        raw_value = player_data[attr_name]
+                        if (
+                            hasattr(attr_info.flags, "has_explicit_card")
+                            and attr_info.flags.has_explicit_card
+                        ):
+                            is_multi = True
+                        elif (
+                            hasattr(attr_info.flags, "card_min")
+                            and attr_info.flags.card_min is not None
+                        ):
+                            is_multi = attr_info.flags.card_min > 1 or (
+                                hasattr(attr_info.flags, "card_max")
+                                and attr_info.flags.card_max is not None
+                                and attr_info.flags.card_max != 1
+                            )
+                        else:
+                            is_multi = False
+                        if is_multi and isinstance(raw_value, list):
+                            player_attrs[field_name] = [attr_class(v) for v in raw_value]
+                        else:
+                            player_attrs[field_name] = raw_value
+                    else:
+                        if attr_info.flags.has_explicit_card:
+                            player_attrs[field_name] = []
+                        else:
+                            player_attrs[field_name] = None
+
+                # Create entity instance and assign to role
+                if any(v is not None for v in player_attrs.values()):
+                    player_entity = entity_class(**player_attrs)
+                    setattr(relation, role_name, player_entity)
+
+        logger.info(f"Retrieved relation by IID: {self.model_class.__name__}")
+        return relation
 
     def all(self) -> list[R]:
         """Get all relations of this type.
@@ -1177,6 +1331,80 @@ class RelationManager[R: Relation]:
     def _execute(self, query: str, tx_type: TransactionType) -> list[dict[str, Any]]:
         """Execute a query using an existing transaction when provided."""
         return self._executor.execute(query, tx_type)
+
+    def _populate_iids(self, relations: list[R]) -> None:
+        """Populate _iid field on relations by querying TypeDB.
+
+        Since fetch queries cannot return IIDs, this method makes a second
+        query to get IIDs for each relation based on their role players.
+
+        Args:
+            relations: List of relations to populate IIDs for
+        """
+        if not relations:
+            return
+
+        roles = self.model_class._roles
+
+        # For each relation, query its IID using role players
+        for relation in relations:
+            # Build match clause with role players
+            role_parts = []
+            match_statements = []
+
+            for role_name, role in roles.items():
+                entity = getattr(relation, role_name, None)
+                if entity is None:
+                    # Can't match without role players
+                    logger.debug(f"Skipping IID population for relation without role player {role_name}")
+                    continue
+
+                role_var = f"${role_name}"
+                role_parts.append(f"{role.role_name}: {role_var}")
+
+                # Match the role player by their key attributes
+                entity_class = entity.__class__
+                player_owned_attrs = entity_class.get_all_attributes()
+                for field_name, attr_info in player_owned_attrs.items():
+                    if attr_info.flags.is_key:
+                        key_value = getattr(entity, field_name, None)
+                        if key_value is not None:
+                            attr_name = attr_info.typ.get_attribute_name()
+                            if hasattr(key_value, "value"):
+                                key_value = key_value.value
+                            formatted_value = format_value(key_value)
+                            match_statements.append(f"{role_var} has {attr_name} {formatted_value}")
+                            break
+
+            if not role_parts:
+                continue
+
+            roles_str = ", ".join(role_parts)
+            relation_match = f"$r isa {self.model_class.get_type_name()} ({roles_str})"
+
+            # Build query to get relation with IID
+            query_parts = [relation_match] + match_statements
+            query_str = f"match\n{'; '.join(query_parts)};\nselect $r;"
+            logger.debug(f"IID lookup query: {query_str}")
+
+            results = self._execute(query_str, TransactionType.READ)
+
+            if not results:
+                continue
+
+            # Extract IID from result
+            result = results[0]
+            iid = None
+
+            # Try different result formats
+            if "r" in result and isinstance(result["r"], dict):
+                iid = result["r"].get("_iid")
+            elif "_iid" in result:
+                iid = result["_iid"]
+
+            if iid:
+                object.__setattr__(relation, "_iid", iid)
+                logger.debug(f"Set IID {iid} for relation {self.model_class.__name__}")
 
     def group_by(self, *fields: Any) -> "RelationGroupByQuery[R]":
         """Create a group-by query for aggregating by field values.

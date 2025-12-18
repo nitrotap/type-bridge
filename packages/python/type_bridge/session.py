@@ -1,6 +1,7 @@
 """Session and transaction management for TypeDB."""
 
 import logging
+import re
 from typing import Any, overload
 
 from typedb.driver import (
@@ -25,6 +26,90 @@ def _tx_type_name(tx_type: TransactionType) -> str:
         TransactionType.SCHEMA: "SCHEMA",
     }
     return names.get(tx_type, "UNKNOWN")
+
+
+def _extract_iid_from_string(s: str) -> str | None:
+    """Extract IID from TypeDB string representation.
+
+    TypeDB returns entity/relation strings like:
+    'Entity(person: 0x1e00000000000000000000)'
+    'Relation(employment: 0x1e00000000000000000001)'
+
+    Args:
+        s: String representation of a TypeDB concept
+
+    Returns:
+        IID hex string (e.g., '0x1e00000000000000000000') or None if not found
+    """
+    match = re.search(r"(0x[0-9a-fA-F]+)", s)
+    if match:
+        return match.group(1)
+    return None
+
+
+def _extract_concept_row(item: Any) -> dict[str, Any]:
+    """Extract concept data including IID from a ConceptRow.
+
+    Attempts to extract IID from concepts in the row. For each variable:
+    - If the concept has get_iid(), use it directly
+    - Otherwise, parse the IID from the string representation
+
+    Args:
+        item: A ConceptRow object from TypeDB driver
+
+    Returns:
+        Dictionary with variable names as keys, containing concept data and IID
+    """
+    result: dict[str, Any] = {}
+
+    # Try to get column names
+    try:
+        column_names = list(item.column_names())
+    except Exception:
+        # Fallback to string representation
+        return {"result": str(item)}
+
+    for var_name in column_names:
+        try:
+            concept = item.get(var_name)
+            concept_data: dict[str, Any] = {}
+
+            # Try to get IID
+            if hasattr(concept, "get_iid"):
+                try:
+                    iid = concept.get_iid()
+                    if iid is not None:
+                        concept_data["_iid"] = str(iid)
+                except Exception:
+                    pass
+
+            # Try to get type label
+            if hasattr(concept, "get_type"):
+                try:
+                    type_obj = concept.get_type()
+                    if hasattr(type_obj, "get_label"):
+                        label = type_obj.get_label()
+                        if hasattr(label, "name"):
+                            concept_data["_type"] = label.name
+                except Exception:
+                    pass
+
+            # If we couldn't get IID directly, try parsing from string
+            if "_iid" not in concept_data:
+                concept_str = str(concept)
+                iid = _extract_iid_from_string(concept_str)
+                if iid:
+                    concept_data["_iid"] = iid
+
+            # Store concept data under variable name (without $)
+            clean_var_name = var_name.lstrip("$")
+            result[clean_var_name] = concept_data
+
+        except Exception as e:
+            logger.debug(f"Error extracting concept for {var_name}: {e}")
+            continue
+
+    return result
 
 
 class Database:
@@ -234,6 +319,10 @@ class Transaction:
                 elif hasattr(item, "as_json"):
                     # Document with as_json method
                     results.append(item.as_json())
+                elif hasattr(item, "column_names") and hasattr(item, "get"):
+                    # ConceptRow - extract IID and concept info
+                    result = _extract_concept_row(item)
+                    results.append(result)
                 else:
                     # Try to convert to dict
                     results.append(

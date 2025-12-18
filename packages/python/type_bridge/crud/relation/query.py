@@ -547,8 +547,86 @@ class RelationQuery[R: Relation]:
 
             relations.append(relation)
 
+        # Populate IIDs by fetching them in a second query
+        if relations:
+            self._populate_iids(relations)
+
         logger.info(f"RelationQuery executed: {len(relations)} relations returned")
         return relations
+
+    def _populate_iids(self, relations: list[R]) -> None:
+        """Populate _iid field on relations by querying TypeDB.
+
+        Since fetch queries cannot return IIDs, this method makes a second
+        query to get IIDs for each relation based on their role players.
+
+        Args:
+            relations: List of relations to populate IIDs for
+        """
+        if not relations:
+            return
+
+        roles = self.model_class._roles
+
+        # For each relation, query its IID using role players
+        for relation in relations:
+            # Build match clause with role players
+            role_parts = []
+            match_statements = []
+
+            for role_name, role in roles.items():
+                entity = getattr(relation, role_name, None)
+                if entity is None:
+                    # Can't match without role players
+                    logger.debug(f"Skipping IID population for relation without role player {role_name}")
+                    continue
+
+                role_var = f"${role_name}"
+                role_parts.append(f"{role.role_name}: {role_var}")
+
+                # Match the role player by their key attributes
+                entity_class = entity.__class__
+                player_owned_attrs = entity_class.get_all_attributes()
+                for field_name, attr_info in player_owned_attrs.items():
+                    if attr_info.flags.is_key:
+                        key_value = getattr(entity, field_name, None)
+                        if key_value is not None:
+                            attr_name = attr_info.typ.get_attribute_name()
+                            if hasattr(key_value, "value"):
+                                key_value = key_value.value
+                            formatted_value = format_value(key_value)
+                            match_statements.append(f"{role_var} has {attr_name} {formatted_value}")
+                            break
+
+            if not role_parts:
+                continue
+
+            roles_str = ", ".join(role_parts)
+            relation_match = f"$r isa {self.model_class.get_type_name()} ({roles_str})"
+
+            # Build query to get relation with IID
+            query_parts = [relation_match] + match_statements
+            query_str = f"match\n{'; '.join(query_parts)};\nselect $r;"
+            logger.debug(f"IID lookup query: {query_str}")
+
+            results = self._execute(query_str, TransactionType.READ)
+
+            if not results:
+                continue
+
+            # Extract IID from result
+            result = results[0]
+            iid = None
+
+            # Try different result formats
+            if "r" in result and isinstance(result["r"], dict):
+                iid = result["r"].get("_iid")
+            elif "_iid" in result:
+                iid = result["_iid"]
+
+            if iid:
+                object.__setattr__(relation, "_iid", iid)
+                logger.debug(f"Set IID {iid} for relation {self.model_class.__name__}")
 
     def first(self) -> R | None:
         """Get first matching relation.
