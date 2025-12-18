@@ -848,9 +848,6 @@ class RelationManager[R: Relation]:
         # Create relation instance
         relation = self.model_class(**attrs)
 
-        # Set the IID directly since we know it
-        object.__setattr__(relation, "_iid", iid)
-
         # Extract role players from nested objects in result
         for role_name, (role_var, allowed_entity_classes) in role_info.items():
             if role_name in result and isinstance(result[role_name], dict):
@@ -903,6 +900,10 @@ class RelationManager[R: Relation]:
                 if any(v is not None for v in player_attrs.values()):
                     player_entity = entity_class(**player_attrs)
                     setattr(relation, role_name, player_entity)
+
+        # Set the IID directly since we know it
+        # Done after role player assignments to avoid Pydantic revalidation resetting it
+        object.__setattr__(relation, "_iid", iid)
 
         logger.info(f"Retrieved relation by IID: {self.model_class.__name__}")
         return relation
