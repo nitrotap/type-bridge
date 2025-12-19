@@ -63,6 +63,7 @@ def generate_models(
     implicit_key_attributes: Iterable[str] | None = None,
     schema_version: str = "1.0.0",
     copy_schema: bool = True,
+    schema_path: str | Path | None = None,
 ) -> None:
     """Generate TypeBridge models from a TypeDB schema.
 
@@ -72,27 +73,29 @@ def generate_models(
         implicit_key_attributes: Attribute names to treat as @key even if not marked
         schema_version: Version string for SCHEMA_VERSION constant
         copy_schema: Whether to copy the schema file to the output directory
+        schema_path: Custom path for the schema file. If relative, resolved against
+            output_dir. If None and copy_schema=True, uses "schema.tql" in output_dir.
 
     Raises:
         FileNotFoundError: If schema is a path that doesn't exist
         ValueError: If schema parsing fails
     """
     # Resolve schema text
-    schema_path: Path | None = None
+    schema_source_path: Path | None = None
     if isinstance(schema, Path):
-        schema_path = schema
+        schema_source_path = schema
     elif isinstance(schema, str):
         # Check if it looks like a file path (short string, no newlines)
         if len(schema) < 500 and "\n" not in schema:
             try:
                 candidate = Path(schema)
                 if candidate.exists() and candidate.is_file():
-                    schema_path = candidate
+                    schema_source_path = candidate
             except OSError:
                 pass  # Not a valid path
 
-    if schema_path:
-        schema_text = schema_path.read_text(encoding="utf-8")
+    if schema_source_path:
+        schema_text = schema_source_path.read_text(encoding="utf-8")
     else:
         schema_text = str(schema)
 
@@ -145,18 +148,47 @@ def generate_models(
         encoding="utf-8",
     )
 
+    # Determine schema output location
+    schema_filename: str | None = None
+    schema_output_path: Path | None = None
+    if copy_schema:
+        if schema_path is None:
+            # Default: schema.tql in output directory
+            schema_output_path = output / "schema.tql"
+            schema_filename = "schema.tql"
+        else:
+            resolved_path = Path(schema_path)
+            if resolved_path.is_absolute():
+                schema_output_path = resolved_path
+                # Only include loader if schema is in the output directory
+                try:
+                    resolved_path.relative_to(output.resolve())
+                    schema_filename = resolved_path.name
+                except ValueError:
+                    schema_filename = None  # Outside output dir, no loader
+            else:
+                # Relative path - resolve against output dir
+                schema_output_path = output / resolved_path
+                # Only include loader if it's a simple filename (no subdirs)
+                if resolved_path.parent == Path("."):
+                    schema_filename = str(resolved_path)
+                else:
+                    schema_filename = None  # In subdir, loader won't work
+
     (output / "__init__.py").write_text(
         render_package_init(
             attr_class_names,
             entity_class_names,
             relation_class_names,
             schema_version=schema_version,
-            include_schema_loader=copy_schema,
+            include_schema_loader=schema_filename is not None,
+            schema_filename=schema_filename,
             functions_present=functions_present,
         ),
         encoding="utf-8",
     )
 
     # Copy schema file if requested
-    if copy_schema:
-        (output / "schema.tql").write_text(schema_text, encoding="utf-8")
+    if schema_output_path:
+        schema_output_path.parent.mkdir(parents=True, exist_ok=True)
+        schema_output_path.write_text(schema_text, encoding="utf-8")

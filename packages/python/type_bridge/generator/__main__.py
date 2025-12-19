@@ -47,6 +47,16 @@ def main(
         bool,
         typer.Option("--no-copy-schema", help="Don't copy the schema file to the output directory"),
     ] = False,
+    schema_path: Annotated[
+        str | None,
+        typer.Option(
+            "--schema-path",
+            help=(
+                "Custom path for the schema file. Relative paths are resolved "
+                "against the output directory. Absolute paths write to that location."
+            ),
+        ),
+    ] = None,
     implicit_keys: Annotated[
         list[str] | None,
         typer.Option("--implicit-keys", help="Attribute names to treat as @key even if not marked"),
@@ -73,6 +83,7 @@ def main(
             implicit_key_attributes=implicit_keys or None,
             schema_version=version,
             copy_schema=not no_copy_schema,
+            schema_path=schema_path,
         )
     except Exception as e:
         logger.error(f"Generation failed: {e}", exc_info=True)

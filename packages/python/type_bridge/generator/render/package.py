@@ -12,6 +12,7 @@ def render_package_init(
     *,
     schema_version: str = "1.0.0",
     include_schema_loader: bool = True,
+    schema_filename: str | None = "schema.tql",
     functions_present: bool = False,
 ) -> str:
     """Render the package __init__.py source.
@@ -22,11 +23,16 @@ def render_package_init(
         relation_class_names: Mapping from TypeDB relation names to Python class names
         schema_version: Version string for SCHEMA_VERSION constant
         include_schema_loader: Whether to include schema_text() helper
+        schema_filename: Filename for the schema file (used in schema_text() loader)
         functions_present: Whether to export functions module
 
     Returns:
         Complete Python source code for __init__.py
     """
+    # Don't include loader if no filename provided
+    if schema_filename is None:
+        include_schema_loader = False
+
     module_imports = ["attributes", "entities", "registry", "relations"]
     if functions_present:
         module_imports.append("functions")
@@ -53,6 +59,7 @@ def render_package_init(
         module_imports=module_imports,
         schema_version=schema_version,
         include_schema_loader=include_schema_loader,
+        schema_filename=schema_filename or "schema.tql",
         attributes=sorted(attr_class_names[name] for name in attr_class_names),
         entities=sorted(entity_class_names[name] for name in entity_class_names),
         relations=sorted(relation_class_names[name] for name in relation_class_names),

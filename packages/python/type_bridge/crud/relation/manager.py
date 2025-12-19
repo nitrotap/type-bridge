@@ -1334,10 +1334,10 @@ class RelationManager[R: Relation]:
         return self._executor.execute(query, tx_type)
 
     def _populate_iids(self, relations: list[R]) -> None:
-        """Populate _iid field on relations by querying TypeDB.
+        """Populate _iid field on relations and their role players by querying TypeDB.
 
         Since fetch queries cannot return IIDs, this method makes a second
-        query to get IIDs for each relation based on their role players.
+        query to get IIDs for each relation and its role players based on their key attributes.
 
         Args:
             relations: List of relations to populate IIDs for
@@ -1347,11 +1347,12 @@ class RelationManager[R: Relation]:
 
         roles = self.model_class._roles
 
-        # For each relation, query its IID using role players
+        # For each relation, query its IID and role player IIDs
         for relation in relations:
             # Build match clause with role players
             role_parts = []
             match_statements = []
+            role_var_to_entity: dict[str, Any] = {}  # Map role var to entity for IID assignment
 
             for role_name, role in roles.items():
                 entity = getattr(relation, role_name, None)
@@ -1364,6 +1365,7 @@ class RelationManager[R: Relation]:
 
                 role_var = f"${role_name}"
                 role_parts.append(f"{role.role_name}: {role_var}")
+                role_var_to_entity[role_name] = entity
 
                 # Match the role player by their key attributes
                 entity_class = entity.__class__
@@ -1385,9 +1387,11 @@ class RelationManager[R: Relation]:
             roles_str = ", ".join(role_parts)
             relation_match = f"$r isa {self.model_class.get_type_name()} ({roles_str})"
 
-            # Build query to get relation with IID
+            # Build query to get relation and role player IIDs
             query_parts = [relation_match] + match_statements
-            query_str = f"match\n{'; '.join(query_parts)};\nselect $r;"
+            # Select relation and all role player variables
+            select_vars = ["$r"] + [f"${role_name}" for role_name in role_var_to_entity.keys()]
+            query_str = f"match\n{'; '.join(query_parts)};\nselect {', '.join(select_vars)};"
             logger.debug(f"IID lookup query: {query_str}")
 
             results = self._execute(query_str, TransactionType.READ)
@@ -1395,19 +1399,30 @@ class RelationManager[R: Relation]:
             if not results:
                 continue
 
-            # Extract IID from result
+            # Extract IIDs from result
             result = results[0]
-            iid = None
 
-            # Try different result formats
+            # Extract relation IID
+            relation_iid = None
             if "r" in result and isinstance(result["r"], dict):
-                iid = result["r"].get("_iid")
+                relation_iid = result["r"].get("_iid")
             elif "_iid" in result:
-                iid = result["_iid"]
+                relation_iid = result["_iid"]
 
-            if iid:
-                object.__setattr__(relation, "_iid", iid)
-                logger.debug(f"Set IID {iid} for relation {self.model_class.__name__}")
+            if relation_iid:
+                object.__setattr__(relation, "_iid", relation_iid)
+                logger.debug(f"Set IID {relation_iid} for relation {self.model_class.__name__}")
+
+            # Extract role player IIDs
+            for role_name, entity in role_var_to_entity.items():
+                if role_name in result and isinstance(result[role_name], dict):
+                    player_iid = result[role_name].get("_iid")
+                    if player_iid:
+                        object.__setattr__(entity, "_iid", player_iid)
+                        logger.debug(
+                            f"Set IID {player_iid} for role player {role_name} "
+                            f"({entity.__class__.__name__})"
+                        )
 
     def group_by(self, *fields: Any) -> "RelationGroupByQuery[R]":
         """Create a group-by query for aggregating by field values.
