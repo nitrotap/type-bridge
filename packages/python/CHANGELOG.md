@@ -2,6 +2,42 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [1.0.1] - 2025-12-19
+
+### New Features
+
+#### TypeDB IID Support
+- **Expose TypeDB Internal ID (IID) on entity and relation instances**
+  - `_iid` field automatically populated when entities/relations are fetched from database
+  - New `get_by_iid(iid: str)` method on EntityManager and RelationManager
+  - IID populated from `get()`, `filter().execute()`, and `all()` operations
+
+**Usage Example:**
+```python
+# Insert entity
+person = Person(name=Name("Alice"), age=Age(30))
+Person.manager(db).insert(person)
+
+# Fetch - IID is automatically populated
+fetched = Person.manager(db).get(name="Alice")
+print(fetched[0]._iid)  # '0x1e00000000000000000000'
+
+# Direct IID lookup
+person = Person.manager(db).get_by_iid("0x1e00000000000000000000")
+```
+
+### Bug Fixes
+
+- **Fixed relation IID assignment order** - Set `_iid` after role player assignments to prevent Pydantic revalidation from resetting the value
+
+### Key Files Modified
+
+- `type_bridge/session.py` - IID extraction functions
+- `type_bridge/crud/entity/manager.py` - `get_by_iid()` method
+- `type_bridge/crud/entity/query.py` - IID extraction from results
+- `type_bridge/crud/relation/manager.py` - `get_by_iid()` method
+- `type_bridge/crud/relation/query.py` - IID extraction from results
+
 ## [1.0.0] - 2025-12-15
 
 ### New Features
