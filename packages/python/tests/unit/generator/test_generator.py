@@ -64,6 +64,33 @@ class TestRenderAttributes:
         assert 'regex: ClassVar[str] = r"^(active|inactive)$"' in source
         assert 'allowed_values: ClassVar[tuple[str, ...]] = ("like", "love",)' in source
 
+    def test_attribute_with_range(self) -> None:
+        """Render attribute with @range constraint."""
+        schema = parse_tql_schema("""
+            define
+            attribute age, value integer @range(0..150);
+            attribute temperature, value double @range(-50.0..50.0);
+        """)
+        class_names = build_class_name_map(schema.attributes)
+        source = render_attributes(schema, class_names)
+
+        assert 'range_constraint: ClassVar[tuple[str | None, str | None]] = ("0", "150")' in source
+        assert (
+            'range_constraint: ClassVar[tuple[str | None, str | None]] = ("-50.0", "50.0")'
+            in source
+        )
+
+    def test_attribute_with_open_range(self) -> None:
+        """Render attribute with open-ended @range constraint."""
+        schema = parse_tql_schema("""
+            define
+            attribute score, value integer @range(0..);
+        """)
+        class_names = build_class_name_map(schema.attributes)
+        source = render_attributes(schema, class_names)
+
+        assert 'range_constraint: ClassVar[tuple[str | None, str | None]] = ("0", null)' in source
+
 
 class TestRenderEntities:
     """Tests for entity rendering."""

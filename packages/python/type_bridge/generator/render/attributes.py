@@ -39,6 +39,8 @@ class AttributeContext:
     flags_args: list[str]
     regex: str | None = None
     allowed_values: list[str] | None = None
+    range_min: str | None = None
+    range_max: str | None = None
     default: object = None
     transform: object = None
 
@@ -145,6 +147,8 @@ def _build_attribute_context(
         flags_args=flags_args,
         regex=attr.regex,
         allowed_values=list(attr.allowed_values) if attr.allowed_values else None,
+        range_min=attr.range_min,
+        range_max=attr.range_max,
         default=attr.default,
         transform=attr.transform,
     )
@@ -163,7 +167,10 @@ def render_attributes(schema: ParsedSchema, class_names: dict[str, str]) -> str:
     logger.debug(f"Rendering {len(schema.attributes)} attribute classes")
 
     imports = sorted(_get_required_imports(schema, class_names))
-    uses_classvar = any(attr.allowed_values or attr.regex for attr in schema.attributes.values())
+    uses_classvar = any(
+        attr.allowed_values or attr.regex or attr.range_min or attr.range_max
+        for attr in schema.attributes.values()
+    )
 
     attributes = []
     all_names = []
