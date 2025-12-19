@@ -64,8 +64,9 @@ class EntityManager[E: Entity]:
     def delete(self, entity: E) -> E:
         """Delete entity by instance. Returns deleted entity."""
 
-    def delete_many(self, entities: list[E]) -> list[E]:
-        """Delete multiple entities. Returns list of deleted entities."""
+    def delete_many(self, entities: list[E], *, strict: bool = False) -> list[E]:
+        """Delete multiple entities. Returns list of actually-deleted entities.
+        Idempotent by default; use strict=True to raise on missing entities."""
 
     # Managers can be bound to an existing Transaction/TransactionContext
     # Person.manager(tx) reuses the provided transaction
@@ -620,6 +621,27 @@ print(f"Deleted {len(deleted)} entities")  # Returns list of deleted entities
 # Empty list returns empty list
 deleted = person_manager.delete_many([])
 assert deleted == []
+```
+
+**Idempotent by default** (v1.2.0+): Missing entities are silently ignored:
+
+```python
+# Create entity that doesn't exist in DB
+nonexistent = Person(name=Name("NonExistent"))
+
+# Delete mix of existing and nonexistent - no error raised
+deleted = person_manager.delete_many([alice, nonexistent])
+print(f"Deleted {len(deleted)}")  # 1 (only alice was deleted)
+assert alice in deleted
+assert nonexistent not in deleted  # Not in result since it didn't exist
+```
+
+**Strict mode**: Use `strict=True` to raise an error if any entity doesn't exist:
+
+```python
+# Raises EntityNotFoundError if any entity is missing
+deleted = person_manager.delete_many([alice, nonexistent], strict=True)
+# EntityNotFoundError: Cannot delete: 1 entity(ies) not found...
 ```
 
 ### Filter-Based Delete

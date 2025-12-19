@@ -339,7 +339,7 @@ def test_delete_nonexistent_entity_with_key_raises(db_with_schema):
 @pytest.mark.integration
 @pytest.mark.order(30)
 def test_delete_many_nonexistent_entity_is_idempotent(db_with_schema):
-    """Test that delete_many is idempotent and ignores nonexistent entities."""
+    """Test that delete_many is idempotent and ignores nonexistent entities by default."""
 
     class Name(String):
         pass
@@ -357,15 +357,76 @@ def test_delete_many_nonexistent_entity_is_idempotent(db_with_schema):
     # Create another entity but don't insert it
     nonexistent = Person(name=Name("NonExistent"))
 
-    # Should NOT raise EntityNotFoundError (idempotent batch delete)
+    # Should NOT raise EntityNotFoundError (idempotent batch delete by default)
     # The operation should succeed, deleting alice and ignoring nonexistent
     deleted = manager.delete_many([alice, nonexistent])
 
-    # Verify return value (input list)
-    assert len(deleted) == 2
+    # Verify return value (only actually-deleted entities)
+    assert len(deleted) == 1
     assert alice in deleted
-    assert nonexistent in deleted
+    assert nonexistent not in deleted
 
     # Verify Alice is gone
     results = manager.get(name="Alice")
     assert len(results) == 0
+
+
+@pytest.mark.integration
+@pytest.mark.order(31)
+def test_delete_many_strict_mode_raises_for_missing(db_with_schema):
+    """Test that delete_many with strict=True raises EntityNotFoundError for missing entities."""
+
+    class Name(String):
+        pass
+
+    class Person(Entity):
+        flags = TypeFlags(name="person")
+        name: Name = Flag(Key)
+
+    manager = Person.manager(db_with_schema)
+
+    # Insert one entity
+    alice = Person(name=Name("Alice"))
+    manager.insert(alice)
+
+    # Create another entity but don't insert it
+    nonexistent = Person(name=Name("NonExistent"))
+
+    # Should raise EntityNotFoundError in strict mode
+    with pytest.raises(EntityNotFoundError, match="entity\\(ies\\) not found"):
+        manager.delete_many([alice, nonexistent], strict=True)
+
+    # Verify Alice is still there (transaction was rolled back due to error)
+    results = manager.get(name="Alice")
+    assert len(results) == 1
+
+
+@pytest.mark.integration
+@pytest.mark.order(32)
+def test_delete_many_strict_mode_succeeds_when_all_exist(db_with_schema):
+    """Test that delete_many with strict=True succeeds when all entities exist."""
+
+    class Name(String):
+        pass
+
+    class Person(Entity):
+        flags = TypeFlags(name="person")
+        name: Name = Flag(Key)
+
+    manager = Person.manager(db_with_schema)
+
+    # Insert entities
+    alice = Person(name=Name("Alice"))
+    bob = Person(name=Name("Bob"))
+    manager.insert_many([alice, bob])
+
+    # Should succeed in strict mode since all entities exist
+    deleted = manager.delete_many([alice, bob], strict=True)
+
+    # Verify return value
+    assert len(deleted) == 2
+    assert alice in deleted
+    assert bob in deleted
+
+    # Verify both are gone
+    assert len(manager.all()) == 0

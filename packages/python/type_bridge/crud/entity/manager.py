@@ -693,24 +693,30 @@ class EntityManager[E: Entity]:
         logger.info(f"Entity deleted: {self.model_class.__name__}")
         return entity
 
-    def delete_many(self, entities: list[E]) -> list[E]:
+    def delete_many(self, entities: list[E], *, strict: bool = False) -> list[E]:
         """Delete multiple entities within a single transaction.
 
         Uses an existing transaction when supplied, otherwise opens one write
         transaction and reuses it for all deletes.
 
         Optimized to use batched TypeQL queries for entities with defined @key attributes.
-        Uses Disjunctive Batching (OR-pattern) so that missing entities are ignored,
-        making the operation idempotent.
+        Uses Disjunctive Batching (OR-pattern) so that missing entities are ignored
+        by default (idempotent behavior).
 
         Entities without @key attributes fall back to individual deletion to ensure
         uniqueness safety checks.
 
         Args:
             entities: Entity instances to delete
+            strict: If True, raises EntityNotFoundError when any entity doesn't exist.
+                   If False (default), silently ignores missing entities (idempotent).
 
         Returns:
-            The list of deleted entities
+            List of entities that were actually deleted (subset of input if some
+            entities didn't exist in the database)
+
+        Raises:
+            EntityNotFoundError: If strict=True and any entity doesn't exist
         """
         if not entities:
             logger.debug("delete_many called with empty list")
@@ -718,34 +724,64 @@ class EntityManager[E: Entity]:
 
         logger.debug(f"Deleting {len(entities)} entities: {self.model_class.__name__}")
 
-        # Batch parts for keyed entities
-        match_blocks = []
+        # Get key attributes for existence checking
+        owned_attrs = self.model_class.get_all_attributes()
+        key_attrs = {
+            field_name: attr_info
+            for field_name, attr_info in owned_attrs.items()
+            if attr_info.flags.is_key
+        }
 
-        # Entities that cannot be batched (no keys defined on model) and must be handled serially
-        unbatchable_entities = []
+        # Separate keyed and non-keyed entities
+        keyed_entities: list[E] = []
+        unbatchable_entities: list[E] = []
 
-        # Shared variable for batch delete
-        var_name = "$e"
-
-        for i, entity in enumerate(entities):
-            # Attempt to build match part using shared var_name
-            # We used _build_delete_query_part which returns (match, delete).
-            # We only need the match part for the OR block.
-            part = self._build_delete_query_part(entity, var_name)
-
-            if part:
-                m_part, _ = part
-                # m_part is like "$e isa Type, has key val;" (ending with ;)
-                # We strip the semicolon to put it inside braces if needed, result depends on method
-                # output. _build_delete_query_part returns string ending with ';'.
-                match_blocks.append(m_part)
+        for entity in entities:
+            if key_attrs:
+                keyed_entities.append(entity)
             else:
                 unbatchable_entities.append(entity)
 
+        # Track which entities actually exist (for return value and strict mode)
+        existing_entities: list[E] = []
+        missing_entities: list[E] = []
+
+        # Check existence for keyed entities
+        if keyed_entities and key_attrs:
+            existing_keys = self._get_existing_entity_keys(keyed_entities, key_attrs)
+
+            for entity in keyed_entities:
+                entity_key = self._build_entity_key(entity, key_attrs)
+                if entity_key in existing_keys:
+                    existing_entities.append(entity)
+                else:
+                    missing_entities.append(entity)
+
+        # For unbatchable entities, we'll check during serial deletion
+        # (they use delete() which raises EntityNotFoundError)
+
+        # Strict mode: raise if any entities don't exist
+        if strict and missing_entities:
+            missing_keys = [
+                self._build_entity_key(e, key_attrs) for e in missing_entities
+            ]
+            raise EntityNotFoundError(
+                f"Cannot delete: {len(missing_entities)} entity(ies) not found "
+                f"with given key attributes. Missing keys: {missing_keys}"
+            )
+
+        # Build batch delete for existing keyed entities
+        match_blocks = []
+        var_name = "$e"
+
+        for entity in existing_entities:
+            part = self._build_delete_query_part(entity, var_name)
+            if part:
+                m_part, _ = part
+                match_blocks.append(m_part)
+
         # Execute batch if we have blocks
         if match_blocks:
-            # Construct Disjunctive Query: match { P1; } or { P2; }; delete $e;
-            # Note: m_part already ends with ';'.
             or_clauses = [f"{{ {block} }}" for block in match_blocks]
             match_section = " or ".join(or_clauses)
 
@@ -755,20 +791,35 @@ class EntityManager[E: Entity]:
             self._execute(query, TransactionType.WRITE)
 
         # Handle unbatchable entities serially
+        deleted_unbatchable: list[E] = []
         if unbatchable_entities:
             logger.debug(f"Deleting {len(unbatchable_entities)} unbatchable entities serially")
             if self._executor.has_transaction:
                 for entity in unbatchable_entities:
-                    self.delete(entity)
+                    try:
+                        self.delete(entity)
+                        deleted_unbatchable.append(entity)
+                    except EntityNotFoundError:
+                        if strict:
+                            raise
+                        # Idempotent: skip missing entities
             else:
                 assert self._executor.database is not None
                 with self._executor.database.transaction(TransactionType.WRITE) as tx_ctx:
                     temp_manager = EntityManager(tx_ctx, self.model_class)
                     for entity in unbatchable_entities:
-                        temp_manager.delete(entity)
+                        try:
+                            temp_manager.delete(entity)
+                            deleted_unbatchable.append(entity)
+                        except EntityNotFoundError:
+                            if strict:
+                                raise
+                            # Idempotent: skip missing entities
 
-        logger.info(f"Deleted {len(entities)} entities: {self.model_class.__name__}")
-        return entities
+        # Combine results: existing keyed entities + successfully deleted unbatchable
+        deleted = existing_entities + deleted_unbatchable
+        logger.info(f"Deleted {len(deleted)} entities: {self.model_class.__name__}")
+        return deleted
 
     def _build_delete_query_part(self, entity: E, var_name: str) -> tuple[str, str] | None:
         """Build the TypeQL query parts for deleting an entity.
@@ -815,6 +866,88 @@ class EntityManager[E: Entity]:
         delete_clause = f"{var_name};"
 
         return match_clause, delete_clause
+
+    def _build_entity_key(
+        self, entity: E, key_attrs: dict[str, Any]
+    ) -> tuple[tuple[str, Any], ...]:
+        """Build a hashable key tuple from entity's key attributes.
+
+        Args:
+            entity: Entity instance
+            key_attrs: Dictionary of field_name -> attr_info for key attributes
+
+        Returns:
+            Sorted tuple of (attr_name, value) pairs
+        """
+        key_values: list[tuple[str, Any]] = []
+        for field_name, attr_info in key_attrs.items():
+            value = getattr(entity, field_name, None)
+            if value is not None:
+                if hasattr(value, "value"):
+                    value = value.value
+                attr_name = attr_info.typ.get_attribute_name()
+                key_values.append((attr_name, value))
+        return tuple(sorted(key_values))
+
+    def _get_existing_entity_keys(
+        self, entities: list[E], key_attrs: dict[str, Any]
+    ) -> set[tuple[tuple[str, Any], ...]]:
+        """Query database to find which entities exist.
+
+        Builds a disjunctive query to check existence of all entities at once.
+
+        Args:
+            entities: List of entities to check
+            key_attrs: Dictionary of field_name -> attr_info for key attributes
+
+        Returns:
+            Set of key tuples for entities that exist in the database
+        """
+        if not entities or not key_attrs:
+            return set()
+
+        # Build disjunctive match query to find existing entities
+        var_name = "$e"
+        or_clauses = []
+
+        for entity in entities:
+            # Build match clause for this entity's key attributes
+            parts = [f"{var_name} isa {self.model_class.get_type_name()}"]
+            for field_name, attr_info in key_attrs.items():
+                value = getattr(entity, field_name, None)
+                if value is not None:
+                    if hasattr(value, "value"):
+                        value = value.value
+                    attr_name = attr_info.typ.get_attribute_name()
+                    parts.append(f"has {attr_name} {format_value(value)}")
+
+            or_clauses.append(f"{{ {', '.join(parts)}; }}")
+
+        # Construct query: match { P1 } or { P2 } ...; fetch key attrs
+        match_section = " or ".join(or_clauses)
+
+        # Build fetch clause for key attributes
+        key_attr_names = [
+            attr_info.typ.get_attribute_name() for attr_info in key_attrs.values()
+        ]
+        fetch_attrs = ", ".join([f'"{name}": {var_name}.{name}' for name in key_attr_names])
+        query = f"match\n{match_section};\nfetch {{\n  {fetch_attrs}\n}};"
+
+        logger.debug(f"Existence check query: {query[:200]}...")
+        results = self._execute(query, TransactionType.READ)
+
+        # Build set of existing keys
+        existing_keys: set[tuple[tuple[str, Any], ...]] = set()
+        for result in results:
+            key_values: list[tuple[str, Any]] = []
+            for attr_name in key_attr_names:
+                if attr_name in result:
+                    key_values.append((attr_name, result[attr_name]))
+            if key_values:
+                existing_keys.add(tuple(sorted(key_values)))
+
+        logger.debug(f"Found {len(existing_keys)} existing entities out of {len(entities)}")
+        return existing_keys
 
     def update(self, entity: E) -> E:
         """Update an entity in the database based on its current state.
