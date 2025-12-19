@@ -64,7 +64,8 @@ def test_entity_update_multi_value_uses_guards():
 
     query = mgr.queries[-1]
     attr_name = Tag.get_attribute_name()
-    attr_var = f"${attr_name}"
+    # Variable name includes entity var suffix for batch query compatibility
+    attr_var = f"${attr_name}_e"
     expected_try = (
         "try {\n"
         f"  $e has {attr_name} {attr_var};\n"

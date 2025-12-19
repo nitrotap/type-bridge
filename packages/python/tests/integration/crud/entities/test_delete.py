@@ -338,8 +338,8 @@ def test_delete_nonexistent_entity_with_key_raises(db_with_schema):
 
 @pytest.mark.integration
 @pytest.mark.order(30)
-def test_delete_many_nonexistent_entity_raises(db_with_schema):
-    """Test that delete_many raises EntityNotFoundError when entity doesn't exist."""
+def test_delete_many_nonexistent_entity_is_idempotent(db_with_schema):
+    """Test that delete_many is idempotent and ignores nonexistent entities."""
 
     class Name(String):
         pass
@@ -357,6 +357,15 @@ def test_delete_many_nonexistent_entity_raises(db_with_schema):
     # Create another entity but don't insert it
     nonexistent = Person(name=Name("NonExistent"))
 
-    # Should raise EntityNotFoundError when trying to delete nonexistent entity
-    with pytest.raises(EntityNotFoundError, match="not found with given key attributes"):
-        manager.delete_many([alice, nonexistent])
+    # Should NOT raise EntityNotFoundError (idempotent batch delete)
+    # The operation should succeed, deleting alice and ignoring nonexistent
+    deleted = manager.delete_many([alice, nonexistent])
+
+    # Verify return value (input list)
+    assert len(deleted) == 2
+    assert alice in deleted
+    assert nonexistent in deleted
+
+    # Verify Alice is gone
+    results = manager.get(name="Alice")
+    assert len(results) == 0

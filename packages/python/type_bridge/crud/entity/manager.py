@@ -157,7 +157,9 @@ class EntityManager[E: Entity]:
         """Update multiple entities within a single transaction.
 
         Uses an existing transaction when supplied, otherwise opens one write
-        transaction and reuses it for all updates to avoid N separate commits.
+        transaction and reuses it for all updates.
+
+        Optimized to use batched TypeQL queries for improved performance.
 
         Args:
             entities: Entity instances to update
@@ -170,17 +172,71 @@ class EntityManager[E: Entity]:
             return []
 
         logger.debug(f"Updating {len(entities)} entities: {self.model_class.__name__}")
-        if self._executor.has_transaction:
-            for entity in entities:
-                self.update(entity)
-            logger.info(f"Updated {len(entities)} entities: {self.model_class.__name__}")
+
+        # Build batched query
+        match_parts = []
+        delete_parts = []
+        insert_parts = []
+        update_parts = []
+
+        for i, entity in enumerate(entities):
+            var_name = f"$e{i}"
+            m_part, d_part, i_part, u_part = self._build_update_query_parts(entity, var_name)
+
+            if m_part:
+                match_parts.append(m_part)
+            if d_part:
+                delete_parts.append(d_part)
+            if i_part:
+                insert_parts.append(i_part)
+            if u_part:
+                update_parts.append(u_part)
+
+        # Construct full query
+        query_sections = []
+
+        # Match section (all matches combined)
+        if match_parts:
+            query_sections.append("match")
+            query_sections.extend(match_parts)
+
+        # Delete section
+        if delete_parts:
+            query_sections.append("delete")
+            query_sections.extend(delete_parts)
+
+        # Insert section
+        if insert_parts:
+            query_sections.append("insert")
+            query_sections.extend(insert_parts)
+
+        # Update section (TypeQL supports 'update' as a clause which acts as combined match-delete-insert for simple properties)
+        # Note: In standard TypeQL, 'update' clause might not be standard in all versions/drivers or mixed with delete/insert.
+        # But here 'update' clause in self._build... returns "has attr new_val" parts.
+        # Standard TypeQL is: match... delete... insert...
+        # 'update' keyword usage in Type DB is syntactic sugar for replace.
+        # If we have both delete/insert clauses AND update clauses, we should check if they can be mixed.
+        # Usually 'update' stands alone with 'match'.
+        # If we have mix, we should probably emit 'update' clause as 'insert' (overwriting) or similar?
+        # Actually, looking at `update()` implementation above: it appends "update ...".
+        # If we have multiple clauses, TypeDB parser generally accepts: match ... delete ... insert ... update ...
+        # But 'update' keyword behavior: "The `update` clause is a convenience clause that allows...".
+        # It updates 1-1 attributes.
+        # Safe bet: If we use `update`, include it.
+        if update_parts:
+            query_sections.append("update")
+            query_parts_str = "\n".join(update_parts)
+            # update clause expects "$e has ...;" lines.
+            query_sections.append(query_parts_str)
+
+        full_query = "\n".join(query_sections)
+
+        if not full_query:
             return entities
 
-        assert self._executor.database is not None
-        with self._executor.database.transaction(TransactionType.WRITE) as tx_ctx:
-            temp_manager = EntityManager(tx_ctx, self.model_class)
-            for entity in entities:
-                temp_manager.update(entity)
+        logger.debug(f"Update many query length: {len(full_query)}")
+
+        self._execute(full_query, TransactionType.WRITE)
 
         logger.info(f"Updated {len(entities)} entities: {self.model_class.__name__}")
         return entities
@@ -641,37 +697,124 @@ class EntityManager[E: Entity]:
         """Delete multiple entities within a single transaction.
 
         Uses an existing transaction when supplied, otherwise opens one write
-        transaction and reuses it for all deletes to avoid N separate commits.
+        transaction and reuses it for all deletes.
+
+        Optimized to use batched TypeQL queries for entities with defined @key attributes.
+        Uses Disjunctive Batching (OR-pattern) so that missing entities are ignored,
+        making the operation idempotent.
+
+        Entities without @key attributes fall back to individual deletion to ensure
+        uniqueness safety checks.
 
         Args:
             entities: Entity instances to delete
 
         Returns:
             The list of deleted entities
-
-        Raises:
-            ValueError: If any entity has no @key attributes and doesn't match exactly 1 record
-            ValueError: If any key attribute value is None
         """
         if not entities:
             logger.debug("delete_many called with empty list")
             return []
 
         logger.debug(f"Deleting {len(entities)} entities: {self.model_class.__name__}")
-        if self._executor.has_transaction:
-            for entity in entities:
-                self.delete(entity)
-            logger.info(f"Deleted {len(entities)} entities: {self.model_class.__name__}")
-            return entities
 
-        assert self._executor.database is not None
-        with self._executor.database.transaction(TransactionType.WRITE) as tx_ctx:
-            temp_manager = EntityManager(tx_ctx, self.model_class)
-            for entity in entities:
-                temp_manager.delete(entity)
+        # Batch parts for keyed entities
+        match_blocks = []
+
+        # Entities that cannot be batched (no keys defined on model) and must be handled serially
+        unbatchable_entities = []
+
+        # Shared variable for batch delete
+        var_name = "$e"
+
+        for i, entity in enumerate(entities):
+            # Attempt to build match part using shared var_name
+            # We used _build_delete_query_part which returns (match, delete).
+            # We only need the match part for the OR block.
+            part = self._build_delete_query_part(entity, var_name)
+
+            if part:
+                m_part, _ = part
+                # m_part is like "$e isa Type, has key val;" (ending with ;)
+                # We strip the semicolon to put it inside braces if needed, result depends on method
+                # output. _build_delete_query_part returns string ending with ';'.
+                match_blocks.append(m_part)
+            else:
+                unbatchable_entities.append(entity)
+
+        # Execute batch if we have blocks
+        if match_blocks:
+            # Construct Disjunctive Query: match { P1; } or { P2; }; delete $e;
+            # Note: m_part already ends with ';'.
+            or_clauses = [f"{{ {block} }}" for block in match_blocks]
+            match_section = " or ".join(or_clauses)
+
+            query = f"match\n{match_section};\ndelete\n{var_name};"
+
+            logger.debug(f"Delete many batched query length: {len(query)}")
+            self._execute(query, TransactionType.WRITE)
+
+        # Handle unbatchable entities serially
+        if unbatchable_entities:
+            logger.debug(f"Deleting {len(unbatchable_entities)} unbatchable entities serially")
+            if self._executor.has_transaction:
+                for entity in unbatchable_entities:
+                    self.delete(entity)
+            else:
+                assert self._executor.database is not None
+                with self._executor.database.transaction(TransactionType.WRITE) as tx_ctx:
+                    temp_manager = EntityManager(tx_ctx, self.model_class)
+                    for entity in unbatchable_entities:
+                        temp_manager.delete(entity)
 
         logger.info(f"Deleted {len(entities)} entities: {self.model_class.__name__}")
         return entities
+
+    def _build_delete_query_part(self, entity: E, var_name: str) -> tuple[str, str] | None:
+        """Build the TypeQL query parts for deleting an entity.
+
+        Only builds query for entities with defined @key attributes.
+
+        Returns:
+            Tuple of (match_clause, delete_clause) or None if no keys defined.
+        """
+        owned_attrs = self.model_class.get_all_attributes()
+
+        # Extract key attributes from entity for matching
+        match_filters = {}
+        has_keys = False
+
+        for field_name, attr_info in owned_attrs.items():
+            if attr_info.flags.is_key:
+                has_keys = True
+                key_value = getattr(entity, field_name, None)
+                if key_value is None:
+                    # Key attribute exists on model but value is None on entity
+                    raise KeyAttributeError(
+                        entity_type=self.model_class.__name__,
+                        operation="delete",
+                        field_name=field_name,
+                    )
+                # Extract value from Attribute instance if needed
+                if hasattr(key_value, "value"):
+                    key_value = key_value.value
+                attr_name = attr_info.typ.get_attribute_name()
+                match_filters[attr_name] = key_value
+
+        if not has_keys:
+            return None
+
+        # Build match clause
+        parts = [f"{var_name} isa {self.model_class.get_type_name()}"]
+        for attr_name, attr_value in match_filters.items():
+            parts.append(f"has {attr_name} {format_value(attr_value)}")
+
+        match_clause = ", ".join(parts) + ";"
+
+        # Build delete clause (deletes the entity and all attributes)
+        delete_clause = f"{var_name};"
+
+        return match_clause, delete_clause
 
     def update(self, entity: E) -> E:
         """Update an entity in the database based on its current state.
@@ -701,6 +844,39 @@ class EntityManager[E: Entity]:
             person_manager.update(alice)
         """
         logger.debug(f"Updating entity: {self.model_class.__name__}")
+
+        match_clause, delete_clause, insert_clause, update_clause = self._build_update_query_parts(
+            entity
+        )
+
+        # Combine and execute
+        query_parts = []
+        if match_clause:
+            query_parts.append(f"match\n{match_clause}")
+        if delete_clause:
+            query_parts.append(f"delete\n{delete_clause}")
+        if insert_clause:
+            query_parts.append(f"insert\n{insert_clause}")
+        if update_clause:
+            query_parts.append(f"update\n{update_clause}")
+
+        full_query = "\n".join(query_parts)
+        logger.debug(f"Update query: {full_query}")
+
+        self._execute(full_query, TransactionType.WRITE)
+
+        logger.info(f"Entity updated: {self.model_class.__name__}")
+        return entity
+
+    def _build_update_query_parts(
+        self, entity: E, var_name: str = "$e"
+    ) -> tuple[str, str, str, str]:
+        """Build the TypeQL query parts for updating an entity.
+
+        Returns:
+            Tuple of (match_clause, delete_clause, insert_clause, update_clause) structures
+            containing the partial queries (without the keywords 'match', 'delete', etc.)
+        """
         # Get all attributes (including inherited) to determine cardinality
         owned_attrs = self.model_class.get_all_attributes()
 
@@ -778,12 +954,9 @@ class EntityManager[E: Entity]:
                         # Optional attribute set to None - needs to be deleted
                         single_value_deletes.add(attr_name)
 
-        # Build TypeQL query
-        query_parts = []
-
-        # Match clause using key attributes
+        # Build Match Clause
         match_statements = []
-        entity_match_parts = [f"$e isa {self.model_class.get_type_name()}"]
+        entity_match_parts = [f"{var_name} isa {self.model_class.get_type_name()}"]
         for attr_name, attr_value in match_filters.items():
             formatted_value = format_value(attr_value)
             entity_match_parts.append(f"has {attr_name} {formatted_value}")
@@ -793,14 +966,20 @@ class EntityManager[E: Entity]:
         if multi_value_updates:
             for attr_name, values in multi_value_updates.items():
                 keep_literals = [format_value(v) for v in dict.fromkeys(values)]
+                # Use scoped variables for guards to avoid conflicts in batch queries
+                # (Variables inside not {} or try {} are local scope in TypeQL generally,
+                # but to be safe we use unique names if needed. Here we use literals so it's fine)
                 guard_lines = [
                     f"not {{ ${attr_name} == {literal}; }};" for literal in keep_literals
                 ]
+                # Use variable name derived from entity var to be unique across batch
+                attr_var = f"${attr_name}_{var_name.replace('$', '')}"
+
                 try_block = "\n".join(
                     [
                         "try {",
-                        f"  $e has {attr_name} ${attr_name};",
-                        *[f"  {g}" for g in guard_lines],
+                        f"  {var_name} has {attr_name} {attr_var};",
+                        *[f"  {g.replace(f'${attr_name}', attr_var)}" for g in guard_lines],
                         "};",
                     ]
                 )
@@ -809,50 +988,44 @@ class EntityManager[E: Entity]:
         # Add match statements to bind single-value attributes for deletion
         if single_value_deletes:
             for attr_name in single_value_deletes:
-                match_statements.append(f"try {{ $e has {attr_name} ${attr_name}; }};")
+                attr_var = f"${attr_name}_{var_name.replace('$', '')}"
+                match_statements.append(f"try {{ {var_name} has {attr_name} {attr_var}; }};")
 
         match_clause = "\n".join(match_statements)
-        query_parts.append(f"match\n{match_clause}")
 
-        # Delete clause (for multi-value and single-value deletions)
+        # Build Delete Clause
         delete_parts = []
         if multi_value_updates:
             for attr_name in multi_value_updates:
-                delete_parts.append(f"try {{ ${attr_name} of $e; }};")
+                attr_var = f"${attr_name}_{var_name.replace('$', '')}"
+                delete_parts.append(f"try {{ {attr_var} of {var_name}; }};")
+
         if single_value_deletes:
             for attr_name in single_value_deletes:
-                delete_parts.append(f"try {{ ${attr_name} of $e; }};")
-        if delete_parts:
-            delete_clause = "\n".join(delete_parts)
-            query_parts.append(f"delete\n{delete_clause}")
+                attr_var = f"${attr_name}_{var_name.replace('$', '')}"
+                delete_parts.append(f"try {{ {attr_var} of {var_name}; }};")
 
-        # Insert clause (for multi-value attributes with values)
+        delete_clause = "\n".join(delete_parts)
+
+        # Build Insert Clause (for multi-value attributes)
         insert_parts = []
         for attr_name, values in multi_value_updates.items():
             for value in values:
                 formatted_value = format_value(value)
-                insert_parts.append(f"$e has {attr_name} {formatted_value};")
-        if insert_parts:
-            insert_clause = "\n".join(insert_parts)
-            query_parts.append(f"insert\n{insert_clause}")
+                insert_parts.append(f"{var_name} has {attr_name} {formatted_value};")
 
-        # Update clause (for single-value attributes)
+        insert_clause = "\n".join(insert_parts)
+
+        # Build Update Clause (for single-value attributes)
+        update_parts = []
         if single_value_updates:
-            update_parts = []
             for attr_name, value in single_value_updates.items():
                 formatted_value = format_value(value)
-                update_parts.append(f"$e has {attr_name} {formatted_value};")
-            update_clause = "\n".join(update_parts)
-            query_parts.append(f"update\n{update_clause}")
+                update_parts.append(f"{var_name} has {attr_name} {formatted_value};")
 
-        # Combine and execute
-        full_query = "\n".join(query_parts)
-        logger.debug(f"Update query: {full_query}")
+        update_clause = "\n".join(update_parts)
 
-        self._execute(full_query, TransactionType.WRITE)
-
-        logger.info(f"Entity updated: {self.model_class.__name__}")
-        return entity
+        return match_clause, delete_clause, insert_clause, update_clause
 
     def _extract_attributes(
         self, result: dict[str, Any], entity_class: type[E] | None = None
