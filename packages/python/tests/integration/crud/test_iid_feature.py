@@ -229,3 +229,118 @@ class TestRelationIidPopulation:
         assert found.position is not None
         assert found.position.value == "Manager"
         assert found._iid == iid
+
+    def test_relation_get_populates_role_player_iids(self):
+        """Test that get() populates _iid on role player entities (issue #68)."""
+        # Insert entities
+        person = IidPerson(name=PersonName("Grace"), age=PersonAge(29))
+        IidPerson.manager(self.db).insert(person)
+
+        company = IidCompany(name=CompanyName("StartupCo"))
+        IidCompany.manager(self.db).insert(company)
+
+        # Get entity IIDs for comparison
+        person_iid = IidPerson.manager(self.db).get(name="Grace")[0]._iid
+        company_iid = IidCompany.manager(self.db).get(name="StartupCo")[0]._iid
+        assert person_iid is not None
+        assert company_iid is not None
+
+        # Insert relation
+        employment = IidEmployment(employee=person, employer=company, position=Position("Founder"))
+        IidEmployment.manager(self.db).insert(employment)
+
+        # Fetch the relation
+        fetched = IidEmployment.manager(self.db).get()
+        assert len(fetched) == 1
+
+        # Verify relation IID is populated
+        fetched_emp = fetched[0]
+        assert fetched_emp._iid is not None
+        assert fetched_emp._iid.startswith("0x")
+
+        # Verify role player IIDs are populated (issue #68)
+        assert fetched_emp.employee is not None
+        assert fetched_emp.employee._iid is not None
+        assert fetched_emp.employee._iid.startswith("0x")
+        assert fetched_emp.employee._iid == person_iid
+
+        assert fetched_emp.employer is not None
+        assert fetched_emp.employer._iid is not None
+        assert fetched_emp.employer._iid.startswith("0x")
+        assert fetched_emp.employer._iid == company_iid
+
+    def test_relation_filter_execute_populates_role_player_iids(self):
+        """Test that filter().execute() populates _iid on role player entities (issue #68)."""
+        # Insert entities
+        person = IidPerson(name=PersonName("Henry"), age=PersonAge(45))
+        IidPerson.manager(self.db).insert(person)
+
+        company = IidCompany(name=CompanyName("MegaCorp"))
+        IidCompany.manager(self.db).insert(company)
+
+        # Get entity IIDs for comparison
+        person_iid = IidPerson.manager(self.db).get(name="Henry")[0]._iid
+        company_iid = IidCompany.manager(self.db).get(name="MegaCorp")[0]._iid
+        assert person_iid is not None
+        assert company_iid is not None
+
+        # Insert relation
+        employment = IidEmployment(employee=person, employer=company, position=Position("CEO"))
+        IidEmployment.manager(self.db).insert(employment)
+
+        # Fetch using filter
+        fetched = IidEmployment.manager(self.db).filter(position=Position("CEO")).execute()
+        assert len(fetched) == 1
+
+        # Verify relation IID is populated
+        fetched_emp = fetched[0]
+        assert fetched_emp._iid is not None
+        assert fetched_emp._iid.startswith("0x")
+
+        # Verify role player IIDs are populated (issue #68)
+        assert fetched_emp.employee is not None
+        assert fetched_emp.employee._iid is not None
+        assert fetched_emp.employee._iid == person_iid
+
+        assert fetched_emp.employer is not None
+        assert fetched_emp.employer._iid is not None
+        assert fetched_emp.employer._iid == company_iid
+
+    def test_relation_all_populates_role_player_iids(self):
+        """Test that all() populates _iid on role player entities (issue #68)."""
+        # Insert entities
+        person = IidPerson(name=PersonName("Iris"), age=PersonAge(33))
+        IidPerson.manager(self.db).insert(person)
+
+        company = IidCompany(name=CompanyName("GiantCorp"))
+        IidCompany.manager(self.db).insert(company)
+
+        # Get entity IIDs for comparison
+        person_iid = IidPerson.manager(self.db).get(name="Iris")[0]._iid
+        company_iid = IidCompany.manager(self.db).get(name="GiantCorp")[0]._iid
+        assert person_iid is not None
+        assert company_iid is not None
+
+        # Insert relation
+        employment = IidEmployment(employee=person, employer=company, position=Position("CTO"))
+        IidEmployment.manager(self.db).insert(employment)
+
+        # Fetch all relations
+        all_relations = IidEmployment.manager(self.db).all()
+
+        # Find our relation
+        fetched_emp = next(r for r in all_relations if r.position and r.position.value == "CTO")
+        assert fetched_emp is not None
+
+        # Verify relation IID is populated
+        assert fetched_emp._iid is not None
+        assert fetched_emp._iid.startswith("0x")
+
+        # Verify role player IIDs are populated (issue #68)
+        assert fetched_emp.employee is not None
+        assert fetched_emp.employee._iid is not None
+        assert fetched_emp.employee._iid == person_iid
+
+        assert fetched_emp.employer is not None
+        assert fetched_emp.employer._iid is not None
+        assert fetched_emp.employer._iid == company_iid

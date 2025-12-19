@@ -16,7 +16,7 @@ def schema_text() -> str:
     """Return the canonical TypeDB schema text bundled with the package."""
     return (
         resources.files(__package__)
-        .joinpath("schema.tql")
+        .joinpath("{{ schema_filename }}")
         .read_text(encoding="utf-8")
     )
 
