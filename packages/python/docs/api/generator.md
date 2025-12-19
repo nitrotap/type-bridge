@@ -71,6 +71,9 @@ myapp/models/
 ├── attributes.py    # Attribute class definitions
 ├── entities.py      # Entity class definitions
 ├── relations.py     # Relation class definitions
+├── structs.py       # Struct definitions (if schema has structs)
+├── functions.py     # Function metadata (if schema has functions)
+├── registry.py      # Pre-computed schema metadata
 └── schema.tql       # Copy of original schema (unless --no-copy-schema)
 ```
 
@@ -107,8 +110,12 @@ The generator supports the full TypeDB 3.0 schema syntax:
 | `@card` on owns | ✓ |
 | `@card` on plays | ✓ |
 | `@card` on relates | ✓ |
+| `@cascade` on owns | ✓ |
+| `@subkey` on owns | ✓ |
+| `@distinct` on relates | ✓ |
 | Role overrides (`as`) | ✓ |
 | Functions (`fun`) | ✓ |
+| Structs (`struct`) | ✓ |
 | `#` and `//` comments | ✓ |
 
 ### Attributes
@@ -161,8 +168,7 @@ class Status(String):
 
 class Age(Integer):
     flags = AttributeFlags(name="age")
-    range_min: ClassVar[str] = "0"
-    range_max: ClassVar[str] = "150"
+    range_constraint: ClassVar[tuple[str | None, str | None]] = ("0", "150")
 ```
 
 ### Entities
@@ -275,6 +281,96 @@ class Review(Relation):
     timestamp: attributes.Timestamp
     reviewer: Role[entities.User] = Role("reviewer", entities.User)
     reviewed: Role[entities.Publication] = Role("reviewed", entities.Publication)
+```
+
+### Structs (TypeDB 3.0)
+
+Structs are composite value types introduced in TypeDB 3.0. They are rendered as frozen dataclasses.
+
+```typeql
+struct person-name,
+    value first-name string,
+    value last-name string,
+    value middle-name string?;  // Optional field
+
+struct address,
+    value street string,
+    value city string,
+    value postal-code string,
+    value country string;
+```
+
+**Generated Python (`structs.py`):**
+
+```python
+from dataclasses import dataclass
+from typing import ClassVar
+
+@dataclass(frozen=True, slots=True)
+class PersonName:
+    """Struct for `person-name`."""
+    first_name: str
+    last_name: str
+    middle_name: str | None = None
+
+@dataclass(frozen=True, slots=True)
+class Address:
+    """Struct for `address`."""
+    street: str
+    city: str
+    postal_code: str
+    country: str
+```
+
+### Additional Annotations
+
+#### `@cascade` - Cascading Deletes
+
+When an entity is deleted, cascade delete to owned attributes:
+
+```typeql
+entity person,
+    owns email @cascade,      // Delete emails when person is deleted
+    owns name @key;
+```
+
+**Generated (metadata tracked on EntitySpec/RelationSpec):**
+
+```python
+# Accessible via schema registry
+cascades: set[str] = {"email"}
+```
+
+#### `@subkey` - Composite Keys
+
+Group attributes into composite keys:
+
+```typeql
+entity order-item,
+    owns order-id @subkey(order),
+    owns product-id @subkey(order),
+    owns quantity;
+```
+
+**Generated (metadata tracked):**
+
+```python
+subkeys: dict[str, str] = {"order-id": "order", "product-id": "order"}
+```
+
+#### `@distinct` - Distinct Role Players
+
+Ensure role players are distinct within a relation instance:
+
+```typeql
+relation friendship,
+    relates friend @distinct @card(2);  // Can't be friends with yourself
+```
+
+**Generated (tracked on RoleSpec):**
+
+```python
+# Role has distinct=True
 ```
 
 ## Cardinality Mapping
@@ -436,9 +532,29 @@ class ParsedSchema:
     entities: dict[str, EntitySpec]
     relations: dict[str, RelationSpec]
     functions: dict[str, FunctionSpec]
+    structs: dict[str, StructSpec]
 
     def accumulate_inheritance(self) -> None:
         """Propagate owns/plays/keys down inheritance hierarchies."""
+```
+
+### `StructSpec`
+
+```python
+@dataclass
+class StructSpec:
+    """Struct definition extracted from a TypeDB schema."""
+    name: str                           # e.g., "person-name"
+    fields: list[StructFieldSpec]       # Struct fields
+    docstring: str | None               # Optional docstring
+    annotations: dict[str, Any]         # Custom annotations
+
+@dataclass
+class StructFieldSpec:
+    """Field definition within a struct."""
+    name: str        # e.g., "first-name"
+    value_type: str  # e.g., "string"
+    optional: bool   # Whether field is optional (?)
 ```
 
 ### `FunctionSpec`
