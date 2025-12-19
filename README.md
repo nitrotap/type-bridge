@@ -1,8 +1,11 @@
 # type-bridge
 
+[![CI](https://github.com/ds1sqe/type-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/ds1sqe/type-bridge/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/type-bridge.svg)](https://pypi.org/project/type-bridge/)
 [![npm](https://img.shields.io/npm/v/@type-bridge/type-bridge)](https://www.npmjs.com/package/@type-bridge/type-bridge)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeDB 3.x](https://img.shields.io/badge/TypeDB-3.x-blue)](https://typedb.com/)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![TypeDB 3.x](https://img.shields.io/badge/TypeDB-3.x-orange.svg)](https://typedb.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 **Type-safe ORM for TypeDB** - Available for Python and TypeScript.
 
@@ -20,7 +23,7 @@ type-bridge provides Pythonic/TypeScript abstractions over TypeDB's native TypeQ
 
 | Package | Version | Install |
 |---------|---------|---------|
-| [Python](./packages/python) | 1.0.0 | `pip install type-bridge` |
+| [Python](./packages/python) | 1.1.0 | `pip install type-bridge` |
 | [TypeScript](./packages/typescript) | 0.1.0 | `npm install @type-bridge/type-bridge` |
 
 ## Quick Start
