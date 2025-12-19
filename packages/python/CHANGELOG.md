@@ -2,6 +2,68 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [1.1.0] - 2025-12-19
+
+### New Features
+
+#### Polymorphic Entity Instantiation
+- **Querying a supertype now returns proper subtype instances** (Issue #65)
+  - `Artifact.manager(db).all()` returns a mix of `UserStory`, `DesignAspect`, etc.
+  - Each entity has the correct Python type with all subtype-specific attributes populated
+  - IIDs and type information correctly extracted for each subtype
+
+**Usage Example:**
+```python
+# Define type hierarchy
+class Artifact(Entity):
+    flags = TypeFlags(abstract=True)
+    name: Name = Flag(Key)
+
+class UserStory(Artifact):
+    story_points: StoryPoints
+
+class DesignAspect(Artifact):
+    priority: Priority
+
+# Query supertype - get proper subtypes back
+artifacts = Artifact.manager(db).all()
+for artifact in artifacts:
+    print(type(artifact))  # UserStory, DesignAspect, etc.
+    print(artifact.name)   # All have base attributes
+    if isinstance(artifact, UserStory):
+        print(artifact.story_points)  # Subtype-specific attributes
+```
+
+### Refactoring
+
+#### Jinja2 Templates for Code Generation
+- **Code generator now uses Jinja2 templates** instead of string concatenation
+  - 6 new templates: attributes, entities, relations, functions, package_init, registry
+  - Significant code reduction in render modules:
+    - `registry.py`: 578 → 156 lines (-422)
+    - `package.py`: 116 → 61 lines (-55)
+    - `entities.py`: 234 → 198 lines (-36)
+
+#### Typer CLI
+- **Generator and migration CLIs migrated to Typer**
+  - Improved help messages and command structure
+  - Better argument parsing and validation
+
+### Dependencies
+
+- Added `jinja2>=3.1.0` - Template engine for code generation
+- Added `typer>=0.15.0` - CLI framework for generator and migration tools
+
+### Key Files Modified
+
+- `type_bridge/crud/entity/manager.py` - Polymorphic instantiation in `get()`
+- `type_bridge/crud/entity/query.py` - Polymorphic instantiation in `execute()`
+- `type_bridge/crud/utils.py` - `resolve_entity_class()` utility
+- `type_bridge/generator/__main__.py` - Typer CLI
+- `type_bridge/generator/render/` - Jinja2 template integration
+- `type_bridge/generator/templates/` - 6 new Jinja2 templates
+- `type_bridge/migration/__main__.py` - Typer CLI with subcommands
+
 ## [1.0.1] - 2025-12-19
 
 ### New Features
