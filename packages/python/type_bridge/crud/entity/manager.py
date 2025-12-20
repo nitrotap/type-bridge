@@ -762,9 +762,7 @@ class EntityManager[E: Entity]:
 
         # Strict mode: raise if any entities don't exist
         if strict and missing_entities:
-            missing_keys = [
-                self._build_entity_key(e, key_attrs) for e in missing_entities
-            ]
+            missing_keys = [self._build_entity_key(e, key_attrs) for e in missing_entities]
             raise EntityNotFoundError(
                 f"Cannot delete: {len(missing_entities)} entity(ies) not found "
                 f"with given key attributes. Missing keys: {missing_keys}"
@@ -927,9 +925,7 @@ class EntityManager[E: Entity]:
         match_section = " or ".join(or_clauses)
 
         # Build fetch clause for key attributes
-        key_attr_names = [
-            attr_info.typ.get_attribute_name() for attr_info in key_attrs.values()
-        ]
+        key_attr_names = [attr_info.typ.get_attribute_name() for attr_info in key_attrs.values()]
         fetch_attrs = ", ".join([f'"{name}": {var_name}.{name}' for name in key_attr_names])
         query = f"match\n{match_section};\nfetch {{\n  {fetch_attrs}\n}};"
 
