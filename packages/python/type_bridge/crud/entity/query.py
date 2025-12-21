@@ -279,56 +279,137 @@ class EntityQuery[E: Entity]:
         logger.info(f"EntityQuery executed: {len(entities)} entities returned")
         return entities
 
-    def _get_iids_and_types(self) -> dict[str, tuple[str, str]]:
+    def _get_iids_and_types(self) -> dict[tuple[tuple[str, Any], ...], tuple[str, str]]:
         """Get IIDs and type names for entities matching current query.
 
-        Performs a select query to get entity IIDs and their actual TypeDB types.
-        This enables polymorphic instantiation where subtypes are correctly identified.
+        Performs a dual-query approach to get entity IIDs, types, and key attributes.
+        This enables polymorphic instantiation with in-memory lookup (no N+1 queries).
 
         Returns:
-            Dictionary mapping IID to (iid, type_name) tuple
+            Dictionary mapping key_values_tuple to (iid, type_name) tuple
         """
-        # Build match query with filters and expressions (without fetch)
+        # Get key attributes for building the lookup key
+        owned_attrs = self.model_class.get_all_attributes()
+        key_attrs = {
+            field_name: attr_info
+            for field_name, attr_info in owned_attrs.items()
+            if attr_info.flags.is_key
+        }
+
+        # Build match query with filters and expressions
         query = QueryBuilder.match_entity(self.model_class, **self.filters)
 
         for expr in self._expressions:
             pattern = expr.to_typeql("$e")
             query.match(pattern)
 
-        # Get match clause without any fetch/select
-        match_str = query.build()
-        # Remove any trailing semicolon and add select clause
-        match_str = match_str.rstrip().rstrip(";")
-        query_str = f"{match_str};\nselect $e;"
+        match_str = query.build().rstrip().rstrip(";")
 
-        logger.debug(f"IID/type query: {query_str}")
-        results = self._execute(query_str, TransactionType.READ)
+        # Track key values we already know from filters
+        known_key_values: dict[str, Any] = {}
+        need_key_fetch = False
 
-        iid_type_map: dict[str, tuple[str, str]] = {}
-        for result in results:
-            if "e" in result and isinstance(result["e"], dict):
+        if key_attrs:
+            for field_name, attr_info in key_attrs.items():
+                attr_name = attr_info.typ.get_attribute_name()
+                if field_name in self.filters:
+                    filter_value = self.filters[field_name]
+                    if hasattr(filter_value, "value"):
+                        filter_value = filter_value.value
+                    known_key_values[attr_name] = filter_value
+                else:
+                    need_key_fetch = True
+
+        # If we have all key values from filters, use simple select
+        if not need_key_fetch and known_key_values:
+            query_str = f"{match_str};\nselect $e;"
+            logger.debug(f"IID/type query (simple): {query_str}")
+            results = self._execute(query_str, TransactionType.READ)
+
+            iid_type_map: dict[tuple[tuple[str, Any], ...], tuple[str, str]] = {}
+            for result in results:
+                if "e" not in result or not isinstance(result["e"], dict):
+                    continue
                 iid = result["e"].get("_iid")
                 type_name = result["e"].get("_type")
                 if iid and type_name:
-                    iid_type_map[iid] = (iid, type_name)
+                    map_key = tuple(sorted(known_key_values.items()))
+                    iid_type_map[map_key] = (iid, type_name)
 
-        logger.debug(f"Found {len(iid_type_map)} IID/type mappings")
+            logger.debug(f"Found {len(iid_type_map)} IID/type mappings (filter-based)")
+            return iid_type_map
+
+        # Need to fetch key attribute values
+        if key_attrs and need_key_fetch:
+            # Query 1: Fetch to get key attribute values
+            fetch_query = f"{match_str};\nfetch {{\n  $e.*\n}};"
+            logger.debug(f"IID/type query (fetch for keys): {fetch_query}")
+            fetch_results = self._execute(fetch_query, TransactionType.READ)
+
+            # Query 2: Select to get IID/type
+            select_query = f"{match_str};\nselect $e;"
+            logger.debug(f"IID/type query (select for IID): {select_query}")
+            select_results = self._execute(select_query, TransactionType.READ)
+
+            key_attr_names = [
+                attr_info.typ.get_attribute_name() for attr_info in key_attrs.values()
+            ]
+
+            # Correlate by position
+            iid_type_map = {}
+            for fetch_result, select_result in zip(fetch_results, select_results):
+                if "e" not in select_result or not isinstance(select_result["e"], dict):
+                    continue
+                iid = select_result["e"].get("_iid")
+                type_name = select_result["e"].get("_type")
+                if not iid or not type_name:
+                    continue
+
+                key_values: list[tuple[str, Any]] = []
+                for attr_name in key_attr_names:
+                    if attr_name in fetch_result:
+                        key_values.append((attr_name, fetch_result[attr_name]))
+
+                if key_values:
+                    map_key = tuple(sorted(key_values))
+                    iid_type_map[map_key] = (iid, type_name)
+
+            logger.debug(f"Found {len(iid_type_map)} IID/type mappings (dual-query)")
+            return iid_type_map
+
+        # Fallback: no key attributes, use IID-based map
+        query_str = f"{match_str};\nselect $e;"
+        logger.debug(f"IID/type query (fallback): {query_str}")
+        results = self._execute(query_str, TransactionType.READ)
+
+        iid_type_map = {}
+        for result in results:
+            if "e" not in result or not isinstance(result["e"], dict):
+                continue
+            iid = result["e"].get("_iid")
+            type_name = result["e"].get("_type")
+            if iid and type_name:
+                map_key = (("_iid", iid),)
+                iid_type_map[map_key] = (iid, type_name)
+
+        logger.debug(f"Found {len(iid_type_map)} IID/type mappings (IID-based)")
         return iid_type_map
 
     def _match_entity_type(
         self,
         attrs: dict[str, Any],
-        iid_type_map: dict[str, tuple[str, str]],
+        iid_type_map: dict[tuple[tuple[str, Any], ...], tuple[str, str]],
         owned_attrs: dict[str, Any],
     ) -> tuple[type[E], str | None]:
         """Match entity attributes to IID/type and resolve the correct class.
 
-        Uses key attributes to find the corresponding IID/type from the map,
-        then resolves the actual Python class for polymorphic instantiation.
+        Uses key attributes to look up the corresponding IID/type from the map
+        (in-memory, no database query), then resolves the actual Python class
+        for polymorphic instantiation.
 
         Args:
             attrs: Extracted attributes for the entity
-            iid_type_map: Map from IID to (iid, type_name)
+            iid_type_map: Map from key_values_tuple to (iid, type_name)
             owned_attrs: Attribute metadata for the model class
 
         Returns:
@@ -354,37 +435,25 @@ class EntityQuery[E: Entity]:
                 return resolved_class, iid
             return self.model_class, None
 
-        # Build key values from attrs for matching
-        key_values = {}
+        # Build key signature from attrs for in-memory lookup
+        key_values: list[tuple[str, Any]] = []
         for field_name, attr_info in key_attrs.items():
             value = attrs.get(field_name)
             if value is not None:
                 if hasattr(value, "value"):
                     value = value.value
                 attr_name = attr_info.typ.get_attribute_name()
-                key_values[attr_name] = value
+                key_values.append((attr_name, value))
 
         if not key_values:
             return self.model_class, None
 
-        # Query to find the specific entity's IID and type
-        match_parts = [f"$e isa {self.model_class.get_type_name()}"]
-        for attr_name, value in key_values.items():
-            match_parts.append(f"has {attr_name} {format_value(value)}")
-
-        query_str = f"match\n{', '.join(match_parts)};\nselect $e;"
-        results = self._execute(query_str, TransactionType.READ)
-
-        if results:
-            result = results[0]
-            if "e" in result and isinstance(result["e"], dict):
-                iid = result["e"].get("_iid")
-                type_name = result["e"].get("_type")
-                if type_name:
-                    resolved_class = cast(
-                        type[E], resolve_entity_class(self.model_class, type_name)
-                    )
-                    return resolved_class, iid
+        # Look up in the map using key values (no database query!)
+        map_key = tuple(sorted(key_values))
+        if map_key in iid_type_map:
+            iid, type_name = iid_type_map[map_key]
+            resolved_class = cast(type[E], resolve_entity_class(self.model_class, type_name))
+            return resolved_class, iid
 
         return self.model_class, None
 
@@ -525,7 +594,7 @@ class EntityQuery[E: Entity]:
         """Update entities by applying a function to each matching entity.
 
         Fetches all matching entities, applies the provided function to each one,
-        then saves all updates in a single transaction. If the function raises an
+        then saves all updates in a single batched query. If the function raises an
         error on any entity, stops immediately and raises the error.
 
         Args:
@@ -565,33 +634,81 @@ class EntityQuery[E: Entity]:
         for entity in entities:
             func(entity)
 
-        # Update all entities in a single transaction
-        if self._executor.has_transaction:
-            for entity in entities:
-                query_str = self._build_update_query(entity)
-                self._executor.execute(query_str, TransactionType.WRITE)
-        else:
-            assert self._executor.database is not None
-            with self._executor.database.transaction(TransactionType.WRITE) as tx:
-                for entity in entities:
-                    query_str = self._build_update_query(entity)
-                    tx.execute(query_str)
+        # Build batched update query for all entities
+        batched_query = self._build_batched_update_query(entities)
+
+        if not batched_query:
+            return entities
+
+        # Execute the batched query
+        self._executor.execute(batched_query, TransactionType.WRITE)
 
         return entities
 
-    def _build_update_query(self, entity: E) -> str:
-        """Build update query for a single entity.
+    def _build_batched_update_query(self, entities: list[E]) -> str:
+        """Build a single batched TypeQL query to update multiple entities.
+
+        Uses conjunctive batching pattern similar to update_many in EntityManager.
 
         Args:
-            entity: Entity instance to update
+            entities: List of entity instances to update
 
         Returns:
-            TypeQL update query string
+            Single TypeQL query string that updates all entities
         """
-        # Get all attributes (including inherited) to determine cardinality
+        if not entities:
+            return ""
+
+        match_parts = []
+        delete_parts = []
+        insert_parts = []
+        update_parts = []
+
+        for i, entity in enumerate(entities):
+            var_name = f"$e{i}"
+            m_part, d_part, i_part, u_part = self._build_update_query_parts(entity, var_name)
+
+            if m_part:
+                match_parts.append(m_part)
+            if d_part:
+                delete_parts.append(d_part)
+            if i_part:
+                insert_parts.append(i_part)
+            if u_part:
+                update_parts.append(u_part)
+
+        # Construct full query
+        query_sections = []
+
+        if match_parts:
+            query_sections.append("match")
+            query_sections.extend(match_parts)
+
+        if delete_parts:
+            query_sections.append("delete")
+            query_sections.extend(delete_parts)
+
+        if insert_parts:
+            query_sections.append("insert")
+            query_sections.extend(insert_parts)
+
+        if update_parts:
+            query_sections.append("update")
+            query_sections.append("\n".join(update_parts))
+
+        return "\n".join(query_sections)
+
+    def _build_update_query_parts(
+        self, entity: E, var_name: str = "$e"
+    ) -> tuple[str, str, str, str]:
+        """Build the TypeQL query parts for updating an entity.
+
+        Returns:
+            Tuple of (match_clause, delete_clause, insert_clause, update_clause)
+        """
         owned_attrs = self.model_class.get_all_attributes()
 
-        # Extract key attributes from entity for matching
+        # Extract key attributes for matching
         match_filters = {}
         for field_name, attr_info in owned_attrs.items():
             if attr_info.flags.is_key:
@@ -602,7 +719,6 @@ class EntityQuery[E: Entity]:
                         operation="update",
                         field_name=field_name,
                     )
-                # Extract value from Attribute instance if needed
                 if hasattr(key_value, "value"):
                     key_value = key_value.value
                 attr_name = attr_info.typ.get_attribute_name()
@@ -615,12 +731,12 @@ class EntityQuery[E: Entity]:
                 all_fields=list(owned_attrs.keys()),
             )
 
-        # Separate single-value and multi-value updates from entity state
+        # Separate single-value and multi-value updates
         single_value_updates = {}
+        single_value_deletes = set()
         multi_value_updates = {}
 
         for field_name, attr_info in owned_attrs.items():
-            # Skip key attributes (they're used for matching)
             if attr_info.flags.is_key:
                 continue
 
@@ -628,13 +744,11 @@ class EntityQuery[E: Entity]:
             attr_name = attr_class.get_attribute_name()
             flags = attr_info.flags
 
-            # Get current value from entity
             current_value = getattr(entity, field_name, None)
 
-            # Extract raw values from Attribute instances
+            # Extract raw values
             if current_value is not None:
                 if isinstance(current_value, list):
-                    # Multi-value: extract value from each Attribute in list
                     raw_values = []
                     for item in current_value:
                         if hasattr(item, "value"):
@@ -643,70 +757,85 @@ class EntityQuery[E: Entity]:
                             raw_values.append(item)
                     current_value = raw_values
                 elif hasattr(current_value, "value"):
-                    # Single-value: extract value from Attribute
                     current_value = current_value.value
 
-            # Determine if multi-value
             is_multi_value = is_multi_value_attribute(flags)
 
             if is_multi_value:
-                # Multi-value: store as list (even if empty)
                 if current_value is None:
                     current_value = []
                 multi_value_updates[attr_name] = current_value
             else:
-                # Single-value: skip None values for optional attributes
                 if current_value is not None:
                     single_value_updates[attr_name] = current_value
+                elif flags.card_min == 0:
+                    single_value_deletes.add(attr_name)
 
-        # Build TypeQL query
-        query_parts = []
-
-        # Match clause using key attributes
+        # Build Match Clause
         match_statements = []
-        entity_match_parts = [f"$e isa {self.model_class.get_type_name()}"]
+        entity_match_parts = [f"{var_name} isa {self.model_class.get_type_name()}"]
         for attr_name, attr_value in match_filters.items():
             formatted_value = format_value(attr_value)
             entity_match_parts.append(f"has {attr_name} {formatted_value}")
         match_statements.append(", ".join(entity_match_parts) + ";")
 
-        # Add match statements to bind multi-value attributes for deletion
+        # Add match for multi-value attributes with guards
         if multi_value_updates:
-            for attr_name in multi_value_updates:
-                match_statements.append(f"$e has {attr_name} ${attr_name};")
+            for attr_name, values in multi_value_updates.items():
+                keep_literals = [format_value(v) for v in dict.fromkeys(values)]
+                attr_var = f"${attr_name}_{var_name.replace('$', '')}"
+                guard_lines = [f"not {{ {attr_var} == {literal}; }};" for literal in keep_literals]
+                try_block = "\n".join(
+                    [
+                        "try {",
+                        f"  {var_name} has {attr_name} {attr_var};",
+                        *[f"  {g}" for g in guard_lines],
+                        "};",
+                    ]
+                )
+                match_statements.append(try_block)
+
+        # Add match for single-value deletes
+        if single_value_deletes:
+            for attr_name in single_value_deletes:
+                attr_var = f"${attr_name}_{var_name.replace('$', '')}"
+                match_statements.append(f"try {{ {var_name} has {attr_name} {attr_var}; }};")
 
         match_clause = "\n".join(match_statements)
-        query_parts.append(f"match\n{match_clause}")
 
-        # Delete clause (for multi-value attributes)
+        # Build Delete Clause
+        delete_parts = []
         if multi_value_updates:
-            delete_parts = []
             for attr_name in multi_value_updates:
-                delete_parts.append(f"${attr_name} of $e;")
-            delete_clause = "\n".join(delete_parts)
-            query_parts.append(f"delete\n{delete_clause}")
+                attr_var = f"${attr_name}_{var_name.replace('$', '')}"
+                delete_parts.append(f"try {{ {attr_var} of {var_name}; }};")
 
-        # Insert clause (for multi-value attributes)
-        if multi_value_updates:
-            insert_parts = []
-            for attr_name, values in multi_value_updates.items():
-                for value in values:
-                    formatted_value = format_value(value)
-                    insert_parts.append(f"$e has {attr_name} {formatted_value};")
-            insert_clause = "\n".join(insert_parts)
-            query_parts.append(f"insert\n{insert_clause}")
+        if single_value_deletes:
+            for attr_name in single_value_deletes:
+                attr_var = f"${attr_name}_{var_name.replace('$', '')}"
+                delete_parts.append(f"try {{ {attr_var} of {var_name}; }};")
 
-        # Update clause (for single-value attributes)
+        delete_clause = "\n".join(delete_parts)
+
+        # Build Insert Clause
+        insert_parts = []
+        for attr_name, values in multi_value_updates.items():
+            for value in values:
+                formatted_value = format_value(value)
+                insert_parts.append(f"{var_name} has {attr_name} {formatted_value};")
+
+        insert_clause = "\n".join(insert_parts)
+
+        # Build Update Clause
+        update_parts = []
         if single_value_updates:
-            update_parts = []
             for attr_name, value in single_value_updates.items():
                 formatted_value = format_value(value)
-                update_parts.append(f"$e has {attr_name} {formatted_value};")
-            update_clause = "\n".join(update_parts)
-            query_parts.append(f"update\n{update_clause}")
+                update_parts.append(f"{var_name} has {attr_name} {formatted_value};")
 
-        # Combine and return
-        return "\n".join(query_parts)
+        update_clause = "\n".join(update_parts)
+
+        return match_clause, delete_clause, insert_clause, update_clause
 
     def aggregate(self, *aggregates: Any) -> dict[str, Any]:
         """Execute aggregation queries.
