@@ -460,8 +460,10 @@ class EntityQuery[E: Entity]:
     def _populate_iids(self, entities: list[E]) -> None:
         """Populate _iid field on entities by querying TypeDB.
 
-        Since fetch queries cannot return IIDs, this method makes a second
-        query to get IIDs for each entity based on their key attributes.
+        Since fetch queries cannot return IIDs, this method uses a single
+        batched disjunctive query to get IIDs for all entities at once.
+
+        Optimized to use O(1) queries instead of O(N) queries.
 
         Args:
             entities: List of entities to populate IIDs for
@@ -482,9 +484,9 @@ class EntityQuery[E: Entity]:
             logger.debug("No key attributes found, skipping IID population")
             return
 
-        # For each entity, query its IID using key attributes
+        # Build batched disjunctive query for all entities
+        or_clauses = []
         for entity in entities:
-            # Build match clause using key attributes
             match_parts = [f"$e isa {self.model_class.get_type_name()}"]
             for field_name, attr_info in key_attrs.items():
                 value = getattr(entity, field_name, None)
@@ -495,29 +497,64 @@ class EntityQuery[E: Entity]:
                     formatted_value = format_value(value)
                     match_parts.append(f"has {attr_name} {formatted_value}")
 
-            # Build query to get entity with IID
-            # TypeQL: match $e isa <type>, has key_attr value; select $e;
-            query_str = f"match\n{', '.join(match_parts)};\nselect $e;"
-            logger.debug(f"IID lookup query: {query_str}")
+            or_clauses.append(f"{{ {', '.join(match_parts)}; }}")
 
-            results = self._execute(query_str, TransactionType.READ)
+        if not or_clauses:
+            return
 
-            if not results:
+        # Single disjunctive query for all entities
+        query_str = f"match\n{' or '.join(or_clauses)};\nselect $e;"
+        logger.debug(f"Batched IID lookup query: {query_str[:200]}...")
+
+        results = self._execute(query_str, TransactionType.READ)
+
+        if not results:
+            return
+
+        # Build a map from key values to IID for correlation
+        key_attr_names = [attr_info.typ.get_attribute_name() for attr_info in key_attrs.values()]
+        iid_map: dict[tuple[tuple[str, Any], ...], str] = {}
+
+        # We need to fetch key values to correlate - but select doesn't return attributes
+        # So we need a fetch query too for the key values
+        fetch_query = f"match\n{' or '.join(or_clauses)};\nfetch {{\n  $e.*\n}};"
+        fetch_results = self._execute(fetch_query, TransactionType.READ)
+
+        # Correlate by position (same match clause = same ordering)
+        for fetch_result, select_result in zip(fetch_results, results):
+            if "e" not in select_result or not isinstance(select_result["e"], dict):
+                continue
+            iid = select_result["e"].get("_iid")
+            if not iid:
                 continue
 
-            # Extract IID from result
-            result = results[0]
-            iid = None
+            # Build key from fetch result
+            key_values: list[tuple[str, Any]] = []
+            for attr_name in key_attr_names:
+                if attr_name in fetch_result:
+                    key_values.append((attr_name, fetch_result[attr_name]))
 
-            # Try different result formats
-            if "e" in result and isinstance(result["e"], dict):
-                iid = result["e"].get("_iid")
-            elif "_iid" in result:
-                iid = result["_iid"]
+            if key_values:
+                iid_map[tuple(sorted(key_values))] = iid
 
-            if iid:
-                object.__setattr__(entity, "_iid", iid)
-                logger.debug(f"Set IID {iid} for entity {self.model_class.__name__}")
+        # Assign IIDs to entities using in-memory lookup
+        for entity in entities:
+            key_values = []
+            for field_name, attr_info in key_attrs.items():
+                value = getattr(entity, field_name, None)
+                if value is not None:
+                    if hasattr(value, "value"):
+                        value = value.value
+                    attr_name = attr_info.typ.get_attribute_name()
+                    key_values.append((attr_name, value))
+
+            if key_values:
+                map_key = tuple(sorted(key_values))
+                if map_key in iid_map:
+                    object.__setattr__(entity, "_iid", iid_map[map_key])
+                    logger.debug(
+                        f"Set IID {iid_map[map_key]} for entity {self.model_class.__name__}"
+                    )
 
     def first(self) -> E | None:
         """Get first matching entity.

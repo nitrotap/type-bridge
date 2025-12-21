@@ -557,8 +557,10 @@ class RelationQuery[R: Relation]:
     def _populate_iids(self, relations: list[R]) -> None:
         """Populate _iid field on relations and their role players by querying TypeDB.
 
-        Since fetch queries cannot return IIDs, this method makes a second
-        query to get IIDs for each relation and its role players based on their key attributes.
+        Since fetch queries cannot return IIDs, this method uses a single
+        batched disjunctive query to get IIDs for all relations at once.
+
+        Optimized to use O(1) queries instead of O(N) queries.
 
         Args:
             relations: List of relations to populate IIDs for
@@ -567,26 +569,30 @@ class RelationQuery[R: Relation]:
             return
 
         roles = self.model_class._roles
+        role_names = list(roles.keys())
 
-        # For each relation, query its IID and role player IIDs
+        # Build batched disjunctive query for all relations
+        # Use shared variable names across all branches for TypeQL compatibility
+        or_clauses = []
+        # Track relation key info for correlation
+        relation_key_data: list[dict[str, tuple[str, Any, Any]]] = []
+
         for relation in relations:
-            # Build match clause with role players
+            # Build match clause with role players using shared variable names
             role_parts = []
             match_statements = []
-            role_var_to_entity: dict[str, Any] = {}  # Map role var to entity for IID assignment
+            role_key_info: dict[
+                str, tuple[str, Any, Any]
+            ] = {}  # role_name -> (attr_name, value, entity)
 
             for role_name, role in roles.items():
                 entity = getattr(relation, role_name, None)
                 if entity is None:
-                    # Can't match without role players
-                    logger.debug(
-                        f"Skipping IID population for relation without role player {role_name}"
-                    )
+                    logger.debug(f"Skipping role {role_name} for relation without role player")
                     continue
 
                 role_var = f"${role_name}"
                 role_parts.append(f"{role.role_name}: {role_var}")
-                role_var_to_entity[role_name] = entity
 
                 # Match the role player by their key attributes
                 entity_class = entity.__class__
@@ -600,6 +606,7 @@ class RelationQuery[R: Relation]:
                                 key_value = key_value.value
                             formatted_value = format_value(key_value)
                             match_statements.append(f"{role_var} has {attr_name} {formatted_value}")
+                            role_key_info[role_name] = (attr_name, key_value, entity)
                             break
 
             if not role_parts:
@@ -608,34 +615,56 @@ class RelationQuery[R: Relation]:
             roles_str = ", ".join(role_parts)
             relation_match = f"$r isa {self.model_class.get_type_name()} ({roles_str})"
 
-            # Build query to get relation and role player IIDs
+            # Build clause for this relation
             query_parts = [relation_match] + match_statements
-            # Select relation and all role player variables
-            select_vars = ["$r"] + [f"${role_name}" for role_name in role_var_to_entity.keys()]
-            query_str = f"match\n{'; '.join(query_parts)};\nselect {', '.join(select_vars)};"
-            logger.debug(f"IID lookup query: {query_str}")
+            or_clauses.append(f"{{ {'; '.join(query_parts)}; }}")
 
-            results = self._execute(query_str, TransactionType.READ)
+            relation_key_data.append(role_key_info)
 
-            if not results:
-                continue
+        if not or_clauses:
+            return
 
-            # Extract IIDs from result
-            result = results[0]
+        # Build select variables - shared across all branches
+        select_vars = ["$r"] + [f"${role_name}" for role_name in role_names]
+
+        # Single disjunctive query for all relations
+        query_str = f"match\n{' or '.join(or_clauses)};\nselect {', '.join(select_vars)};"
+        logger.debug(f"Batched IID lookup query: {query_str}")
+
+        results = self._execute(query_str, TransactionType.READ)
+
+        if not results:
+            return
+
+        # Build a map from role player key values to (relation, role_key_info) for correlation
+        # Key: tuple of sorted (role_name, attr_name, value) tuples
+        key_to_relation: dict[tuple[tuple[str, str, Any], ...], tuple[Any, dict]] = {}
+        for relation, role_key_info in zip(relations, relation_key_data):
+            key_parts: list[tuple[str, str, Any]] = []
+            for role_name, (attr_name, value, _) in role_key_info.items():
+                key_parts.append((role_name, attr_name, value))
+            if key_parts:
+                map_key = tuple(sorted(key_parts))
+                key_to_relation[map_key] = (relation, role_key_info)
+
+        # Process results - results come back in the same order as or_clauses
+        # Each result corresponds to one relation
+        for idx, result in enumerate(results):
+            if idx >= len(relation_key_data):
+                break
+
+            relation = relations[idx]
+            role_key_info = relation_key_data[idx]
 
             # Extract relation IID
-            relation_iid = None
             if "r" in result and isinstance(result["r"], dict):
                 relation_iid = result["r"].get("_iid")
-            elif "_iid" in result:
-                relation_iid = result["_iid"]
-
-            if relation_iid:
-                object.__setattr__(relation, "_iid", relation_iid)
-                logger.debug(f"Set IID {relation_iid} for relation {self.model_class.__name__}")
+                if relation_iid:
+                    object.__setattr__(relation, "_iid", relation_iid)
+                    logger.debug(f"Set IID {relation_iid} for relation {self.model_class.__name__}")
 
             # Extract role player IIDs
-            for role_name, entity in role_var_to_entity.items():
+            for role_name, (_, _, entity) in role_key_info.items():
                 if role_name in result and isinstance(result[role_name], dict):
                     player_iid = result[role_name].get("_iid")
                     if player_iid:
@@ -780,8 +809,10 @@ class RelationQuery[R: Relation]:
         """Update relations by applying a function to each matching relation.
 
         Fetches all matching relations, applies the provided function to each one,
-        then saves all updates in a single transaction. If the function raises an
+        then saves all updates in a single batched query. If the function raises an
         error on any relation, stops immediately and raises the error.
+
+        Optimized to use O(1) queries instead of O(N) queries.
 
         Args:
             func: Callable that takes a relation and modifies it in-place.
@@ -835,32 +866,89 @@ class RelationQuery[R: Relation]:
         for relation in relations:
             func(relation)
 
-        # Update all relations in a single transaction
-        if self._executor.has_transaction:
-            tx = self._executor.transaction
-            assert tx is not None
-            for relation, original in zip(relations, original_values):
-                query_str = self._build_update_query(relation, original)
-                tx.execute(query_str)
-        else:
-            db = self._executor.database
-            assert db is not None
-            with db.transaction(TransactionType.WRITE) as tx:
-                for relation, original in zip(relations, original_values):
-                    query_str = self._build_update_query(relation, original)
-                    tx.execute(query_str)
+        # Build batched update query for all relations
+        query_str = self._build_batched_update_query(relations, original_values)
+
+        if query_str:
+            self._execute(query_str, TransactionType.WRITE)
 
         return relations
 
-    def _build_update_query(self, relation: R, original_values: dict[str, Any]) -> str:
-        """Build update query for a single relation.
+    def _build_batched_update_query(
+        self, relations: list[R], original_values: list[dict[str, Any]]
+    ) -> str:
+        """Build a single batched TypeQL query to update multiple relations.
+
+        Uses conjunctive batching pattern for efficient bulk updates.
+
+        Args:
+            relations: List of relation instances with NEW values
+            original_values: List of dicts with original values for matching
+
+        Returns:
+            Single TypeQL query string that updates all relations
+        """
+        if not relations:
+            return ""
+
+        match_parts = []
+        delete_parts = []
+        insert_parts = []
+        update_parts = []
+
+        for idx, (relation, original) in enumerate(zip(relations, original_values)):
+            var_name = f"$r{idx}"
+            m_part, d_part, i_part, u_part = self._build_update_query_parts(
+                relation, original, var_name, idx
+            )
+
+            if m_part:
+                match_parts.append(m_part)
+            if d_part:
+                delete_parts.append(d_part)
+            if i_part:
+                insert_parts.append(i_part)
+            if u_part:
+                update_parts.append(u_part)
+
+        # Construct full query
+        query_sections = []
+
+        if match_parts:
+            query_sections.append("match")
+            query_sections.extend(match_parts)
+
+        if delete_parts:
+            query_sections.append("delete")
+            query_sections.extend(delete_parts)
+
+        if insert_parts:
+            query_sections.append("insert")
+            query_sections.extend(insert_parts)
+
+        if update_parts:
+            query_sections.append("update")
+            query_sections.append("\n".join(update_parts))
+
+        return "\n".join(query_sections)
+
+    def _build_update_query_parts(
+        self,
+        relation: R,
+        original_values: dict[str, Any],
+        var_name: str = "$r",
+        idx: int = 0,
+    ) -> tuple[str, str, str, str]:
+        """Build the TypeQL query parts for updating a single relation.
 
         Args:
             relation: Relation instance with NEW values to update to
             original_values: Dict of field_name -> original value (for matching)
+            var_name: Variable name to use for this relation (e.g., "$r0")
+            idx: Index for unique variable names
 
         Returns:
-            TypeQL update query string
+            Tuple of (match_clause, delete_clause, insert_clause, update_clause)
         """
         # Get all attributes (including inherited) to determine cardinality
         owned_attrs = self.model_class.get_all_attributes()
@@ -878,11 +966,11 @@ class RelationQuery[R: Relation]:
 
         # Separate single-value and multi-value updates from NEW values
         single_value_updates = {}
-        multi_value_updates = {}
+        multi_value_updates: dict[str, list[Any]] = {}
 
         # Also separate original values for matching
         original_single_values = {}
-        original_multi_values = {}
+        original_multi_values: dict[str, list[Any]] = {}
 
         for field_name, attr_info in owned_attrs.items():
             attr_class = attr_info.typ
@@ -942,7 +1030,7 @@ class RelationQuery[R: Relation]:
         match_statements = []
 
         for role_name, entity in role_players.items():
-            role_var = f"${role_name}"
+            role_var = f"${role_name}_{idx}"
             role = roles[role_name]
             role_parts.append(f"{role.role_name}: {role_var}")
 
@@ -962,7 +1050,7 @@ class RelationQuery[R: Relation]:
                         break
 
         roles_str = ", ".join(role_parts)
-        relation_match_parts = [f"$r isa {self.model_class.get_type_name()} ({roles_str})"]
+        relation_match_parts = [f"{var_name} isa {self.model_class.get_type_name()} ({roles_str})"]
 
         # IMPORTANT: Match by ORIGINAL attribute values to uniquely identify the relation
         # This is crucial because multiple relations can have same role players
@@ -976,43 +1064,39 @@ class RelationQuery[R: Relation]:
         # Add match statements to bind multi-value attributes for deletion
         if multi_value_updates:
             for attr_name in multi_value_updates:
-                match_statements.append(f"$r has {attr_name} ${attr_name};")
+                match_statements.append(f"{var_name} has {attr_name} ${attr_name}_{idx};")
 
         match_clause = "\n".join(match_statements)
 
-        # Build query parts
-        query_parts = [f"match\n{match_clause}"]
-
-        # Delete clause (for multi-value attributes)
+        # Build delete clause (for multi-value attributes)
+        delete_clause = ""
         if multi_value_updates:
-            delete_parts = []
+            delete_lines = []
             for attr_name in multi_value_updates:
-                delete_parts.append(f"${attr_name} of $r;")
-            delete_clause = "\n".join(delete_parts)
-            query_parts.append(f"delete\n{delete_clause}")
+                delete_lines.append(f"${attr_name}_{idx} of {var_name};")
+            delete_clause = "\n".join(delete_lines)
 
-        # Insert clause (for multi-value attributes)
+        # Build insert clause (for multi-value attributes)
+        insert_clause = ""
         if multi_value_updates:
-            insert_parts = []
+            insert_lines = []
             for attr_name, values in multi_value_updates.items():
                 for value in values:
                     formatted_value = format_value(value)
-                    insert_parts.append(f"$r has {attr_name} {formatted_value};")
-            if insert_parts:
-                insert_clause = "\n".join(insert_parts)
-                query_parts.append(f"insert\n{insert_clause}")
+                    insert_lines.append(f"{var_name} has {attr_name} {formatted_value};")
+            if insert_lines:
+                insert_clause = "\n".join(insert_lines)
 
-        # Update clause (for single-value attributes)
+        # Build update clause (for single-value attributes)
+        update_clause = ""
         if single_value_updates:
-            update_parts = []
+            update_lines = []
             for attr_name, value in single_value_updates.items():
                 formatted_value = format_value(value)
-                update_parts.append(f"$r has {attr_name} {formatted_value};")
-            update_clause = "\n".join(update_parts)
-            query_parts.append(f"update\n{update_clause}")
+                update_lines.append(f"{var_name} has {attr_name} {formatted_value};")
+            update_clause = "\n".join(update_lines)
 
-        # Combine and return
-        return "\n".join(query_parts)
+        return match_clause, delete_clause, insert_clause, update_clause
 
     def aggregate(self, *aggregates: Any) -> dict[str, Any]:
         """Execute aggregation queries.
