@@ -13,7 +13,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from type_bridge.attribute.string import String
-from type_bridge.expressions import AttributeExistsExpr, Expression, RolePlayerExpr
+from type_bridge.expressions import AttributeExistsExpr, BooleanExpr, Expression, RolePlayerExpr
 
 if TYPE_CHECKING:
     from type_bridge.models import Relation
@@ -219,11 +219,12 @@ def _build_lookup_expression(
         values = list(value)
         if not values:
             raise ValueError("__in lookup requires a non-empty iterable")
-        eq_exprs = [attr_type.eq(_wrap(v)) for v in values]
-        expr: Expression = eq_exprs[0]
-        for e in eq_exprs[1:]:
-            expr = expr.or_(e)
-        return expr
+        eq_exprs: list[Expression] = [attr_type.eq(_wrap(v)) for v in values]
+        # Create flat OR disjunction (avoids nested binary tree that causes
+        # TypeDB query planner stack overflow with many values)
+        if len(eq_exprs) == 1:
+            return eq_exprs[0]
+        return BooleanExpr("or", eq_exprs)
 
     # Null check
     if lookup == "isnull":

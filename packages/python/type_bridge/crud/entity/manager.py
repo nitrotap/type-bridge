@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, cast
 from typedb.driver import TransactionType
 
 from type_bridge.attribute.string import String
-from type_bridge.expressions import AttributeExistsExpr, Expression
+from type_bridge.expressions import AttributeExistsExpr, BooleanExpr, Expression
 from type_bridge.models import Entity
 from type_bridge.query import QueryBuilder
 from type_bridge.session import Connection, ConnectionExecutor
@@ -541,12 +541,13 @@ class EntityManager[E: Entity]:
                 values = list(raw_value)
                 if not values:
                     raise ValueError("__in lookup requires a non-empty iterable")
-                eq_exprs = [attr_type.eq(_wrap(v)) for v in values]
-                # Fold into OR chain
-                expr: Expression = eq_exprs[0]
-                for e in eq_exprs[1:]:
-                    expr = expr.or_(e)
-                expressions.append(expr)
+                eq_exprs: list[Expression] = [attr_type.eq(_wrap(v)) for v in values]
+                # Create flat OR disjunction (avoids nested binary tree that causes
+                # TypeDB query planner stack overflow with many values)
+                if len(eq_exprs) == 1:
+                    expressions.append(eq_exprs[0])
+                else:
+                    expressions.append(BooleanExpr("or", eq_exprs))
                 continue
 
             if lookup == "isnull":

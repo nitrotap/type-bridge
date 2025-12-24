@@ -1,5 +1,7 @@
 """Boolean expressions for logical combinations."""
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Literal
 
 from type_bridge.expressions.base import Expression
@@ -36,7 +38,7 @@ class BooleanExpr(Expression):
         if operation in ("and", "or") and len(operands) < 2:
             raise ValueError(f"{operation.upper()} operation requires at least 2 operands")
 
-    def get_attribute_types(self) -> set[type["Attribute"]]:
+    def get_attribute_types(self) -> set[type[Attribute]]:
         """
         Get all attribute types referenced by this boolean expression.
 
@@ -85,3 +87,42 @@ class BooleanExpr(Expression):
 
         # This should never happen due to Literal type, but for safety
         raise ValueError(f"Unknown boolean operation: {self.operation}")
+
+    def and_(self, other: Expression) -> BooleanExpr:
+        """
+        Combine with another expression using AND, flattening if possible.
+
+        If this is already an AND expression, adds the new operand to create
+        a flat structure instead of a nested binary tree.
+
+        Args:
+            other: Another expression to AND with this one
+
+        Returns:
+            BooleanExpr with flattened operands
+        """
+        if self.operation == "and":
+            # Flatten: (a AND b).and_(c) -> (a AND b AND c)
+            return BooleanExpr("and", [*self.operands, other])
+        # Different operation, must wrap
+        return BooleanExpr("and", [self, other])
+
+    def or_(self, other: Expression) -> BooleanExpr:
+        """
+        Combine with another expression using OR, flattening if possible.
+
+        If this is already an OR expression, adds the new operand to create
+        a flat structure instead of a nested binary tree. This is critical
+        for avoiding TypeDB query planner stack overflow with many values.
+
+        Args:
+            other: Another expression to OR with this one
+
+        Returns:
+            BooleanExpr with flattened operands
+        """
+        if self.operation == "or":
+            # Flatten: (a OR b).or_(c) -> (a OR b OR c)
+            return BooleanExpr("or", [*self.operands, other])
+        # Different operation, must wrap
+        return BooleanExpr("or", [self, other])

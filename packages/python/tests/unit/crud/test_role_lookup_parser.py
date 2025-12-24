@@ -242,6 +242,37 @@ def test_parse_role_lookup_in():
     assert role_expr.inner_expr.operation == "or"
 
 
+def test_parse_role_lookup_in_creates_flat_or_not_nested():
+    """Test that __in lookup creates a flat OR with all operands at same level.
+
+    This is critical for avoiding TypeDB query planner stack overflow with
+    many values. A flat OR like (a or b or c or d) is safe, but a nested
+    binary tree like (((a or b) or c) or d) causes stack overflow with 75+ values.
+
+    See: https://github.com/ds1sqe/type-bridge/issues/76
+    """
+    values = [f"name_{i}" for i in range(100)]  # 100 values
+    _, _, role_exprs, _ = parse_role_lookup_filters(Employment, {"employee__name__in": values})
+    role_expr = role_exprs["employee"][0]
+    assert isinstance(role_expr, RolePlayerExpr)
+    assert isinstance(role_expr.inner_expr, BooleanExpr)
+    assert role_expr.inner_expr.operation == "or"
+    # All operands should be at the same level (flat structure)
+    assert len(role_expr.inner_expr.operands) == 100
+    # Each operand should be a ComparisonExpr, not a nested BooleanExpr
+    for operand in role_expr.inner_expr.operands:
+        assert isinstance(operand, ComparisonExpr)
+
+
+def test_parse_role_lookup_in_single_value_no_boolean_expr():
+    """Test that __in lookup with a single value returns just the comparison."""
+    _, _, role_exprs, _ = parse_role_lookup_filters(Employment, {"employee__name__in": ["Alice"]})
+    role_expr = role_exprs["employee"][0]
+    assert isinstance(role_expr, RolePlayerExpr)
+    # Single value should not wrap in BooleanExpr
+    assert isinstance(role_expr.inner_expr, ComparisonExpr)
+
+
 def test_parse_role_lookup_in_requires_iterable():
     """Test __in lookup requires iterable."""
     with pytest.raises(ValueError, match="requires an iterable"):
