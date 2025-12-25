@@ -41,7 +41,7 @@ from type_bridge.schema import (
 from type_bridge.session import Connection, Database, TransactionContext
 from type_bridge.typedb_driver import Credentials, TransactionType, TypeDB
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 
 __all__ = [
     # Database and session

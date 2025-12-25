@@ -2,6 +2,33 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [1.2.1] - 2025-12-25
+
+### Bug Fixes
+
+#### Stack Overflow Fix for __in Lookup (Issue #76)
+- **Fixed TypeDB stack overflow when using `__in` lookup with many values (75+)**
+  - Root cause: Deeply nested binary OR expressions `((((a or b) or c) or d)...)` caused TypeDB query planner to stack overflow
+  - Solution: Use flat BooleanExpr structure for OR operations
+  - Example: `manager.filter(name__in=["Alice", "Bob", ...150 names])` now works reliably
+  - Location: `type_bridge/crud/entity/manager.py`, `type_bridge/crud/relation/lookup.py`, `type_bridge/expressions/boolean.py`
+- **Added automatic flattening of BooleanExpr operations**
+  - `BooleanExpr.and_()` and `BooleanExpr.or_()` now automatically flatten operands of the same operation type
+  - Prevents deeply nested expression trees
+  - Improves query compilation performance
+
+### Testing
+- Added 249 new tests for BooleanExpr flattening and __in lookup edge cases
+- All tests passing
+
+### Key Files Modified
+- `type_bridge/crud/entity/manager.py` - Flat OR structure for __in lookups
+- `type_bridge/crud/relation/lookup.py` - Flat OR structure for relation lookups
+- `type_bridge/expressions/boolean.py` - Automatic flattening in and_() and or_()
+- `tests/unit/crud/test_lookup_parser.py` - Entity lookup tests (37 tests)
+- `tests/unit/crud/test_role_lookup_parser.py` - Relation lookup tests (31 tests)
+- `tests/unit/expressions/test_boolean_expr.py` - BooleanExpr flattening tests (181 tests)
+
 ## [1.2.0] - 2025-12-22
 
 ### New Features
