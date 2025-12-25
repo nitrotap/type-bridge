@@ -13,7 +13,12 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from type_bridge.attribute.string import String
-from type_bridge.expressions import AttributeExistsExpr, BooleanExpr, Expression, RolePlayerExpr
+from type_bridge.expressions import (
+    AttributeExistsExpr,
+    BooleanExpr,
+    Expression,
+    RolePlayerExpr,
+)
 
 if TYPE_CHECKING:
     from type_bridge.models import Relation

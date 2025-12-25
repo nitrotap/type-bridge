@@ -101,7 +101,11 @@ class Attribute(ABC):
         super().__init_subclass__(**kwargs)
 
         # Import here to avoid circular dependency
-        from type_bridge.attribute.flags import AttributeFlags, TypeNameCase, format_type_name
+        from type_bridge.attribute.flags import (
+            AttributeFlags,
+            TypeNameCase,
+            format_type_name,
+        )
 
         # Determine the attribute name for this subclass
         # Priority: flags.name > attr_name > flags.case > class.case > default CLASS_NAME
