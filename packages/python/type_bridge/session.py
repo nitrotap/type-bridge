@@ -103,6 +103,15 @@ def _extract_concept_row(item: Any) -> dict[str, Any]:
                 except Exception:
                     pass
 
+            # Try to get value (for attribute concepts used in correlation queries)
+            if hasattr(concept, "get_value"):
+                try:
+                    value = concept.get_value()
+                    if value is not None:
+                        concept_data["value"] = value
+                except Exception:
+                    pass
+
             # If we couldn't get IID directly, try parsing from string
             if "_iid" not in concept_data:
                 concept_str = str(concept)

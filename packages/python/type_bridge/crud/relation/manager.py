@@ -1463,6 +1463,9 @@ class RelationManager[R: Relation]:
         Since fetch queries cannot return IIDs, this method uses a single batched
         disjunctive query to get IIDs for all relations and their role players.
 
+        The query captures key attribute values as variables to enable proper
+        correlation of results back to the original relation instances.
+
         Optimized to use O(1) queries instead of O(N) queries.
 
         Args:
@@ -1472,86 +1475,16 @@ class RelationManager[R: Relation]:
             return
 
         roles = self.model_class._roles
+        role_names = list(roles.keys())
 
-        # Build batched disjunctive query for all relations
-        or_clauses = []
-        # Map from clause index to (relation, role_var_to_entity) for result correlation
-        clause_mapping: list[tuple[R, dict[str, Any]]] = []
-
-        for i, relation in enumerate(relations):
-            role_parts = []
-            match_statements = []
-            role_var_to_entity: dict[str, Any] = {}
-
-            for role_name, role in roles.items():
-                entity = getattr(relation, role_name, None)
-                if entity is None:
-                    logger.debug(
-                        f"Skipping IID population for relation without role player {role_name}"
-                    )
-                    continue
-
-                # Use indexed variable names to avoid conflicts across clauses
-                role_var = f"${role_name}_{i}"
-                role_parts.append(f"{role.role_name}: {role_var}")
-                role_var_to_entity[role_name] = (entity, role_var)
-
-                # Match the role player by their key attributes
-                entity_class = entity.__class__
-                player_owned_attrs = entity_class.get_all_attributes()
-                for field_name, attr_info in player_owned_attrs.items():
-                    if attr_info.flags.is_key:
-                        key_value = getattr(entity, field_name, None)
-                        if key_value is not None:
-                            attr_name = attr_info.typ.get_attribute_name()
-                            if hasattr(key_value, "value"):
-                                key_value = key_value.value
-                            formatted_value = format_value(key_value)
-                            match_statements.append(f"{role_var} has {attr_name} {formatted_value}")
-                            break
-
-            if not role_parts:
-                continue
-
-            roles_str = ", ".join(role_parts)
-            relation_var = f"$r_{i}"
-            relation_match = f"{relation_var} isa {self.model_class.get_type_name()} ({roles_str})"
-
-            # Build this relation's match clause
-            clause_parts = [relation_match] + match_statements
-            or_clause = f"{{ {'; '.join(clause_parts)}; }}"
-            or_clauses.append(or_clause)
-            clause_mapping.append((relation, role_var_to_entity))
-
-        if not or_clauses:
-            return
-
-        # Build single disjunctive query
-        # We need to select all variables, but TypeQL requires consistent variable names
-        # across OR branches, so we use a different approach: execute one query per batch
-        # but with multiple OR clauses
-        #
-        # Actually, TypeQL's OR semantics require variables to be consistent.
-        # A simpler batching approach: execute a single query but correlate results
-        # back to relations using the relation's key identifying attributes.
-
-        # Fallback to a more compatible approach: batch by chunks and use position correlation
-        # For now, execute one query with multiple OR clauses but revert to per-relation
-        # variable naming only within each clause, then iterate results
-
-        # TypeQL 3.x allows OR with different variable names in each branch
-        # The result will contain whichever branch matched
-        # We need to check each result for which branch it belongs to
-
-        # Build a query that returns enough info to correlate back
-        # We'll query each relation individually but in a single transaction if possible
-
-        # Simpler optimized approach: use disjunctive match with a shared variable name
-        # and correlate by role player key values in the results
+        # Track which roles have key attributes and their attribute names
+        # Maps role_name -> (key_var_name, attr_name)
+        role_key_info: dict[str, tuple[str, str]] = {}
 
         # Build a single query matching all relations using shared variable names
+        # Capture key attribute values as variables for result correlation
         shared_or_clauses = []
-        for i, relation in enumerate(relations):
+        for relation in relations:
             role_parts = []
             match_statements = []
 
@@ -1573,7 +1506,14 @@ class RelationManager[R: Relation]:
                             if hasattr(key_value, "value"):
                                 key_value = key_value.value
                             formatted_value = format_value(key_value)
-                            match_statements.append(f"{role_var} has {attr_name} {formatted_value}")
+                            # Use a variable for the key attribute to capture its value
+                            key_var = f"${role_name}_key"
+                            match_statements.append(
+                                f"{role_var} has {attr_name} {key_var}; {key_var} == {formatted_value}"
+                            )
+                            # Track the key variable for this role
+                            if role_name not in role_key_info:
+                                role_key_info[role_name] = (f"{role_name}_key", attr_name)
                             break
 
             if not role_parts:
@@ -1587,8 +1527,11 @@ class RelationManager[R: Relation]:
         if not shared_or_clauses:
             return
 
-        # Build the query with OR clauses
-        select_vars = ["$r"] + [f"${role_name}" for role_name in roles.keys()]
+        # Build the query with OR clauses, including key attribute variables in select
+        select_vars = ["$r"] + [f"${role_name}" for role_name in role_names]
+        for key_var_name, _ in role_key_info.values():
+            select_vars.append(f"${key_var_name}")
+
         query_str = f"match\n{' or '.join(shared_or_clauses)};\nselect {', '.join(select_vars)};"
         logger.debug(f"Batched IID lookup query: {query_str[:200]}...")
 
@@ -1597,79 +1540,58 @@ class RelationManager[R: Relation]:
         if not results:
             return
 
-        # Build a lookup map from role player key values to results
-        # Each result contains IIDs for relation and role players
-        # We need to correlate results back to relations
-
-        # Build a map from relation identifying key (role player keys) -> result
+        # Build a lookup map from key attribute values to results
+        # This allows proper correlation: each relation maps to exactly one result
         result_map: dict[tuple[tuple[str, Any], ...], dict[str, Any]] = {}
         for result in results:
-            # Build key from role player IIDs or key attributes
             key_parts: list[tuple[str, Any]] = []
-            for role_name in roles.keys():
-                if role_name in result and isinstance(result[role_name], dict):
-                    player_iid = result[role_name].get("_iid")
-                    if player_iid:
-                        key_parts.append((role_name, player_iid))
+            for role_name, (key_var_name, _) in role_key_info.items():
+                if key_var_name in result:
+                    key_val = result[key_var_name]
+                    # Extract value from concept data dict
+                    if isinstance(key_val, dict):
+                        key_val = key_val.get("value", key_val.get("result"))
+                    key_parts.append((role_name, key_val))
             if key_parts:
                 result_map[tuple(sorted(key_parts))] = result
 
-        # For each relation, find its corresponding result
+        # For each relation, find its corresponding result by key attribute values
         for relation in relations:
+            # Build the key for this relation from its role players' key attributes
+            relation_key_parts: list[tuple[str, Any]] = []
             role_var_to_entity: dict[str, Any] = {}
 
-            for role_name in roles.keys():
+            for role_name in role_names:
                 entity = getattr(relation, role_name, None)
                 if entity is not None:
                     role_var_to_entity[role_name] = entity
 
-            # Look for matching result by trying to find the result where role players match
-            matched_result = None
-            for result in results:
-                # Check if this result matches our relation's role players
-                match = True
-                for role_name, entity in role_var_to_entity.items():
-                    if role_name not in result or not isinstance(result[role_name], dict):
-                        match = False
-                        break
+                    # Get the key attribute value for this role player
+                    if role_name in role_key_info:
+                        entity_class = entity.__class__
+                        player_owned_attrs = entity_class.get_all_attributes()
+                        for field_name, attr_info in player_owned_attrs.items():
+                            if attr_info.flags.is_key:
+                                key_value = getattr(entity, field_name, None)
+                                if key_value is not None:
+                                    if hasattr(key_value, "value"):
+                                        key_value = key_value.value
+                                    relation_key_parts.append((role_name, key_value))
+                                break
 
-                    # Get entity key values to compare
-                    entity_class = entity.__class__
-                    player_owned_attrs = entity_class.get_all_attributes()
-                    entity_key_matched = False
-
-                    for field_name, attr_info in player_owned_attrs.items():
-                        if attr_info.flags.is_key:
-                            expected_value = getattr(entity, field_name, None)
-                            if expected_value is not None:
-                                if hasattr(expected_value, "value"):
-                                    expected_value = expected_value.value
-
-                                # The result contains the entity with _iid and _type
-                                # We need to verify this is the right entity
-                                # Check if the IID is present (indicates a match)
-                                result_iid = result[role_name].get("_iid")
-                                if result_iid:
-                                    entity_key_matched = True
-                            break
-
-                    if not entity_key_matched:
-                        match = False
-                        break
-
-                if match:
-                    matched_result = result
-                    break
+            # Look up the result by key values
+            relation_key = tuple(sorted(relation_key_parts))
+            matched_result = result_map.get(relation_key)
 
             if matched_result:
                 # Extract relation IID
-                relation_iid = None
                 if "r" in matched_result and isinstance(matched_result["r"], dict):
                     relation_iid = matched_result["r"].get("_iid")
-
-                if relation_iid:
-                    object.__setattr__(relation, "_iid", relation_iid)
-                    logger.debug(f"Set IID {relation_iid} for relation {self.model_class.__name__}")
+                    if relation_iid:
+                        object.__setattr__(relation, "_iid", relation_iid)
+                        logger.debug(
+                            f"Set IID {relation_iid} for relation {self.model_class.__name__}"
+                        )
 
                 # Extract role player IIDs
                 for role_name, entity in role_var_to_entity.items():
