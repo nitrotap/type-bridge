@@ -2,6 +2,28 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [1.2.2] - 2025-12-25
+
+### Bug Fixes
+
+#### RelationManager IID Correlation Fix (Issue #78)
+- **Fixed incorrect IID assignment in RelationManager.all()**
+  - Problem: All relations were getting the same IID values for their role players instead of unique IIDs for each relation
+  - Root cause: `_populate_iids` method didn't properly correlate query results to the correct relation instances
+  - Solution: Capture key attribute values as variables in the query and build a lookup map for correlating results back to the correct relations
+  - Impact: Critical for code relying on role player `_iid` values for deduplication or correlation
+  - Example: Multiple friendships now correctly show unique IIDs for each person instead of all showing the same IIDs
+  - Location: `type_bridge/session.py`, `type_bridge/crud/relation/manager.py`
+
+### Testing
+- Added 133 lines of regression tests for Issue #78
+- Verifies multiple relations each get their own unique IIDs
+
+### Key Files Modified
+- `type_bridge/session.py` - Added value extraction for attribute concepts in `_extract_concept_row`
+- `type_bridge/crud/relation/manager.py` - Fixed IID correlation logic (198 additions, 134 deletions)
+- `tests/integration/crud/test_iid_feature.py` - Added regression tests for Issue #78
+
 ## [1.2.1] - 2025-12-25
 
 ### Bug Fixes
