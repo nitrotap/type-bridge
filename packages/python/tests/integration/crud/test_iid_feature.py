@@ -344,3 +344,136 @@ class TestRelationIidPopulation:
         assert fetched_emp.employer is not None
         assert fetched_emp.employer._iid is not None
         assert fetched_emp.employer._iid == company_iid
+
+
+@pytest.mark.integration
+class TestRelationAllIidCorrectness:
+    """Tests for issue #78: RelationManager.all() assigns incorrect IIDs to role players.
+
+    When using RelationManager.all() to fetch multiple relations, each relation
+    should have unique, correct IIDs for its role players - not the same IIDs
+    from the first matched result.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup_schema(self, clean_db):
+        """Setup schema for each test."""
+        self.db = clean_db
+        schema_manager = SchemaManager(clean_db)
+        schema_manager.register(IidPerson)
+        schema_manager.register(IidCompany)
+        schema_manager.register(IidEmployment)
+        schema_manager.sync_schema(force=True)
+
+    def test_all_returns_unique_role_player_iids_issue_78(self):
+        """Test that all() returns unique IIDs for each relation's role players.
+
+        Regression test for issue #78: Previously, all relations returned by all()
+        would have the same IIDs for their role players (from the first result).
+        """
+        # Create two different people
+        person_a = IidPerson(name=PersonName("PersonA"), age=PersonAge(25))
+        person_b = IidPerson(name=PersonName("PersonB"), age=PersonAge(30))
+        IidPerson.manager(self.db).insert(person_a)
+        IidPerson.manager(self.db).insert(person_b)
+
+        # Create two different companies
+        company_x = IidCompany(name=CompanyName("CompanyX"))
+        company_y = IidCompany(name=CompanyName("CompanyY"))
+        IidCompany.manager(self.db).insert(company_x)
+        IidCompany.manager(self.db).insert(company_y)
+
+        # Get the actual IIDs for each entity from the database
+        person_a_iid = IidPerson.manager(self.db).get(name="PersonA")[0]._iid
+        person_b_iid = IidPerson.manager(self.db).get(name="PersonB")[0]._iid
+        company_x_iid = IidCompany.manager(self.db).get(name="CompanyX")[0]._iid
+        company_y_iid = IidCompany.manager(self.db).get(name="CompanyY")[0]._iid
+
+        # Verify all IIDs are unique
+        all_entity_iids = {person_a_iid, person_b_iid, company_x_iid, company_y_iid}
+        assert len(all_entity_iids) == 4, "All entities should have unique IIDs"
+
+        # Create two employments with different role players
+        emp1 = IidEmployment(employee=person_a, employer=company_x, position=Position("Role1"))
+        emp2 = IidEmployment(employee=person_b, employer=company_y, position=Position("Role2"))
+        IidEmployment.manager(self.db).insert(emp1)
+        IidEmployment.manager(self.db).insert(emp2)
+
+        # Fetch all relations using all()
+        all_relations = list(IidEmployment.manager(self.db).all())
+        assert len(all_relations) == 2
+
+        # Find each relation by position
+        rel1 = next(r for r in all_relations if r.position and r.position.value == "Role1")
+        rel2 = next(r for r in all_relations if r.position and r.position.value == "Role2")
+
+        # Verify each relation has the correct IIDs for its role players
+        # This is the key assertion for issue #78 - previously both relations
+        # would have the same IIDs (from the first matched result)
+
+        # Relation 1 should have PersonA and CompanyX
+        assert rel1.employee is not None
+        assert rel1.employee._iid == person_a_iid, (
+            f"Expected PersonA IID {person_a_iid}, got {rel1.employee._iid}"
+        )
+        assert rel1.employer is not None
+        assert rel1.employer._iid == company_x_iid, (
+            f"Expected CompanyX IID {company_x_iid}, got {rel1.employer._iid}"
+        )
+
+        # Relation 2 should have PersonB and CompanyY
+        assert rel2.employee is not None
+        assert rel2.employee._iid == person_b_iid, (
+            f"Expected PersonB IID {person_b_iid}, got {rel2.employee._iid}"
+        )
+        assert rel2.employer is not None
+        assert rel2.employer._iid == company_y_iid, (
+            f"Expected CompanyY IID {company_y_iid}, got {rel2.employer._iid}"
+        )
+
+        # Also verify that the relation IIDs themselves are unique
+        assert rel1._iid is not None
+        assert rel2._iid is not None
+        assert rel1._iid != rel2._iid, "Each relation should have a unique IID"
+
+    def test_get_returns_unique_role_player_iids_issue_78(self):
+        """Test that get() also returns unique IIDs for each relation's role players.
+
+        Similar to test_all but using get() without filters.
+        """
+        # Create people and companies
+        person_c = IidPerson(name=PersonName("PersonC"), age=PersonAge(35))
+        person_d = IidPerson(name=PersonName("PersonD"), age=PersonAge(40))
+        IidPerson.manager(self.db).insert(person_c)
+        IidPerson.manager(self.db).insert(person_d)
+
+        company_z = IidCompany(name=CompanyName("CompanyZ"))
+        company_w = IidCompany(name=CompanyName("CompanyW"))
+        IidCompany.manager(self.db).insert(company_z)
+        IidCompany.manager(self.db).insert(company_w)
+
+        # Get entity IIDs
+        person_c_iid = IidPerson.manager(self.db).get(name="PersonC")[0]._iid
+        person_d_iid = IidPerson.manager(self.db).get(name="PersonD")[0]._iid
+        company_z_iid = IidCompany.manager(self.db).get(name="CompanyZ")[0]._iid
+        company_w_iid = IidCompany.manager(self.db).get(name="CompanyW")[0]._iid
+
+        # Create employments
+        emp3 = IidEmployment(employee=person_c, employer=company_z, position=Position("Role3"))
+        emp4 = IidEmployment(employee=person_d, employer=company_w, position=Position("Role4"))
+        IidEmployment.manager(self.db).insert(emp3)
+        IidEmployment.manager(self.db).insert(emp4)
+
+        # Fetch using get() with no filters
+        all_relations = IidEmployment.manager(self.db).get()
+        assert len(all_relations) == 2
+
+        # Find each relation
+        rel3 = next(r for r in all_relations if r.position and r.position.value == "Role3")
+        rel4 = next(r for r in all_relations if r.position and r.position.value == "Role4")
+
+        # Verify correct IIDs
+        assert rel3.employee._iid == person_c_iid
+        assert rel3.employer._iid == company_z_iid
+        assert rel4.employee._iid == person_d_iid
+        assert rel4.employer._iid == company_w_iid
