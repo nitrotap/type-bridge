@@ -489,12 +489,27 @@ class EntityManager[E: Entity]:
 
     def _parse_lookup_filters(self, filters: dict[str, Any]) -> tuple[dict[str, Any], list[Any]]:
         """Parse Django-style lookup filters into base filters and expressions."""
+        from type_bridge.expressions.iid import IidExpr
 
         owned_attrs = self.model_class.get_all_attributes()
         base_filters: dict[str, Any] = {}
         expressions: list[Any] = []
 
         for raw_key, raw_value in filters.items():
+            # Handle special iid__in lookup (IID is not an attribute)
+            if raw_key == "iid__in":
+                if not isinstance(raw_value, (list, tuple, set)):
+                    raise ValueError("iid__in lookup requires an iterable of IID strings")
+                iids = list(raw_value)
+                if not iids:
+                    raise ValueError("iid__in lookup requires a non-empty iterable")
+                iid_exprs: list[Expression] = [IidExpr(iid) for iid in iids]
+                if len(iid_exprs) == 1:
+                    expressions.append(iid_exprs[0])
+                else:
+                    expressions.append(BooleanExpr("or", iid_exprs))
+                continue
+
             if "__" not in raw_key:
                 if raw_key not in owned_attrs:
                     raise ValueError(

@@ -14,6 +14,7 @@ from type_bridge.expressions.functions import (
     FunctionQuery,
     ReturnType,
 )
+from type_bridge.expressions.iid import IidExpr
 from type_bridge.expressions.role_player import RolePlayerExpr
 from type_bridge.expressions.string import StringExpr
 
@@ -28,5 +29,6 @@ __all__ = [
     "FunctionCall",
     "FunctionQuery",
     "ReturnType",
+    "IidExpr",
     "RolePlayerExpr",
 ]

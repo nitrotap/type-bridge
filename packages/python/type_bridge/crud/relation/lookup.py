@@ -13,7 +13,13 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from type_bridge.attribute.string import String
-from type_bridge.expressions import AttributeExistsExpr, BooleanExpr, Expression, RolePlayerExpr
+from type_bridge.expressions import (
+    AttributeExistsExpr,
+    BooleanExpr,
+    Expression,
+    IidExpr,
+    RolePlayerExpr,
+)
 
 if TYPE_CHECKING:
     from type_bridge.attribute import Attribute
@@ -56,6 +62,20 @@ def parse_role_lookup_filters(
     attr_expressions: list[Expression] = []
 
     for raw_key, raw_value in filters.items():
+        # Handle special iid__in lookup for relation itself (IID is not an attribute)
+        if raw_key == "iid__in":
+            if not isinstance(raw_value, (list, tuple, set)):
+                raise ValueError("iid__in lookup requires an iterable of IID strings")
+            iids = list(raw_value)
+            if not iids:
+                raise ValueError("iid__in lookup requires a non-empty iterable")
+            iid_exprs: list[Expression] = [IidExpr(iid) for iid in iids]
+            if len(iid_exprs) == 1:
+                attr_expressions.append(iid_exprs[0])
+            else:
+                attr_expressions.append(BooleanExpr("or", iid_exprs))
+            continue
+
         # Case 1: No "__" - either exact attribute match or entity instance for role
         if "__" not in raw_key:
             if raw_key in roles:
@@ -123,7 +143,7 @@ def _parse_role_attribute_lookup(
     Args:
         model_class: The Relation class
         role_name: Name of the role (e.g., "employee")
-        parts: Remaining parts after role name (e.g., ["age", "gt"] or ["name"])
+        parts: Remaining parts after role name (e.g., ["age", "gt"] or ["name"] or ["iid", "in"])
         value: The filter value
 
     Returns:
@@ -134,6 +154,24 @@ def _parse_role_attribute_lookup(
     """
     role = model_class._roles[role_name]
     player_types = role.player_entity_types
+
+    # Handle special case: role__iid__in (IID is not an attribute)
+    if parts == ["iid", "in"]:
+        if not isinstance(value, (list, tuple, set)):
+            raise ValueError(f"{role_name}__iid__in lookup requires an iterable of IID strings")
+        iids = list(value)
+        if not iids:
+            raise ValueError(f"{role_name}__iid__in lookup requires a non-empty iterable")
+        iid_exprs: list[Expression] = [IidExpr(iid) for iid in iids]
+        if len(iid_exprs) == 1:
+            inner_expr = iid_exprs[0]
+        else:
+            inner_expr = BooleanExpr("or", iid_exprs)
+        return RolePlayerExpr(
+            role_name=role_name,
+            inner_expr=inner_expr,
+            player_types=player_types,
+        )
 
     # Collect all attributes from all player types (for Role.multi)
     all_player_attrs: dict[str, tuple[type[Attribute], Any]] = {}

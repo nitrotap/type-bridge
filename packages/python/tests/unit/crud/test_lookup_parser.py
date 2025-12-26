@@ -219,3 +219,88 @@ def test_multiple_lookups_same_field():
     assert len(exprs) == 2
     # Both should be ComparisonExpr
     assert all(isinstance(e, ComparisonExpr) for e in exprs)
+
+
+# ============================================================
+# iid__in lookup tests
+# ============================================================
+
+
+def test_iid_in_builds_or_expression():
+    """Test iid__in lookup creates OR of IidExpr expressions."""
+    from type_bridge.expressions import BooleanExpr, IidExpr
+
+    mgr = build_manager()
+    base, exprs = mgr._parse_lookup_filters({"iid__in": ["0x1a2b3c4d", "0x5e6f7a8b"]})
+    assert base == {}
+    assert len(exprs) == 1
+    expr = exprs[0]
+    assert isinstance(expr, BooleanExpr)
+    assert expr.operation == "or"
+    assert len(expr.operands) == 2
+    assert all(isinstance(e, IidExpr) for e in expr.operands)
+
+
+def test_iid_in_single_value_no_boolean_expr():
+    """Test iid__in with single value returns just the IidExpr."""
+    from type_bridge.expressions import IidExpr
+
+    mgr = build_manager()
+    base, exprs = mgr._parse_lookup_filters({"iid__in": ["0x1a2b3c4d"]})
+    assert base == {}
+    assert len(exprs) == 1
+    assert isinstance(exprs[0], IidExpr)
+    assert exprs[0].iid == "0x1a2b3c4d"
+
+
+def test_iid_in_creates_flat_or_not_nested():
+    """Test iid__in creates flat OR to avoid TypeDB stack overflow."""
+    from type_bridge.expressions import BooleanExpr, IidExpr
+
+    mgr = build_manager()
+    iids = [f"0x{i:08x}" for i in range(100)]
+    base, exprs = mgr._parse_lookup_filters({"iid__in": iids})
+    assert len(exprs) == 1
+    expr = exprs[0]
+    assert isinstance(expr, BooleanExpr)
+    assert expr.operation == "or"
+    assert len(expr.operands) == 100
+    for operand in expr.operands:
+        assert isinstance(operand, IidExpr)
+
+
+def test_iid_in_requires_iterable():
+    """Test iid__in requires iterable."""
+    mgr = build_manager()
+    with pytest.raises(ValueError, match="requires an iterable"):
+        mgr._parse_lookup_filters({"iid__in": "0x1a2b3c4d"})
+
+
+def test_iid_in_requires_non_empty():
+    """Test iid__in requires non-empty iterable."""
+    mgr = build_manager()
+    with pytest.raises(ValueError, match="non-empty"):
+        mgr._parse_lookup_filters({"iid__in": []})
+
+
+def test_iid_in_validates_format():
+    """Test iid__in validates IID format."""
+    mgr = build_manager()
+    with pytest.raises(ValueError, match="Invalid IID format"):
+        mgr._parse_lookup_filters({"iid__in": ["invalid_iid"]})
+
+
+def test_iid_in_combined_with_attribute_filters():
+    """Test iid__in can be combined with attribute filters."""
+    from type_bridge.expressions import BooleanExpr, ComparisonExpr
+
+    mgr = build_manager()
+    base, exprs = mgr._parse_lookup_filters(
+        {"iid__in": ["0x1a2b3c4d", "0x5e6f7a8b"], "age__gt": 25}
+    )
+    assert base == {}
+    assert len(exprs) == 2
+    # One BooleanExpr for IIDs, one ComparisonExpr for age
+    types = {type(e) for e in exprs}
+    assert BooleanExpr in types
+    assert ComparisonExpr in types
