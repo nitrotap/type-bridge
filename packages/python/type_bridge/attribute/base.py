@@ -224,7 +224,9 @@ class Attribute(ABC):
         # @abstract comes right after the name, before sub/value clauses
         if cls.abstract:
             if cls._supertype:
-                definition = f"attribute {attr_name} @abstract, sub {cls._supertype}, value {value_type}"
+                definition = (
+                    f"attribute {attr_name} @abstract, sub {cls._supertype}, value {value_type}"
+                )
             else:
                 definition = f"attribute {attr_name} @abstract, value {value_type}"
         elif cls._supertype:

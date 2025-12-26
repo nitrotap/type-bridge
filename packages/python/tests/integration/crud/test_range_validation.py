@@ -4,9 +4,9 @@ These tests verify that range constraints are enforced when inserting/updating
 entities through the full CRUD flow, preventing invalid data from reaching TypeDB.
 """
 
-import pytest
-
 from typing import ClassVar
+
+import pytest
 
 from type_bridge import (
     Database,
