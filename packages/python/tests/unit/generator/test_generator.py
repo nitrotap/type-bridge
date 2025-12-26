@@ -74,7 +74,10 @@ class TestRenderAttributes:
         class_names = build_class_name_map(schema.attributes)
         source = render_attributes(schema, class_names)
 
-        assert "range_constraint: ClassVar[tuple[int | float | None, int | float | None]] = (0, 150)" in source
+        assert (
+            "range_constraint: ClassVar[tuple[int | float | None, int | float | None]] = (0, 150)"
+            in source
+        )
         assert (
             "range_constraint: ClassVar[tuple[int | float | None, int | float | None]] = (-50.0, 50.0)"
             in source
@@ -89,7 +92,10 @@ class TestRenderAttributes:
         class_names = build_class_name_map(schema.attributes)
         source = render_attributes(schema, class_names)
 
-        assert "range_constraint: ClassVar[tuple[int | float | None, int | float | None]] = (0, None)" in source
+        assert (
+            "range_constraint: ClassVar[tuple[int | float | None, int | float | None]] = (0, None)"
+            in source
+        )
 
     def test_attribute_with_independent(self) -> None:
         """Render attribute with @independent annotation."""
