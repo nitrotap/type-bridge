@@ -31,6 +31,34 @@ def _render_annotation_value(value: Any) -> str:
         return repr(value)
 
 
+def _render_python_literal(value: Any) -> str:
+    """Render a value as a Python literal (not JSON).
+
+    Handles conversion of string numbers to actual numbers for range constraints.
+    - None → 'None'
+    - "123" → '123' (integer)
+    - "1.5" → '1.5' (float)
+    - Other strings → quoted string
+    """
+    if value is None:
+        return "None"
+    if isinstance(value, str):
+        # Try to parse as integer
+        try:
+            return str(int(value))
+        except ValueError:
+            pass
+        # Try to parse as float
+        try:
+            return str(float(value))
+        except ValueError:
+            pass
+        # Fall back to quoted string
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+    return repr(value)
+
+
 @lru_cache(maxsize=1)
 def _get_environment() -> Environment:
     """Get the Jinja2 environment with custom filters."""
@@ -43,6 +71,7 @@ def _get_environment() -> Environment:
     # Custom filters
     env.filters["repr"] = repr
     env.filters["render_annotation"] = _render_annotation_value
+    env.filters["pylit"] = _render_python_literal
     return env
 
 
