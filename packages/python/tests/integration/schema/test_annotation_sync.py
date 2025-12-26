@@ -40,6 +40,12 @@ class Status(String):
     allowed_values: ClassVar[tuple[str, ...]] = ("active", "inactive", "pending")
 
 
+class Email(String):
+    """Email with regex constraint."""
+
+    regex: ClassVar[str] = r"^[a-z]+@[a-z]+\.[a-z]+$"  # type: ignore[assignment]
+
+
 # Define entities using the annotated attributes
 class Person(Entity):
     flags = TypeFlags(name="annotation_test_person")
@@ -57,6 +63,12 @@ class Task(Entity):
     flags = TypeFlags(name="annotation_test_task")
     name: Name = Flag(Key)
     status: Status | None = None
+
+
+class User(Entity):
+    flags = TypeFlags(name="annotation_test_user")
+    name: Name = Flag(Key)
+    email: Email | None = None
 
 
 @pytest.fixture
@@ -148,6 +160,25 @@ class TestSchemaAnnotationSync:
         assert results[0].status is not None
         assert results[0].status.value == "active"
 
+    def test_regex_annotation_syncs_to_typedb(self, db: Database) -> None:
+        """Verify @regex annotation syncs correctly."""
+        schema_manager = SchemaManager(db)
+        schema_manager.register(User)
+
+        schema = schema_manager.generate_schema()
+        assert "@regex" in schema
+
+        schema_manager.sync_schema()
+
+        manager = User.manager(db)
+        user = User(name=Name("TestUser"), email=Email("test@example.com"))
+        manager.insert(user)
+
+        results = manager.get(name="TestUser")
+        assert len(results) == 1
+        assert results[0].email is not None
+        assert results[0].email.value == "test@example.com"
+
 
 @pytest.mark.integration
 class TestTypeDBEnforcesConstraints:
@@ -203,3 +234,29 @@ class TestTypeDBEnforcesConstraints:
 
         # TypeDB should reject the value
         assert "invalid_status" in str(exc_info.value) or "values" in str(exc_info.value).lower()
+
+    def test_typedb_rejects_invalid_regex_via_raw_query(self, db: Database) -> None:
+        """Verify TypeDB rejects values not matching @regex via raw TypeQL."""
+        from typedb.driver import TransactionType
+
+        schema_manager = SchemaManager(db)
+        schema_manager.register(User)
+        schema_manager.sync_schema()
+
+        # Try to insert an invalid email directly via TypeQL
+        # "not-an-email" doesn't match the regex pattern
+        insert_query = """
+        insert $u isa annotation_test_user,
+            has Name "DirectUser",
+            has Email "not-an-email";
+        """
+
+        with pytest.raises(Exception) as exc_info:
+            with db.driver.transaction(  # type: ignore[attr-defined]
+                db.database_name, TransactionType.WRITE
+            ) as tx:
+                tx.query(insert_query).resolve()
+                tx.commit()
+
+        # TypeDB should reject the value due to regex mismatch
+        assert "not-an-email" in str(exc_info.value) or "regex" in str(exc_info.value).lower()
