@@ -912,3 +912,154 @@ class TestParseDistinctAnnotation:
         child_role = next(r for r in rel.roles if r.name == "child")
         assert parent_role.distinct is False
         assert child_role.distinct is True
+
+
+class TestCardValidation:
+    """Tests for @card annotation validation."""
+
+    def test_card_valid_range(self) -> None:
+        """Valid @card range is accepted."""
+        schema = parse_tql_schema("""
+            define
+            entity person, owns name @card(1..5);
+            attribute name, value string;
+        """)
+        assert schema.entities["person"].cardinalities["name"].min == 1
+        assert schema.entities["person"].cardinalities["name"].max == 5
+
+    def test_card_valid_exact(self) -> None:
+        """Valid @card with exact value is accepted."""
+        schema = parse_tql_schema("""
+            define
+            entity person, owns name @card(3);
+            attribute name, value string;
+        """)
+        assert schema.entities["person"].cardinalities["name"].min == 3
+        assert schema.entities["person"].cardinalities["name"].max == 3
+
+    def test_card_valid_unbounded(self) -> None:
+        """Valid @card with unbounded max is accepted."""
+        schema = parse_tql_schema("""
+            define
+            entity person, owns name @card(1..);
+            attribute name, value string;
+        """)
+        assert schema.entities["person"].cardinalities["name"].min == 1
+        assert schema.entities["person"].cardinalities["name"].max is None
+
+    def test_card_invalid_min_greater_than_max(self) -> None:
+        """@card with min > max raises error."""
+        import pytest
+        from lark.exceptions import VisitError
+
+        with pytest.raises(VisitError) as exc_info:
+            parse_tql_schema("""
+                define
+                entity person, owns name @card(5..1);
+                attribute name, value string;
+            """)
+        assert "minimum (5) cannot be greater than maximum (1)" in str(exc_info.value)
+
+
+class TestRegexValidation:
+    """Tests for @regex annotation validation."""
+
+    def test_regex_valid_pattern(self) -> None:
+        """Valid regex pattern is accepted."""
+        schema = parse_tql_schema("""
+            define
+            attribute email, value string @regex("^[a-z]+@[a-z]+\\.[a-z]+$");
+        """)
+        assert schema.attributes["email"].regex == "^[a-z]+@[a-z]+\\.[a-z]+$"
+
+    def test_regex_invalid_pattern(self) -> None:
+        """Invalid regex pattern raises error."""
+        import pytest
+        from lark.exceptions import VisitError
+
+        with pytest.raises(VisitError) as exc_info:
+            parse_tql_schema("""
+                define
+                attribute code, value string @regex("[invalid(");
+            """)
+        assert "Invalid @regex pattern" in str(exc_info.value)
+        assert "Must be a valid regular expression" in str(exc_info.value)
+
+
+class TestValuesValidation:
+    """Tests for @values annotation validation."""
+
+    def test_values_valid(self) -> None:
+        """Valid @values with unique entries is accepted."""
+        schema = parse_tql_schema("""
+            define
+            attribute status, value string @values("active", "inactive", "pending");
+        """)
+        assert schema.attributes["status"].allowed_values == (
+            "active",
+            "inactive",
+            "pending",
+        )
+
+    def test_values_duplicate_raises_error(self) -> None:
+        """@values with duplicate entries raises error."""
+        import pytest
+        from lark.exceptions import VisitError
+
+        with pytest.raises(VisitError) as exc_info:
+            parse_tql_schema("""
+                define
+                attribute status, value string @values("active", "inactive", "active");
+            """)
+        assert "duplicate values found" in str(exc_info.value)
+        assert "active" in str(exc_info.value)
+
+
+class TestSubkeyValidation:
+    """Tests for @subkey annotation validation."""
+
+    def test_subkey_valid_identifier(self) -> None:
+        """Valid @subkey identifier is accepted."""
+        schema = parse_tql_schema("""
+            define
+            attribute user-id, value string;
+            attribute org-id, value string;
+            entity user, owns user-id @key, owns org-id @subkey(user-id);
+        """)
+        assert schema.entities["user"].subkeys["org-id"] == "user-id"
+
+    def test_subkey_valid_identifier_with_underscore(self) -> None:
+        """Valid @subkey identifier with underscore is accepted."""
+        schema = parse_tql_schema("""
+            define
+            attribute user_id, value string;
+            attribute org_id, value string;
+            entity user, owns user_id @key, owns org_id @subkey(user_id);
+        """)
+        assert schema.entities["user"].subkeys["org_id"] == "user_id"
+
+    def test_subkey_invalid_identifier_starting_with_digit(self) -> None:
+        """@subkey with identifier starting with digit raises parse error."""
+        import pytest
+        from lark.exceptions import UnexpectedToken
+
+        # Grammar catches this at lexer level - 123abc is tokenized as INT + IDENTIFIER
+        with pytest.raises(UnexpectedToken) as exc_info:
+            parse_tql_schema("""
+                define
+                attribute id, value string;
+                entity user, owns id @subkey(123abc);
+            """)
+        assert "Unexpected token" in str(exc_info.value)
+
+    def test_subkey_invalid_special_chars(self) -> None:
+        """@subkey with special characters raises error."""
+        import pytest
+        from lark.exceptions import UnexpectedToken
+
+        with pytest.raises(UnexpectedToken):
+            parse_tql_schema("""
+                define
+                attribute id, value string;
+                entity user, owns id @subkey(invalid@char);
+            """)
