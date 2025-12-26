@@ -43,6 +43,7 @@ class AttributeContext:
     range_max: str | None = None
     default: object = None
     transform: object = None
+    independent: bool = False
 
 
 def _resolve_value_type(
@@ -151,6 +152,7 @@ def _build_attribute_context(
         range_max=attr.range_max,
         default=attr.default,
         transform=attr.transform,
+        independent=attr.independent,
     )
 
 

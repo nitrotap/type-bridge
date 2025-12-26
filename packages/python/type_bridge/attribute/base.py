@@ -74,6 +74,7 @@ class Attribute(ABC):
     # Class-level metadata
     value_type: ClassVar[str]  # TypeDB value type (string, integer, double, boolean, datetime)
     abstract: ClassVar[bool] = False
+    independent: ClassVar[bool] = False  # @independent - attribute can exist without owners
     attr_name: ClassVar[str | None] = None  # Explicit attribute name (optional)
     case: ClassVar["TypeNameCase | None"] = (
         None  # Case formatting option (optional, defaults to CLASS_NAME)
@@ -200,6 +201,11 @@ class Attribute(ABC):
         return cls.abstract
 
     @classmethod
+    def is_independent(cls) -> bool:
+        """Check if this attribute is independent (can exist without owners)."""
+        return cls.independent
+
+    @classmethod
     def get_supertype(cls) -> str | None:
         """Get the supertype if this attribute extends another."""
         return cls._supertype
@@ -210,6 +216,7 @@ class Attribute(ABC):
 
         Includes support for TypeDB annotations:
         - @abstract (comes right after attribute name)
+        - @independent (comes right after attribute name, allows standalone existence)
         - @range(min..max) from range_constraint ClassVar (after value type)
         - @regex("pattern") from regex ClassVar (after value type)
         - @values("a", "b", ...) from allowed_values ClassVar (after value type)
@@ -220,15 +227,20 @@ class Attribute(ABC):
         attr_name = cls.get_attribute_name()
         value_type = cls.get_value_type()
 
-        # Build definition: attribute name [@abstract] [sub parent], value type [annotations];
-        # @abstract comes right after the name, before sub/value clauses
+        # Build type-level annotations (@abstract, @independent come right after name)
+        type_annotations = []
         if cls.abstract:
+            type_annotations.append("@abstract")
+        if cls.independent:
+            type_annotations.append("@independent")
+
+        # Build definition: attribute name [@abstract] [@independent], [sub parent,] value type;
+        if type_annotations:
+            annotations_str = " ".join(type_annotations)
             if cls._supertype:
-                definition = (
-                    f"attribute {attr_name} @abstract, sub {cls._supertype}, value {value_type}"
-                )
+                definition = f"attribute {attr_name} {annotations_str}, sub {cls._supertype}, value {value_type}"
             else:
-                definition = f"attribute {attr_name} @abstract, value {value_type}"
+                definition = f"attribute {attr_name} {annotations_str}, value {value_type}"
         elif cls._supertype:
             definition = f"attribute {attr_name} sub {cls._supertype}, value {value_type}"
         else:

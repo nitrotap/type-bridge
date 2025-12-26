@@ -11,6 +11,9 @@ from type_bridge import {{ imports | join(', ') }}
 class {{ attr.class_name }}({{ attr.base_class }}):
     """{{ attr.docstring }}"""
     flags = AttributeFlags({{ attr.flags_args | join(', ') }})
+{% if attr.independent %}
+    independent = True
+{% endif %}
 {% if attr.regex %}
     regex: ClassVar[str] = r"{{ attr.regex }}"
 {% endif %}

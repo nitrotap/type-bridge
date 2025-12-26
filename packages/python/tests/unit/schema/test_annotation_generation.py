@@ -142,3 +142,83 @@ class TestAbstractWithAnnotations:
 
         schema = BaseScore.to_schema_definition()
         assert schema == "attribute BaseScore @abstract, value integer @range(0..100);"
+
+
+class TestIndependentAnnotationGeneration:
+    """Test @independent annotation generation in schema definitions."""
+
+    def test_independent_string_attribute(self) -> None:
+        """Test @independent on a string attribute."""
+
+        class Language(String):
+            independent = True
+
+        schema = Language.to_schema_definition()
+        assert schema == "attribute Language @independent, value string;"
+
+    def test_independent_integer_attribute(self) -> None:
+        """Test @independent on an integer attribute."""
+
+        class GlobalCounter(Integer):
+            independent = True
+
+        schema = GlobalCounter.to_schema_definition()
+        assert schema == "attribute GlobalCounter @independent, value integer;"
+
+    def test_independent_with_range(self) -> None:
+        """Test @independent combined with @range."""
+
+        class SharedScore(Integer):
+            independent = True
+            range_constraint: ClassVar[tuple[str | None, str | None]] = ("0", "100")
+
+        schema = SharedScore.to_schema_definition()
+        assert schema == "attribute SharedScore @independent, value integer @range(0..100);"
+
+    def test_independent_with_values(self) -> None:
+        """Test @independent combined with @values."""
+
+        class GlobalStatus(String):
+            independent = True
+            allowed_values: ClassVar[tuple[str, ...]] = ("active", "inactive", "pending")
+
+        schema = GlobalStatus.to_schema_definition()
+        assert (
+            schema
+            == 'attribute GlobalStatus @independent, value string @values("active", "inactive", "pending");'
+        )
+
+    def test_abstract_and_independent(self) -> None:
+        """Test combining @abstract and @independent."""
+
+        class BaseLanguage(String):
+            abstract = True
+            independent = True
+
+        schema = BaseLanguage.to_schema_definition()
+        assert schema == "attribute BaseLanguage @abstract @independent, value string;"
+
+    def test_abstract_independent_with_range(self) -> None:
+        """Test combining @abstract, @independent, and @range."""
+
+        class AbstractCounter(Integer):
+            abstract = True
+            independent = True
+            range_constraint: ClassVar[tuple[str | None, str | None]] = ("0", None)
+
+        schema = AbstractCounter.to_schema_definition()
+        assert (
+            schema == "attribute AbstractCounter @abstract @independent, value integer @range(0..);"
+        )
+
+    def test_is_independent_method(self) -> None:
+        """Test the is_independent() class method."""
+
+        class IndependentAttr(String):
+            independent = True
+
+        class DependentAttr(String):
+            pass
+
+        assert IndependentAttr.is_independent() is True
+        assert DependentAttr.is_independent() is False

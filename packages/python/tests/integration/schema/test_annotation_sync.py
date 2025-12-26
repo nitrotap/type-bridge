@@ -260,3 +260,83 @@ class TestTypeDBEnforcesConstraints:
 
         # TypeDB should reject the value due to regex mismatch
         assert "not-an-email" in str(exc_info.value) or "regex" in str(exc_info.value).lower()
+
+
+# Define independent attribute for testing
+class Language(String):
+    """Language attribute that can exist without owners."""
+
+    independent = True
+
+
+class Document(Entity):
+    """Document entity that owns Language."""
+
+    flags = TypeFlags(name="annotation_test_document")
+    name: Name = Flag(Key)
+    language: Language | None = None
+
+
+@pytest.mark.integration
+class TestIndependentAnnotationSync:
+    """Test @independent annotation syncs and works correctly."""
+
+    def test_independent_annotation_syncs_to_typedb(self, db: Database) -> None:
+        """Verify @independent is included when syncing schema to TypeDB."""
+        schema_manager = SchemaManager(db)
+        schema_manager.register(Document)
+
+        # Generate schema and verify @independent is included
+        schema = schema_manager.generate_schema()
+        assert "@independent" in schema
+        assert "attribute Language @independent, value string;" in schema
+
+        # Sync to TypeDB - should not raise
+        schema_manager.sync_schema()
+
+    def test_independent_attribute_can_be_inserted_standalone(self, db: Database) -> None:
+        """Verify independent attributes can be inserted without an owner."""
+        from typedb.driver import TransactionType
+
+        schema_manager = SchemaManager(db)
+        schema_manager.register(Document)
+        schema_manager.sync_schema()
+
+        # Insert an independent attribute directly without an owner
+        insert_query = """
+        insert $lang isa Language "English";
+        """
+
+        with db.driver.transaction(  # type: ignore[attr-defined]
+            db.database_name, TransactionType.WRITE
+        ) as tx:
+            tx.query(insert_query).resolve()
+            tx.commit()
+
+        # Verify the attribute exists
+        with db.driver.transaction(  # type: ignore[attr-defined]
+            db.database_name, TransactionType.READ
+        ) as tx:
+            result = tx.query('match $lang isa Language "English"; select $lang;').resolve()
+            answers = list(result.as_concept_rows())
+            assert len(answers) == 1
+
+    def test_independent_attribute_with_entity(self, db: Database) -> None:
+        """Verify independent attributes work normally when owned by an entity."""
+        schema_manager = SchemaManager(db)
+        schema_manager.register(Document)
+        schema_manager.sync_schema()
+
+        manager = Document.manager(db)
+        doc = Document(name=Name("README"), language=Language("English"))
+        manager.insert(doc)
+
+        results = manager.get(name="README")
+        assert len(results) == 1
+        assert results[0].language is not None
+        assert results[0].language.value == "English"
+
+    def test_is_independent_method(self, db: Database) -> None:
+        """Verify the is_independent() method returns correct values."""
+        assert Language.is_independent() is True
+        assert Name.is_independent() is False

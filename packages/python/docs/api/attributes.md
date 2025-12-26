@@ -568,6 +568,56 @@ class Priority(String):
 attribute Status, value string @values("active", "inactive", "pending");
 ```
 
+### @independent - Standalone Attributes
+
+Allow attributes to exist without being owned by an entity or relation:
+
+```python
+from type_bridge import String, Integer
+
+class Language(String):
+    """Can exist without an owner."""
+    independent = True
+
+class GlobalCounter(Integer):
+    """Shared counter that can be queried directly."""
+    independent = True
+```
+
+**Usage:**
+```python
+# Independent attributes can be inserted directly via TypeQL
+# without being owned by an entity
+insert_query = 'insert $lang isa Language "English";'
+
+# Can also be owned by entities as normal
+class Document(Entity):
+    name: Name = Flag(Key)
+    language: Language | None = None
+```
+
+**Generated TypeQL:**
+```typeql
+attribute Language @independent, value string;
+attribute GlobalCounter @independent, value integer;
+```
+
+**Combining with other annotations:**
+```python
+class SharedScore(Integer):
+    """Independent attribute with range constraint."""
+    independent = True
+    range_constraint: ClassVar[tuple[str | None, str | None]] = ("0", "100")
+
+# Generated: attribute SharedScore @independent, value integer @range(0..100);
+```
+
+**Check if attribute is independent:**
+```python
+Language.is_independent()  # True
+Name.is_independent()      # False
+```
+
 ### Schema Synchronization
 
 When using `SchemaManager.sync_schema()`, these constraints are automatically included in the generated TypeQL schema, ensuring TypeDB enforces them at the database level:

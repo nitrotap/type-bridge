@@ -91,6 +91,42 @@ class TestRenderAttributes:
 
         assert 'range_constraint: ClassVar[tuple[str | None, str | None]] = ("0", None)' in source
 
+    def test_attribute_with_independent(self) -> None:
+        """Render attribute with @independent annotation."""
+        schema = parse_tql_schema("""
+            define
+            attribute language @independent, value string;
+        """)
+        class_names = build_class_name_map(schema.attributes)
+        source = render_attributes(schema, class_names)
+
+        assert "class Language(String):" in source
+        assert "independent = True" in source
+
+    def test_attribute_independent_with_abstract(self) -> None:
+        """Render attribute with both @abstract and @independent."""
+        schema = parse_tql_schema("""
+            define
+            attribute tag @abstract @independent, value string;
+        """)
+        class_names = build_class_name_map(schema.attributes)
+        source = render_attributes(schema, class_names)
+
+        assert "class Tag(String):" in source
+        assert "independent = True" in source
+
+    def test_attribute_not_independent_by_default(self) -> None:
+        """Render attribute without @independent should not include independent = True."""
+        schema = parse_tql_schema("""
+            define
+            attribute name, value string;
+        """)
+        class_names = build_class_name_map(schema.attributes)
+        source = render_attributes(schema, class_names)
+
+        assert "class Name(String):" in source
+        assert "independent = True" not in source
+
 
 class TestRenderEntities:
     """Tests for entity rendering."""
