@@ -15,3 +15,11 @@ repos:
         pass_filenames: false
         always_run: true
         types: [python]
+
+      - id: pyright
+        name: pyright type check
+        entry: uv run pyright tests/
+        language: system
+        pass_filenames: false
+        always_run: true
+        types: [python]
