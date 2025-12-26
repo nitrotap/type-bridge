@@ -26,6 +26,11 @@ class RelationContext:
     flags_args: list[str]
     attr_fields: list[str] = field(default_factory=list)
     role_fields: list[str] = field(default_factory=list)
+    # Coming-soon annotations (parsed but not yet available in TypeDB 3.x)
+    # These will render as TODO comments in generated code
+    cascade_attrs: list[str] = field(default_factory=list)
+    subkey_groups: dict[str, list[str]] = field(default_factory=dict)
+    distinct_roles: list[str] = field(default_factory=list)
 
 
 def _render_role_field(
@@ -129,6 +134,17 @@ def _build_relation_context(
         if role_line:
             role_fields.append(role_line)
 
+    # Collect coming-soon annotations for TODO comments
+    cascade_attrs = sorted(relation.cascades) if relation.cascades else []
+    # Group subkey attrs by their group name
+    subkey_groups: dict[str, list[str]] = {}
+    for attr, group in relation.subkeys.items():
+        subkey_groups.setdefault(group, []).append(attr)
+    for group in subkey_groups:
+        subkey_groups[group] = sorted(subkey_groups[group])
+    # Collect roles with @distinct annotation
+    distinct_roles = [r.name for r in relation.roles if r.distinct]
+
     return RelationContext(
         class_name=cls_name,
         base_class=base_class,
@@ -136,6 +152,9 @@ def _build_relation_context(
         flags_args=flags_args,
         attr_fields=attr_fields,
         role_fields=role_fields,
+        cascade_attrs=cascade_attrs,
+        subkey_groups=subkey_groups,
+        distinct_roles=sorted(distinct_roles),
     )
 
 

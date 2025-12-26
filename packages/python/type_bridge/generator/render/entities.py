@@ -26,6 +26,10 @@ class EntityContext:
     prefix: str | None = None
     plays: list[str] = field(default_factory=list)
     fields: list[str] = field(default_factory=list)
+    # Coming-soon annotations (parsed but not yet available in TypeDB 3.x)
+    # These will render as TODO comments in generated code
+    cascade_attrs: list[str] = field(default_factory=list)
+    subkey_groups: dict[str, list[str]] = field(default_factory=dict)
 
 
 def _render_attr_field(
@@ -136,6 +140,15 @@ def _build_entity_context(
             )
         )
 
+    # Collect coming-soon annotations for TODO comments
+    cascade_attrs = sorted(entity.cascades) if entity.cascades else []
+    # Group subkey attrs by their group name
+    subkey_groups: dict[str, list[str]] = {}
+    for attr, group in entity.subkeys.items():
+        subkey_groups.setdefault(group, []).append(attr)
+    for group in subkey_groups:
+        subkey_groups[group] = sorted(subkey_groups[group])
+
     return EntityContext(
         class_name=cls_name,
         base_class=base_class,
@@ -144,6 +157,8 @@ def _build_entity_context(
         prefix=entity.prefix,
         plays=sorted(entity.plays) if entity.plays else [],
         fields=fields,
+        cascade_attrs=cascade_attrs,
+        subkey_groups=subkey_groups,
     )
 
 
