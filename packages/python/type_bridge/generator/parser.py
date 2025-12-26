@@ -101,10 +101,24 @@ class SchemaTransformer(Transformer):
 
     def range_annotation(self, items: list[Any]) -> dict[str, str | None]:
         # items[0] is RANGE_EXPR token containing "min..max" or "min.." or "..max"
-        expr = str(items[0])
+        expr = str(items[0]).strip()
+
+        # Validate: @range must use .. syntax, not comma
+        if ".." not in expr:
+            if "," in expr:
+                raise ValueError(
+                    f"Invalid @range syntax: '@range({expr})'. "
+                    f"Use '..' syntax instead of comma, e.g., '@range(1..5)' not '@range(1, 5)'"
+                )
+            else:
+                raise ValueError(
+                    f"Invalid @range syntax: '@range({expr})'. "
+                    f"Expected 'min..max', 'min..', or '..max' format, e.g., '@range(1..5)'"
+                )
+
         parts = expr.split("..")
-        range_min = parts[0] if parts[0] else None
-        range_max = parts[1] if len(parts) > 1 and parts[1] else None
+        range_min = parts[0].strip() if parts[0].strip() else None
+        range_max = parts[1].strip() if len(parts) > 1 and parts[1].strip() else None
         return {"range_min": range_min, "range_max": range_max}
 
     def string_list(self, items: list[Any]) -> list[str]:

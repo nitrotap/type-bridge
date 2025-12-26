@@ -483,6 +483,32 @@ class TestParseRange:
         assert attr.range_min == "0"
         assert attr.range_max is None
 
+    def test_range_invalid_comma_syntax_raises_error(self) -> None:
+        """Invalid @range with comma instead of .. raises clear error."""
+        import pytest
+        from lark.exceptions import VisitError
+
+        with pytest.raises(VisitError) as exc_info:
+            parse_tql_schema("""
+                define
+                attribute priority, value integer @range(1, 5);
+            """)
+        # The original ValueError is wrapped in VisitError
+        assert "Use '..' syntax instead of comma" in str(exc_info.value)
+        assert "@range(1..5)" in str(exc_info.value)
+
+    def test_range_invalid_single_value_raises_error(self) -> None:
+        """Invalid @range with single value (no ..) raises clear error."""
+        import pytest
+        from lark.exceptions import VisitError
+
+        with pytest.raises(VisitError) as exc_info:
+            parse_tql_schema("""
+                define
+                attribute count, value integer @range(100);
+            """)
+        assert "Expected 'min..max'" in str(exc_info.value)
+
 
 class TestParseCardOnPlays:
     """Tests for @card annotation on plays declarations."""
