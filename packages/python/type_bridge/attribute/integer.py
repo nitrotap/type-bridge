@@ -35,8 +35,30 @@ class Integer(Attribute):
 
         Args:
             value: The integer value to store
+
+        Raises:
+            ValueError: If value violates range_constraint
         """
-        super().__init__(value)
+        int_value = int(value)
+
+        # Check range constraint if defined on the class
+        range_constraint = getattr(self.__class__, "range_constraint", None)
+        if range_constraint is not None:
+            range_min, range_max = range_constraint
+            if range_min is not None:
+                min_val = int(range_min)
+                if int_value < min_val:
+                    raise ValueError(
+                        f"{self.__class__.__name__} value {int_value} is below minimum {min_val}"
+                    )
+            if range_max is not None:
+                max_val = int(range_max)
+                if int_value > max_val:
+                    raise ValueError(
+                        f"{self.__class__.__name__} value {int_value} is above maximum {max_val}"
+                    )
+
+        super().__init__(int_value)
 
     @property
     def value(self) -> int:
@@ -181,8 +203,30 @@ class Integer(Attribute):
         # Default: accept int or attribute instance, always return attribute instance
         def validate_long(value: Any) -> "Integer":
             if isinstance(value, cls):
+                int_value = value._value
+            else:
+                int_value = int(value)
+
+            # Check range constraint if defined on the class
+            range_constraint = getattr(cls, "range_constraint", None)
+            if range_constraint is not None:
+                range_min, range_max = range_constraint
+                if range_min is not None:
+                    min_val = int(range_min)
+                    if int_value < min_val:
+                        raise ValueError(
+                            f"{cls.__name__} value {int_value} is below minimum {min_val}"
+                        )
+                if range_max is not None:
+                    max_val = int(range_max)
+                    if int_value > max_val:
+                        raise ValueError(
+                            f"{cls.__name__} value {int_value} is above maximum {max_val}"
+                        )
+
+            if isinstance(value, cls):
                 return value  # Return attribute instance as-is
-            return cls(int(value))  # Wrap raw int in attribute instance
+            return cls(int_value)  # Wrap raw int in attribute instance
 
         return core_schema.with_info_plain_validator_function(
             lambda v, _: validate_long(v),

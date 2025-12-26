@@ -29,8 +29,30 @@ class Double(Attribute):
 
         Args:
             value: The float value to store
+
+        Raises:
+            ValueError: If value violates range_constraint
         """
-        super().__init__(value)
+        float_value = float(value)
+
+        # Check range constraint if defined on the class
+        range_constraint = getattr(self.__class__, "range_constraint", None)
+        if range_constraint is not None:
+            range_min, range_max = range_constraint
+            if range_min is not None:
+                min_val = float(range_min)
+                if float_value < min_val:
+                    raise ValueError(
+                        f"{self.__class__.__name__} value {float_value} is below minimum {min_val}"
+                    )
+            if range_max is not None:
+                max_val = float(range_max)
+                if float_value > max_val:
+                    raise ValueError(
+                        f"{self.__class__.__name__} value {float_value} is above maximum {max_val}"
+                    )
+
+        super().__init__(float_value)
 
     @property
     def value(self) -> float:
@@ -180,8 +202,30 @@ class Double(Attribute):
         # Validator: accept float or attribute instance, always return attribute instance
         def validate_double(value: Any) -> "Double":
             if isinstance(value, cls):
+                float_value = value._value
+            else:
+                float_value = float(value)
+
+            # Check range constraint if defined on the class
+            range_constraint = getattr(cls, "range_constraint", None)
+            if range_constraint is not None:
+                range_min, range_max = range_constraint
+                if range_min is not None:
+                    min_val = float(range_min)
+                    if float_value < min_val:
+                        raise ValueError(
+                            f"{cls.__name__} value {float_value} is below minimum {min_val}"
+                        )
+                if range_max is not None:
+                    max_val = float(range_max)
+                    if float_value > max_val:
+                        raise ValueError(
+                            f"{cls.__name__} value {float_value} is above maximum {max_val}"
+                        )
+
+            if isinstance(value, cls):
                 return value  # Return attribute instance as-is
-            return cls(float(value))  # Wrap raw float in attribute instance
+            return cls(float_value)  # Wrap raw float in attribute instance
 
         return core_schema.with_info_plain_validator_function(
             lambda v, _: validate_double(v),
