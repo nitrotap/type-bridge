@@ -477,3 +477,183 @@ class TestRelationAllIidCorrectness:
         assert rel3.employer._iid == company_z_iid
         assert rel4.employee._iid == person_d_iid
         assert rel4.employer._iid == company_w_iid
+
+
+@pytest.mark.integration
+class TestIidInLookup:
+    """Tests for iid__in lookup filter (issue #80)."""
+
+    @pytest.fixture(autouse=True)
+    def setup_schema(self, clean_db):
+        """Setup schema for each test."""
+        self.db = clean_db
+        schema_manager = SchemaManager(clean_db)
+        schema_manager.register(IidPerson)
+        schema_manager.register(IidCompany)
+        schema_manager.register(IidEmployment)
+        schema_manager.sync_schema(force=True)
+
+    def test_entity_filter_iid_in_multiple(self):
+        """Test filter(iid__in=[...]) with multiple IIDs returns correct entities."""
+        manager = IidPerson.manager(self.db)
+
+        # Insert three persons
+        alice = IidPerson(name=PersonName("Alice_iid_in"), age=PersonAge(30))
+        bob = IidPerson(name=PersonName("Bob_iid_in"), age=PersonAge(25))
+        charlie = IidPerson(name=PersonName("Charlie_iid_in"), age=PersonAge(35))
+        manager.insert(alice)
+        manager.insert(bob)
+        manager.insert(charlie)
+
+        # Get IIDs
+        all_persons = manager.all()
+        alice_iid = next(p._iid for p in all_persons if p.name.value == "Alice_iid_in")
+        bob_iid = next(p._iid for p in all_persons if p.name.value == "Bob_iid_in")
+
+        # Filter by two IIDs
+        result = manager.filter(iid__in=[alice_iid, bob_iid]).execute()
+
+        # Should return exactly 2 persons
+        assert len(result) == 2
+        names = {p.name.value for p in result}
+        assert names == {"Alice_iid_in", "Bob_iid_in"}
+
+    def test_entity_filter_iid_in_single(self):
+        """Test filter(iid__in=[single]) with one IID returns correct entity."""
+        manager = IidPerson.manager(self.db)
+
+        # Insert person
+        person = IidPerson(name=PersonName("Dave_iid_in"), age=PersonAge(40))
+        manager.insert(person)
+
+        # Get IID
+        dave_iid = manager.get(name="Dave_iid_in")[0]._iid
+
+        # Filter by single IID
+        result = manager.filter(iid__in=[dave_iid]).execute()
+
+        assert len(result) == 1
+        assert result[0].name.value == "Dave_iid_in"
+        assert result[0]._iid == dave_iid
+
+    def test_entity_filter_iid_in_with_other_filters(self):
+        """Test iid__in combined with other filters."""
+        manager = IidPerson.manager(self.db)
+
+        # Insert persons
+        eve = IidPerson(name=PersonName("Eve_iid_in"), age=PersonAge(28))
+        frank = IidPerson(name=PersonName("Frank_iid_in"), age=PersonAge(32))
+        grace = IidPerson(name=PersonName("Grace_iid_in"), age=PersonAge(25))
+        manager.insert(eve)
+        manager.insert(frank)
+        manager.insert(grace)
+
+        # Get all IIDs
+        all_persons = manager.all()
+        iids = [p._iid for p in all_persons if "_iid_in" in p.name.value]
+
+        # Filter by IIDs AND age > 27
+        result = manager.filter(iid__in=iids, age__gt=27).execute()
+
+        # Only Eve (28) and Frank (32) match
+        assert len(result) == 2
+        names = {p.name.value for p in result}
+        assert names == {"Eve_iid_in", "Frank_iid_in"}
+
+    def test_relation_filter_iid_in(self):
+        """Test filter(iid__in=[...]) on relations."""
+        person_mgr = IidPerson.manager(self.db)
+        company_mgr = IidCompany.manager(self.db)
+        emp_mgr = IidEmployment.manager(self.db)
+
+        # Insert entities
+        person = IidPerson(name=PersonName("Helen_iid_in"), age=PersonAge(35))
+        person_mgr.insert(person)
+
+        company1 = IidCompany(name=CompanyName("Corp1_iid_in"))
+        company2 = IidCompany(name=CompanyName("Corp2_iid_in"))
+        company_mgr.insert(company1)
+        company_mgr.insert(company2)
+
+        # Insert two relations
+        emp1 = IidEmployment(employee=person, employer=company1, position=Position("Eng1"))
+        emp2 = IidEmployment(employee=person, employer=company2, position=Position("Eng2"))
+        emp_mgr.insert(emp1)
+        emp_mgr.insert(emp2)
+
+        # Get IIDs
+        all_emps = emp_mgr.all()
+        emp1_iid = next(e._iid for e in all_emps if e.position and e.position.value == "Eng1")
+
+        # Filter by single relation IID
+        result = emp_mgr.filter(iid__in=[emp1_iid]).execute()
+
+        assert len(result) == 1
+        assert result[0].position is not None
+        assert result[0].position.value == "Eng1"
+
+    def test_relation_filter_role_iid_in(self):
+        """Test filter(role__iid__in=[...]) to filter by role player IIDs."""
+        person_mgr = IidPerson.manager(self.db)
+        company_mgr = IidCompany.manager(self.db)
+        emp_mgr = IidEmployment.manager(self.db)
+
+        # Insert entities
+        p1 = IidPerson(name=PersonName("Ivan_iid_in"), age=PersonAge(30))
+        p2 = IidPerson(name=PersonName("Jane_iid_in"), age=PersonAge(28))
+        person_mgr.insert(p1)
+        person_mgr.insert(p2)
+
+        company = IidCompany(name=CompanyName("BigTech_iid_in"))
+        company_mgr.insert(company)
+
+        # Insert relations for both persons
+        emp1 = IidEmployment(employee=p1, employer=company, position=Position("Dev"))
+        emp2 = IidEmployment(employee=p2, employer=company, position=Position("QA"))
+        emp_mgr.insert(emp1)
+        emp_mgr.insert(emp2)
+
+        # Get Ivan's IID
+        ivan_iid = person_mgr.get(name="Ivan_iid_in")[0]._iid
+
+        # Filter relations where employee IID matches Ivan
+        result = emp_mgr.filter(employee__iid__in=[ivan_iid]).execute()
+
+        assert len(result) == 1
+        assert result[0].position is not None
+        assert result[0].position.value == "Dev"
+        assert result[0].employee.name.value == "Ivan_iid_in"
+
+    def test_relation_filter_role_iid_in_multiple(self):
+        """Test filter(role__iid__in=[...]) with multiple role player IIDs."""
+        person_mgr = IidPerson.manager(self.db)
+        company_mgr = IidCompany.manager(self.db)
+        emp_mgr = IidEmployment.manager(self.db)
+
+        # Insert entities
+        p1 = IidPerson(name=PersonName("Kate_iid_in"), age=PersonAge(31))
+        p2 = IidPerson(name=PersonName("Leo_iid_in"), age=PersonAge(27))
+        p3 = IidPerson(name=PersonName("Mike_iid_in"), age=PersonAge(40))
+        person_mgr.insert(p1)
+        person_mgr.insert(p2)
+        person_mgr.insert(p3)
+
+        company = IidCompany(name=CompanyName("SmallTech_iid_in"))
+        company_mgr.insert(company)
+
+        # Insert relations for all three
+        emp_mgr.insert(IidEmployment(employee=p1, employer=company, position=Position("Lead")))
+        emp_mgr.insert(IidEmployment(employee=p2, employer=company, position=Position("Junior")))
+        emp_mgr.insert(IidEmployment(employee=p3, employer=company, position=Position("Senior")))
+
+        # Get Kate and Leo's IIDs
+        kate_iid = person_mgr.get(name="Kate_iid_in")[0]._iid
+        leo_iid = person_mgr.get(name="Leo_iid_in")[0]._iid
+
+        # Filter relations where employee IID is Kate or Leo
+        result = emp_mgr.filter(employee__iid__in=[kate_iid, leo_iid]).execute()
+
+        assert len(result) == 2
+        assert all(r.position is not None for r in result)
+        positions = {r.position.value for r in result if r.position is not None}
+        assert positions == {"Lead", "Junior"}

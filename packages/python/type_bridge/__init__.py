@@ -27,7 +27,12 @@ from type_bridge.crud import (
     RelationManager,
     RelationNotFoundError,
 )
-from type_bridge.migration import Migration, MigrationError, MigrationExecutor, ModelRegistry
+from type_bridge.migration import (
+    Migration,
+    MigrationError,
+    MigrationExecutor,
+    ModelRegistry,
+)
 from type_bridge.migration import operations as migration_ops
 from type_bridge.models import Entity, Relation, Role, TypeDBType
 from type_bridge.query import Query, QueryBuilder

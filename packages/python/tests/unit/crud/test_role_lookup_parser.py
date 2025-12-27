@@ -472,3 +472,115 @@ def test_parse_mixed_with_relation_attribute_lookup():
     assert len(role_exprs["employee"]) == 1
     assert len(attr_exprs) == 1
     assert isinstance(attr_exprs[0], ComparisonExpr)
+
+
+# ============================================================
+# iid__in lookup tests
+# ============================================================
+
+
+def test_parse_relation_iid_in():
+    """Test iid__in lookup on relation itself creates OR of IidExpr."""
+    from type_bridge.expressions import IidExpr
+
+    attr_filters, role_filters, role_exprs, attr_exprs = parse_role_lookup_filters(
+        Employment, {"iid__in": ["0x1a2b3c4d", "0x5e6f7a8b"]}
+    )
+    assert attr_filters == {}
+    assert role_filters == {}
+    assert role_exprs == {}
+    assert len(attr_exprs) == 1
+    expr = attr_exprs[0]
+    assert isinstance(expr, BooleanExpr)
+    assert expr.operation == "or"
+    assert len(expr.operands) == 2
+    assert all(isinstance(e, IidExpr) for e in expr.operands)
+
+
+def test_parse_relation_iid_in_single_value():
+    """Test iid__in with single value returns just IidExpr."""
+    from type_bridge.expressions import IidExpr
+
+    _, _, _, attr_exprs = parse_role_lookup_filters(Employment, {"iid__in": ["0x1a2b3c4d"]})
+    assert len(attr_exprs) == 1
+    assert isinstance(attr_exprs[0], IidExpr)
+
+
+def test_parse_relation_iid_in_requires_iterable():
+    """Test iid__in requires iterable."""
+    with pytest.raises(ValueError, match="requires an iterable"):
+        parse_role_lookup_filters(Employment, {"iid__in": "0x1a2b3c4d"})
+
+
+def test_parse_relation_iid_in_requires_non_empty():
+    """Test iid__in requires non-empty iterable."""
+    with pytest.raises(ValueError, match="non-empty"):
+        parse_role_lookup_filters(Employment, {"iid__in": []})
+
+
+def test_parse_role_iid_in():
+    """Test role__iid__in lookup on role player creates RolePlayerExpr with IidExpr."""
+    from type_bridge.expressions import IidExpr
+
+    _, _, role_exprs, _ = parse_role_lookup_filters(
+        Employment, {"employee__iid__in": ["0x1a2b3c4d", "0x5e6f7a8b"]}
+    )
+    assert "employee" in role_exprs
+    assert len(role_exprs["employee"]) == 1
+    role_expr = role_exprs["employee"][0]
+    assert isinstance(role_expr, RolePlayerExpr)
+    assert role_expr.role_name == "employee"
+    assert isinstance(role_expr.inner_expr, BooleanExpr)
+    assert role_expr.inner_expr.operation == "or"
+    assert len(role_expr.inner_expr.operands) == 2
+    assert all(isinstance(e, IidExpr) for e in role_expr.inner_expr.operands)
+
+
+def test_parse_role_iid_in_single_value():
+    """Test role__iid__in with single value returns IidExpr directly."""
+    from type_bridge.expressions import IidExpr
+
+    _, _, role_exprs, _ = parse_role_lookup_filters(
+        Employment, {"employee__iid__in": ["0x1a2b3c4d"]}
+    )
+    role_expr = role_exprs["employee"][0]
+    assert isinstance(role_expr, RolePlayerExpr)
+    assert isinstance(role_expr.inner_expr, IidExpr)
+
+
+def test_parse_role_iid_in_requires_iterable():
+    """Test role__iid__in requires iterable."""
+    with pytest.raises(ValueError, match="requires an iterable"):
+        parse_role_lookup_filters(Employment, {"employee__iid__in": "0x1a2b3c4d"})
+
+
+def test_parse_role_iid_in_requires_non_empty():
+    """Test role__iid__in requires non-empty iterable."""
+    with pytest.raises(ValueError, match="non-empty"):
+        parse_role_lookup_filters(Employment, {"employee__iid__in": []})
+
+
+def test_parse_role_iid_in_with_other_filters():
+    """Test role__iid__in combined with other filters."""
+    from type_bridge.expressions import IidExpr
+
+    attr_filters, role_filters, role_exprs, attr_exprs = parse_role_lookup_filters(
+        Employment,
+        {
+            "employee__iid__in": ["0x1a2b3c4d"],
+            "employer__name__contains": "Tech",
+            "salary__gt": 50000,
+        },
+    )
+    assert attr_filters == {}
+    assert "employee" in role_exprs
+    assert "employer" in role_exprs
+    # Employee has IID filter
+    employee_expr = role_exprs["employee"][0]
+    assert isinstance(employee_expr.inner_expr, IidExpr)
+    # Employer has string filter
+    employer_expr = role_exprs["employer"][0]
+    assert isinstance(employer_expr.inner_expr, StringExpr)
+    # Salary has comparison
+    assert len(attr_exprs) == 1
+    assert isinstance(attr_exprs[0], ComparisonExpr)
