@@ -28,6 +28,16 @@ class {{ entity.class_name }}({{ entity.base_class }}):
 {% for field in entity.fields %}
     {{ field }}
 {% endfor %}
+{% if entity.cascade_attrs %}
+    # TODO: @cascade annotation (coming soon in TypeDB)
+    # cascade_attrs: {{ entity.cascade_attrs }}
+{% endif %}
+{% if entity.subkey_groups %}
+    # TODO: @subkey annotation (coming soon in TypeDB)
+{% for group, attrs in entity.subkey_groups.items() %}
+    # subkey_group "{{ group }}": {{ attrs }}
+{% endfor %}
+{% endif %}
 
 
 {% endfor %}

@@ -97,6 +97,42 @@ class TestRenderAttributes:
             in source
         )
 
+    def test_attribute_with_independent(self) -> None:
+        """Render attribute with @independent annotation."""
+        schema = parse_tql_schema("""
+            define
+            attribute language @independent, value string;
+        """)
+        class_names = build_class_name_map(schema.attributes)
+        source = render_attributes(schema, class_names)
+
+        assert "class Language(String):" in source
+        assert "independent = True" in source
+
+    def test_attribute_independent_with_abstract(self) -> None:
+        """Render attribute with both @abstract and @independent."""
+        schema = parse_tql_schema("""
+            define
+            attribute tag @abstract @independent, value string;
+        """)
+        class_names = build_class_name_map(schema.attributes)
+        source = render_attributes(schema, class_names)
+
+        assert "class Tag(String):" in source
+        assert "independent = True" in source
+
+    def test_attribute_not_independent_by_default(self) -> None:
+        """Render attribute without @independent should not include independent = True."""
+        schema = parse_tql_schema("""
+            define
+            attribute name, value string;
+        """)
+        class_names = build_class_name_map(schema.attributes)
+        source = render_attributes(schema, class_names)
+
+        assert "class Name(String):" in source
+        assert "independent = True" not in source
+
 
 class TestRenderEntities:
     """Tests for entity rendering."""
@@ -218,6 +254,133 @@ class TestRenderRelations:
         source = render_relations(schema, attr_names, entity_names, relation_names)
 
         assert "since: attributes.Since" in source
+
+
+class TestComingSoonAnnotationStubs:
+    """Tests for coming-soon annotation stubs (TODO comments in generated code)."""
+
+    def test_entity_cascade_stub(self) -> None:
+        """Render entity with @cascade annotation stub."""
+        schema = parse_tql_schema("""
+            define
+            attribute name, value string;
+
+            define
+            entity person,
+                owns name;
+        """)
+        # Manually set cascades (parser doesn't parse this yet as it's coming soon)
+        schema.entities["person"].cascades = {"name"}
+
+        attr_names = build_class_name_map(schema.attributes)
+        entity_names = build_class_name_map(schema.entities)
+        source = render_entities(schema, attr_names, entity_names)
+
+        assert "# TODO: @cascade annotation (coming soon in TypeDB)" in source
+        assert "# cascade_attrs:" in source
+        assert "'name'" in source
+
+    def test_entity_subkey_stub(self) -> None:
+        """Render entity with @subkey annotation stub."""
+        schema = parse_tql_schema("""
+            define
+            attribute first_name, value string;
+            attribute last_name, value string;
+
+            define
+            entity person,
+                owns first_name,
+                owns last_name;
+        """)
+        # Manually set subkeys (parser doesn't parse this yet as it's coming soon)
+        schema.entities["person"].subkeys = {"first_name": "name_key", "last_name": "name_key"}
+
+        attr_names = build_class_name_map(schema.attributes)
+        entity_names = build_class_name_map(schema.entities)
+        source = render_entities(schema, attr_names, entity_names)
+
+        assert "# TODO: @subkey annotation (coming soon in TypeDB)" in source
+        assert '# subkey_group "name_key":' in source
+        assert "'first_name'" in source or "'last_name'" in source
+
+    def test_relation_cascade_stub(self) -> None:
+        """Render relation with @cascade annotation stub."""
+        schema = parse_tql_schema("""
+            define
+            attribute since, value datetime;
+            entity person,
+                plays friendship:friend;
+
+            define
+            relation friendship,
+                relates friend,
+                owns since;
+        """)
+        # Manually set cascades
+        schema.relations["friendship"].cascades = {"since"}
+
+        attr_names = build_class_name_map(schema.attributes)
+        entity_names = build_class_name_map(schema.entities)
+        relation_names = build_class_name_map(schema.relations)
+        source = render_relations(schema, attr_names, entity_names, relation_names)
+
+        assert "# TODO: @cascade annotation (coming soon in TypeDB)" in source
+        assert "# cascade_attrs:" in source
+        assert "'since'" in source
+
+    def test_relation_distinct_stub(self) -> None:
+        """Render relation with @distinct role annotation stub."""
+        schema = parse_tql_schema("""
+            define
+            entity person,
+                plays friendship:friend;
+
+            define
+            relation friendship,
+                relates friend;
+        """)
+        # Manually set distinct on role
+        schema.relations["friendship"].roles[0].distinct = True
+
+        attr_names = build_class_name_map(schema.attributes)
+        entity_names = build_class_name_map(schema.entities)
+        relation_names = build_class_name_map(schema.relations)
+        source = render_relations(schema, attr_names, entity_names, relation_names)
+
+        assert "# TODO: @distinct annotation (coming soon in TypeDB)" in source
+        assert "# distinct_roles:" in source
+        assert "'friend'" in source
+
+    def test_no_stubs_when_annotations_absent(self) -> None:
+        """No TODO stubs when coming-soon annotations are not present."""
+        schema = parse_tql_schema("""
+            define
+            attribute name, value string;
+
+            define
+            entity person,
+                owns name;
+
+            define
+            relation friendship,
+                relates friend;
+
+            define
+            entity member,
+                plays friendship:friend;
+        """)
+        attr_names = build_class_name_map(schema.attributes)
+        entity_names = build_class_name_map(schema.entities)
+        relation_names = build_class_name_map(schema.relations)
+
+        entity_source = render_entities(schema, attr_names, entity_names)
+        relation_source = render_relations(schema, attr_names, entity_names, relation_names)
+
+        # No TODO stubs should appear
+        assert "# TODO: @cascade" not in entity_source
+        assert "# TODO: @subkey" not in entity_source
+        assert "# TODO: @cascade" not in relation_source
+        assert "# TODO: @distinct" not in relation_source
 
 
 class TestRenderPackageInit:

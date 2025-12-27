@@ -21,6 +21,20 @@ class {{ relation.class_name }}({{ relation.base_class }}):
 {% for role_field in relation.role_fields %}
     {{ role_field }}
 {% endfor %}
+{% if relation.cascade_attrs %}
+    # TODO: @cascade annotation (coming soon in TypeDB)
+    # cascade_attrs: {{ relation.cascade_attrs }}
+{% endif %}
+{% if relation.subkey_groups %}
+    # TODO: @subkey annotation (coming soon in TypeDB)
+{% for group, attrs in relation.subkey_groups.items() %}
+    # subkey_group "{{ group }}": {{ attrs }}
+{% endfor %}
+{% endif %}
+{% if relation.distinct_roles %}
+    # TODO: @distinct annotation (coming soon in TypeDB)
+    # distinct_roles: {{ relation.distinct_roles }}
+{% endif %}
 
 
 {% endfor %}

@@ -74,6 +74,7 @@ class Attribute(ABC):
     # Class-level metadata
     value_type: ClassVar[str]  # TypeDB value type (string, integer, double, boolean, datetime)
     abstract: ClassVar[bool] = False
+    independent: ClassVar[bool] = False  # @independent - attribute can exist without owners
     attr_name: ClassVar[str | None] = None  # Explicit attribute name (optional)
     case: ClassVar["TypeNameCase | None"] = (
         None  # Case formatting option (optional, defaults to CLASS_NAME)
@@ -204,6 +205,11 @@ class Attribute(ABC):
         return cls.abstract
 
     @classmethod
+    def is_independent(cls) -> bool:
+        """Check if this attribute is independent (can exist without owners)."""
+        return cls.independent
+
+    @classmethod
     def get_supertype(cls) -> str | None:
         """Get the supertype if this attribute extends another."""
         return cls._supertype
@@ -212,20 +218,60 @@ class Attribute(ABC):
     def to_schema_definition(cls) -> str:
         """Generate TypeQL schema definition for this attribute.
 
+        Includes support for TypeDB annotations:
+        - @abstract (comes right after attribute name)
+        - @independent (comes right after attribute name, allows standalone existence)
+        - @range(min..max) from range_constraint ClassVar (after value type)
+        - @regex("pattern") from regex ClassVar (after value type)
+        - @values("a", "b", ...) from allowed_values ClassVar (after value type)
+
         Returns:
             TypeQL schema definition string
         """
         attr_name = cls.get_attribute_name()
         value_type = cls.get_value_type()
 
-        # Check if this is a subtype
-        if cls._supertype:
+        # Build type-level annotations (@abstract, @independent come right after name)
+        type_annotations = []
+        if cls.abstract:
+            type_annotations.append("@abstract")
+        if cls.independent:
+            type_annotations.append("@independent")
+
+        # Build definition: attribute name [@abstract] [@independent], [sub parent,] value type;
+        if type_annotations:
+            annotations_str = " ".join(type_annotations)
+            if cls._supertype:
+                definition = f"attribute {attr_name} {annotations_str}, sub {cls._supertype}, value {value_type}"
+            else:
+                definition = f"attribute {attr_name} {annotations_str}, value {value_type}"
+        elif cls._supertype:
             definition = f"attribute {attr_name} sub {cls._supertype}, value {value_type}"
         else:
             definition = f"attribute {attr_name}, value {value_type}"
 
-        if cls.abstract:
-            definition += ", abstract"
+        # Add @range annotation if range_constraint is defined (after value type)
+        range_constraint = getattr(cls, "range_constraint", None)
+        if range_constraint is not None:
+            range_min, range_max = range_constraint
+            # Format as @range(min..max), @range(min..), or @range(..max)
+            min_part = range_min if range_min is not None else ""
+            max_part = range_max if range_max is not None else ""
+            definition += f" @range({min_part}..{max_part})"
+
+        # Add @regex annotation if regex is defined (after value type)
+        regex_pattern = getattr(cls, "regex", None)
+        if regex_pattern is not None and isinstance(regex_pattern, str):
+            # Escape any quotes in the pattern
+            escaped_pattern = regex_pattern.replace('"', '\\"')
+            definition += f' @regex("{escaped_pattern}")'
+
+        # Add @values annotation if allowed_values is defined (after value type)
+        allowed_values = getattr(cls, "allowed_values", None)
+        if allowed_values is not None and isinstance(allowed_values, tuple):
+            # Format as @values("a", "b", ...)
+            values_str = ", ".join(f'"{v}"' for v in allowed_values)
+            definition += f" @values({values_str})"
 
         return definition + ";"
 
