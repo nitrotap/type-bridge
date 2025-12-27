@@ -477,6 +477,110 @@ class Age(Integer):
     pass  # -> Age
 ```
 
+## Value Constraints
+
+TypeBridge supports TypeDB's value constraint annotations. These provide two layers of validation:
+1. **Python-side**: Immediate validation with clear error messages
+2. **TypeDB-side**: Database-level enforcement via schema annotations
+
+### @range - Numeric Range Constraints
+
+Constrain `Integer` or `Double` values to a specific range:
+
+```python
+from typing import ClassVar
+from type_bridge import Integer, Double
+
+class Age(Integer):
+    """Age must be between 0 and 150."""
+    range_constraint: ClassVar[tuple[str | None, str | None]] = ("0", "150")
+
+class Temperature(Double):
+    """Temperature in Celsius, -50 to 50."""
+    range_constraint: ClassVar[tuple[str | None, str | None]] = ("-50.0", "50.0")
+
+# Open-ended ranges
+class Score(Integer):
+    """Non-negative scores (min only)."""
+    range_constraint: ClassVar[tuple[str | None, str | None]] = ("0", None)
+
+class Priority(Integer):
+    """Priority up to 10 (max only)."""
+    range_constraint: ClassVar[tuple[str | None, str | None]] = (None, "10")
+```
+
+**Validation behavior:**
+```python
+Age(30)    # ✅ Valid
+Age(-1)    # ❌ ValueError: Age value -1 is below minimum 0
+Age(200)   # ❌ ValueError: Age value 200 is above maximum 150
+```
+
+**Generated TypeQL:**
+```typeql
+attribute Age, value integer @range(0..150);
+attribute Temperature, value double @range(-50.0..50.0);
+attribute Score, value integer @range(0..);
+attribute Priority, value integer @range(..10);
+```
+
+### @regex - Pattern Constraints
+
+Constrain `String` values to match a regex pattern:
+
+```python
+from typing import ClassVar
+from type_bridge import String
+
+class Email(String):
+    """Must be a valid email format."""
+    regex: ClassVar[str] = r"^[a-z]+@[a-z]+\.[a-z]+$"
+
+class PhoneNumber(String):
+    """International phone format."""
+    regex: ClassVar[str] = r"^\+?[0-9]{10,14}$"
+```
+
+**Generated TypeQL:**
+```typeql
+attribute Email, value string @regex("^[a-z]+@[a-z]+\.[a-z]+$");
+```
+
+### @values - Enumerated Values
+
+Constrain `String` to a set of allowed values:
+
+```python
+from typing import ClassVar
+from type_bridge import String
+
+class Status(String):
+    """Only these status values are allowed."""
+    allowed_values: ClassVar[tuple[str, ...]] = ("active", "inactive", "pending")
+
+class Priority(String):
+    """Priority levels."""
+    allowed_values: ClassVar[tuple[str, ...]] = ("low", "medium", "high", "critical")
+```
+
+**Generated TypeQL:**
+```typeql
+attribute Status, value string @values("active", "inactive", "pending");
+```
+
+### Schema Synchronization
+
+When using `SchemaManager.sync_schema()`, these constraints are automatically included in the generated TypeQL schema, ensuring TypeDB enforces them at the database level:
+
+```python
+from type_bridge import SchemaManager, Database
+
+db = Database(address="localhost:1729", database="mydb")
+schema_manager = SchemaManager(db)
+schema_manager.register(Person)  # Person owns Age with range_constraint
+schema_manager.sync_schema()     # @range is included in TypeDB schema
+```
+
 ## Best Practices
 
 ### 1. Create Distinct Attribute Types

@@ -89,7 +89,7 @@ class TestRenderAttributes:
         class_names = build_class_name_map(schema.attributes)
         source = render_attributes(schema, class_names)
 
-        assert 'range_constraint: ClassVar[tuple[str | None, str | None]] = ("0", null)' in source
+        assert 'range_constraint: ClassVar[tuple[str | None, str | None]] = ("0", None)' in source
 
 
 class TestRenderEntities:

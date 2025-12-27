@@ -212,20 +212,54 @@ class Attribute(ABC):
     def to_schema_definition(cls) -> str:
         """Generate TypeQL schema definition for this attribute.
 
+        Includes support for TypeDB annotations:
+        - @abstract (comes right after attribute name)
+        - @range(min..max) from range_constraint ClassVar (after value type)
+        - @regex("pattern") from regex ClassVar (after value type)
+        - @values("a", "b", ...) from allowed_values ClassVar (after value type)
+
         Returns:
             TypeQL schema definition string
         """
         attr_name = cls.get_attribute_name()
         value_type = cls.get_value_type()
 
-        # Check if this is a subtype
-        if cls._supertype:
+        # Build definition: attribute name [@abstract] [sub parent], value type [annotations];
+        # @abstract comes right after the name, before sub/value clauses
+        if cls.abstract:
+            if cls._supertype:
+                definition = (
+                    f"attribute {attr_name} @abstract, sub {cls._supertype}, value {value_type}"
+                )
+            else:
+                definition = f"attribute {attr_name} @abstract, value {value_type}"
+        elif cls._supertype:
             definition = f"attribute {attr_name} sub {cls._supertype}, value {value_type}"
         else:
             definition = f"attribute {attr_name}, value {value_type}"
 
-        if cls.abstract:
-            definition += ", abstract"
+        # Add @range annotation if range_constraint is defined (after value type)
+        range_constraint = getattr(cls, "range_constraint", None)
+        if range_constraint is not None:
+            range_min, range_max = range_constraint
+            # Format as @range(min..max), @range(min..), or @range(..max)
+            min_part = range_min if range_min is not None else ""
+            max_part = range_max if range_max is not None else ""
+            definition += f" @range({min_part}..{max_part})"
+
+        # Add @regex annotation if regex is defined (after value type)
+        regex_pattern = getattr(cls, "regex", None)
+        if regex_pattern is not None and isinstance(regex_pattern, str):
+            # Escape any quotes in the pattern
+            escaped_pattern = regex_pattern.replace('"', '\\"')
+            definition += f' @regex("{escaped_pattern}")'
+
+        # Add @values annotation if allowed_values is defined (after value type)
+        allowed_values = getattr(cls, "allowed_values", None)
+        if allowed_values is not None and isinstance(allowed_values, tuple):
+            # Format as @values("a", "b", ...)
+            values_str = ", ".join(f'"{v}"' for v in allowed_values)
+            definition += f" @values({values_str})"
 
         return definition + ";"
 
