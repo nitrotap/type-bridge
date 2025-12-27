@@ -75,9 +75,17 @@ from type_bridge.migration.executor import (
     MigrationResult,
 )
 from type_bridge.migration.generator import MigrationGenerator
-from type_bridge.migration.loader import LoadedMigration, MigrationLoader, MigrationLoadError
+from type_bridge.migration.loader import (
+    LoadedMigration,
+    MigrationLoader,
+    MigrationLoadError,
+)
 from type_bridge.migration.registry import ModelRegistry
-from type_bridge.migration.state import MigrationRecord, MigrationState, MigrationStateManager
+from type_bridge.migration.state import (
+    MigrationRecord,
+    MigrationState,
+    MigrationStateManager,
+)
 
 __all__ = [
     # Core classes
