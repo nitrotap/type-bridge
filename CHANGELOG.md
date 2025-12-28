@@ -2,6 +2,214 @@
 
 All notable changes to TypeBridge will be documented in this file.
 
+## [1.2.3] - 2025-12-28
+
+### New Features
+
+#### Enhanced FunctionQuery System (PR #84)
+- **Complete TypeQL query generation for function calls**
+  - FunctionQuery generates full `match let` queries with variable binding
+  - Support for scalar returns, stream returns, and composite tuples
+  - Query methods: `to_call()`, `to_match_let()`, `to_fetch()`, `to_query()`
+  - Pagination support with limit/offset/sort
+  - Location: `type_bridge/expressions/functions.py`
+
+**Usage Example:**
+```python
+from myschema.functions import count_artifacts, get_neighbor_ids
+
+# Simple count
+fn = count_artifacts()
+query = fn.to_query()
+# → match let $integer = count-artifacts(); fetch { "integer": $integer };
+
+# Stream with pagination
+fn = get_neighbor_ids(target_id="abc-123")
+query = fn.to_query(limit=10, offset=5)
+```
+
+#### Driver Injection Support (PR #86)
+- **Share TypeDB driver instances across Database objects**
+  - Optional `driver` parameter in `Database.__init__()`
+  - Ownership tracking with `_owns_driver` flag for lifecycle control
+  - Enables connection pooling and framework integration
+  - Location: `type_bridge/session.py`
+
+**Benefits:**
+- Resource efficiency (share one TCP connection)
+- Application-level connection pooling strategies
+- Centralized driver lifecycle management
+- Backwards compatible (default behavior unchanged)
+
+**Usage Example:**
+```python
+driver = TypeDB.driver("localhost:1729", Credentials("admin", "password"))
+
+db1 = Database(database="project_a", driver=driver)  # Shares driver
+db2 = Database(database="project_b", driver=driver)  # Shares driver
+
+db1.close()  # Just clears reference
+db2.close()  # Just clears reference
+driver.close()  # Actually closes connection
+```
+
+#### @independent Annotation Support (PR #83)
+- **Standalone attributes without entity/relation owners**
+  - Add `independent = True` ClassVar to attribute classes
+  - Generates `@independent` annotation in TypeQL schema
+  - Enables standalone attribute insertion and queries
+  - Location: `type_bridge/attribute/base.py`
+
+**Usage Example:**
+```python
+class Language(String):
+    """Can exist without an owner."""
+    independent = True
+
+# Generated TypeQL: attribute Language @independent, value string;
+```
+
+#### @range Validation and Schema Generation (PR #82)
+- **Runtime validation with database enforcement**
+  - `Integer` and `Double` validate `range_constraint` ClassVar at initialization
+  - Schema generation includes `@range(min..max)` annotations
+  - Also generates `@regex` and `@values` annotations from ClassVars
+  - Two-layer validation: Python-side (fail-fast) + TypeDB-side (enforcement)
+  - Location: `type_bridge/attribute/integer.py`, `type_bridge/attribute/double.py`
+
+**Usage Example:**
+```python
+from typing import ClassVar
+
+class Age(Integer):
+    range_constraint: ClassVar[tuple[str | None, str | None]] = ("0", "150")
+
+Age(200)  # Raises: ValueError: Age value 200 is above maximum 150
+
+# Generated schema: attribute Age, value integer @range(0..150);
+```
+
+#### Batch IID Filtering (PR #81)
+- **Django-style `iid__in` lookup for efficient batch queries**
+  - Filter entities/relations by multiple IIDs in single query
+  - Role player filtering: `employee__iid__in=[...]`
+  - Uses flat BooleanExpr to avoid stack overflow with many IIDs
+  - Location: `type_bridge/expressions/iid.py`, `type_bridge/crud/entity/manager.py`
+
+**Usage Example:**
+```python
+# Fetch multiple entities by IID
+persons = Person.manager(db).filter(iid__in=["0x1a2b3c", "0x4d5e6f"]).execute()
+
+# Filter relations by role player IIDs
+employments = Employment.manager(db).filter(employee__iid__in=["0x1a2b3c"]).execute()
+```
+
+**Performance:** O(1) query vs O(N) `get_by_iid()` calls.
+
+#### TypeQL Annotation Validation (PR #86)
+- **Comprehensive validation for schema annotations**
+  - `@card`: Validates min ≤ max, non-negative values, detects comma syntax
+  - `@regex`: Validates patterns compile as valid regex
+  - `@values`: Validates at least one value, detects duplicates
+  - `@range`: Validates proper `..` syntax, rejects comma/single-value
+  - Clear, actionable error messages
+  - Location: `type_bridge/generator/parser.py`
+
+### Bug Fixes
+
+#### Code Generator Fixes (PR #86)
+- **Fixed relation inheritance to include keys, uniques, and cardinalities**
+  - Child relations now inherit `@key`, `@unique`, and `@card` from parent
+  - Ensures complete type definitions in generated code
+  - Location: `type_bridge/generator/render/relations.py`
+
+- **Fixed optional relation attributes in generated models**
+  - Correct type hints with `| None` for optional fields
+  - Proper default values (e.g., `timestamp: Timestamp | None = None`)
+  - Respects cardinality: `@card(1)` = required, no annotation = optional
+  - Location: `type_bridge/generator/render/relations.py`
+
+- **Fixed Python literal rendering for @range annotations**
+  - Range values output as numeric literals: `(1, None)` not `("1", null)`
+  - Fixed type hint from `str | None` to `int | float | None`
+  - Location: `type_bridge/generator/render/attributes.py`
+
+#### Query Generation Fixes (PR #84)
+- **Fixed composite variable lists in FunctionQuery**
+  - Removed incorrect parentheses around variable lists
+  - Correct: `match let $a, $b in func()`
+  - Incorrect (previous): `match let ($a, $b) in func()`
+  - Location: `type_bridge/expressions/functions.py`
+
+#### Type Checking Fixes
+- **Proper type annotations for ty type checker**
+  - Use `type[Attribute]` instead of generic type
+  - Use `type[Entity] | type[Relation]` for model params
+  - Core library passes ty with zero warnings
+  - Location: `type_bridge/crud/relation/lookup.py`, `type_bridge/schema/introspection.py`
+
+- **Added None checks for optional attributes**
+  - `assert position is not None` guards before accessing `.value`
+  - Fixes pyright errors in tests
+  - Location: `tests/integration/crud/test_iid_feature.py`
+
+### Development & Tooling
+
+#### Project Restructuring
+- **Moved Python package to repository root**
+  - Transitioned from monorepo (`packages/python/`) to root-level package
+  - TypeScript split into separate [type-bridge-ts](https://github.com/ds1sqe/type-bridge-ts) repository
+  - Simplified CI/CD configuration
+
+#### Pre-commit Hooks
+- **Comprehensive code quality automation**
+  - ruff linting and formatting
+  - pyright type checking
+  - ty type checker for enhanced type safety
+  - Location: `.pre-commit-config.yaml`
+
+#### Type Checker Configuration
+- **Configured ty rules for metaclass compatibility**
+  - Overrides for tests/examples to handle metaclass-generated code
+  - Rules: unknown-argument, unresolved-attribute, call-non-callable
+  - Location: `pyproject.toml` [tool.ty.overrides]
+
+### Documentation
+
+- **FunctionQuery documentation and integration tests**
+  - Comprehensive examples of query generation patterns
+  - All function patterns tested (scalar, stream, composite)
+
+- **Database driver injection guide**
+  - Connection pooling examples
+  - Framework integration patterns
+
+- **Generator relation cardinality documentation**
+  - Clarified `@card` behavior on relation attributes
+  - Required vs optional attribute patterns
+
+### Testing
+
+- **1096 unit tests passing** (100% pass rate)
+- **All integration tests passing**
+- **0 errors with pyright and ty type checkers**
+
+### Key Files Modified
+
+- `type_bridge/expressions/functions.py` - Enhanced FunctionQuery
+- `type_bridge/session.py` - Driver injection support
+- `type_bridge/generator/parser.py` - Annotation validation
+- `type_bridge/generator/render/relations.py` - Inheritance and optional attributes
+- `type_bridge/generator/render/attributes.py` - Python literal rendering
+- `type_bridge/crud/relation/lookup.py` - Type annotations
+- `type_bridge/schema/introspection.py` - Type annotations
+- `type_bridge/attribute/base.py` - @independent support
+- `type_bridge/attribute/integer.py` - @range validation
+- `type_bridge/attribute/double.py` - @range validation
+- `.pre-commit-config.yaml` - Pre-commit hooks configuration
+- `pyproject.toml` - ty type checker configuration
+
 ## [1.2.2] - 2025-12-25
 
 ### Bug Fixes
