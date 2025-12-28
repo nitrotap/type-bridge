@@ -145,6 +145,7 @@ class Database:
         database: str = "typedb",
         username: str | None = None,
         password: str | None = None,
+        driver: Driver | None = None,
     ):
         """Initialize database connection.
 
@@ -153,15 +154,23 @@ class Database:
             database: Database name
             username: Optional username for authentication
             password: Optional password for authentication
+            driver: Optional pre-existing Driver instance to use. If provided,
+                the Database will use this driver instead of creating a new one.
+                The caller retains ownership and is responsible for closing it.
         """
         self.address = address
         self.database_name = database
         self.username = username
         self.password = password
-        self._driver: Driver | None = None
+        self._driver: Driver | None = driver
+        self._owns_driver: bool = driver is None  # Track ownership
 
     def connect(self) -> None:
-        """Connect to TypeDB server."""
+        """Connect to TypeDB server.
+
+        If a driver was injected via __init__, this method does nothing
+        (the driver is already connected). Otherwise, creates a new driver.
+        """
         if self._driver is None:
             logger.debug(f"Connecting to TypeDB at {self.address} (database: {self.database_name})")
             # Create credentials if username/password provided
@@ -188,18 +197,27 @@ class Database:
                     self._driver = TypeDB.driver(
                         self.address, Credentials("admin", "password"), driver_options
                     )
+                self._owns_driver = True
                 logger.info(f"Connected to TypeDB at {self.address}")
             except Exception as e:
                 logger.error(f"Failed to connect to TypeDB at {self.address}: {e}")
                 raise
 
     def close(self) -> None:
-        """Close connection to TypeDB server."""
+        """Close connection to TypeDB server.
+
+        If the driver was injected via __init__, this method only clears the
+        reference without closing the driver (the caller retains ownership).
+        If the driver was created internally, it will be closed.
+        """
         if self._driver:
-            logger.debug(f"Closing connection to TypeDB at {self.address}")
-            self._driver.close()
+            if self._owns_driver:
+                logger.debug(f"Closing connection to TypeDB at {self.address}")
+                self._driver.close()
+                logger.info(f"Disconnected from TypeDB at {self.address}")
+            else:
+                logger.debug("Clearing driver reference (external driver, not closing)")
             self._driver = None
-            logger.info(f"Disconnected from TypeDB at {self.address}")
 
     def __enter__(self) -> "Database":
         """Context manager entry."""

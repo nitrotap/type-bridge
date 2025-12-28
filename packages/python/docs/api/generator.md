@@ -243,8 +243,8 @@ relation authoring sub contribution,
 relation review,
     relates reviewer,
     relates reviewed,
-    owns score,
-    owns timestamp;
+    owns score @card(1),      // Required attribute
+    owns timestamp;           // Optional (no @card = 0..1)
 
 // Cardinality constraints on roles
 relation social-relation @abstract,
@@ -277,8 +277,8 @@ class Authoring(Contribution):
 
 class Review(Relation):
     flags = TypeFlags(name="review")
-    score: attributes.Score
-    timestamp: attributes.Timestamp
+    score: attributes.Score                      # Required (@card(1))
+    timestamp: attributes.Timestamp | None = None  # Optional (no @card)
     reviewer: Role[entities.User] = Role("reviewer", entities.User)
     reviewed: Role[entities.Publication] = Role("reviewed", entities.Publication)
 ```
@@ -375,6 +375,8 @@ relation friendship,
 
 ## Cardinality Mapping
 
+The following cardinality rules apply to attributes on both **entities** and **relations**:
+
 | TypeQL | Python Type | Default |
 |--------|-------------|---------|
 | `@card(1)` or `@card(1..1)` | `Type` | Required |
@@ -384,6 +386,8 @@ relation friendship,
 | `@card(2..5)` | `list[Type] = Flag(Card(2, 5))` | Bounded list |
 | `@key` | `Type = Flag(Key)` | Key (implies required) |
 | `@unique` | `Type = Flag(Unique)` | Unique (implies required) |
+
+**Inheritance:** Child types inherit cardinality constraints from parent types. A child can override inherited constraints by redeclaring the attribute with a different `@card`.
 
 ## Comments
 

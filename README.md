@@ -23,7 +23,7 @@ type-bridge provides Pythonic/TypeScript abstractions over TypeDB's native TypeQ
 
 | Package | Version | Install |
 |---------|---------|---------|
-| [Python](./packages/python) | 1.1.0 | `pip install type-bridge` |
+| [Python](./packages/python) | 1.2.2 | `pip install type-bridge` |
 | [TypeScript](./packages/typescript) | 0.1.0 | `npm install @type-bridge/type-bridge` |
 
 ## Quick Start

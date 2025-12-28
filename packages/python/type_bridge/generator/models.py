@@ -324,7 +324,7 @@ def _accumulate_entity_inheritance(schema: ParsedSchema) -> None:
 
 
 def _accumulate_relation_inheritance(schema: ParsedSchema) -> None:
-    """Propagate owns/roles down the relation hierarchy."""
+    """Propagate owns/roles/keys/uniques/cardinalities down the relation hierarchy."""
     changed = True
     while changed:
         changed = False
@@ -332,10 +332,25 @@ def _accumulate_relation_inheritance(schema: ParsedSchema) -> None:
             if not relation.parent or relation.parent not in schema.relations:
                 continue
             parent = schema.relations[relation.parent]
-            before = (len(relation.owns), len(relation.roles))
+            before = (
+                len(relation.owns),
+                len(relation.roles),
+                len(relation.keys),
+                len(relation.uniques),
+                len(relation.cardinalities),
+            )
 
             # Inherit owns
             relation.owns |= parent.owns
+
+            # Inherit keys and uniques
+            relation.keys |= parent.keys
+            relation.uniques |= parent.uniques
+
+            # Inherit parent cardinalities (child can override)
+            for attr, card in parent.cardinalities.items():
+                if attr not in relation.cardinalities:
+                    relation.cardinalities[attr] = card
 
             # Inherit roles - but child may override with "as"
             child_role_names = {r.name for r in relation.roles}
@@ -352,7 +367,13 @@ def _accumulate_relation_inheritance(schema: ParsedSchema) -> None:
             if parent_attrs:
                 relation.owns_order[:0] = parent_attrs
 
-            after = (len(relation.owns), len(relation.roles))
+            after = (
+                len(relation.owns),
+                len(relation.roles),
+                len(relation.keys),
+                len(relation.uniques),
+                len(relation.cardinalities),
+            )
             changed = changed or before != after
 
 

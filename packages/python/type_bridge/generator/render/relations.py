@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from ..models import minimal_role_players
 from ..naming import to_class_name, to_python_name
+from .entities import _render_attr_field
 from .template_loader import get_template
 
 if TYPE_CHECKING:
@@ -110,12 +111,23 @@ def _build_relation_context(
 
     attr_fields = []
     own_attrs = [a for a in relation.owns_order if a not in parent_owns]
+    key_attrs = relation.keys & relation.owns
+    unique_attrs = relation.uniques & relation.owns
+
     for attr in own_attrs:
         if attr not in attr_class_names:
             continue
-        py_attr = to_python_name(attr)
         attr_class = attr_class_names[attr]
-        attr_fields.append(f"{py_attr}: attributes.{attr_class}")
+        cardinality = relation.cardinalities.get(attr)
+        attr_fields.append(
+            _render_attr_field(
+                attr_name=attr,
+                attr_class=attr_class,
+                is_key=attr in key_attrs,
+                is_unique=attr in unique_attrs,
+                cardinality=cardinality,
+            )
+        )
 
     # Roles - only render those not inherited
     parent_roles = set()
@@ -158,6 +170,25 @@ def _build_relation_context(
     )
 
 
+def _needs_card_import(schema: ParsedSchema) -> bool:
+    """Check if any relation uses multi-valued attributes requiring Card."""
+    return any(
+        card.is_multi
+        for relation in schema.relations.values()
+        for card in relation.cardinalities.values()
+    )
+
+
+def _needs_key_import(schema: ParsedSchema) -> bool:
+    """Check if any relation has @key attributes."""
+    return any(relation.keys for relation in schema.relations.values())
+
+
+def _needs_unique_import(schema: ParsedSchema) -> bool:
+    """Check if any relation has @unique attributes."""
+    return any(relation.uniques for relation in schema.relations.values())
+
+
 def render_relations(
     schema: ParsedSchema,
     attr_class_names: dict[str, str],
@@ -179,6 +210,18 @@ def render_relations(
     if relation_class_names is None:
         relation_class_names = {name: to_class_name(name) for name in schema.relations}
 
+    # Build imports list
+    imports = ["Relation", "Role", "TypeFlags"]
+    needs_flag = _needs_key_import(schema) or _needs_unique_import(schema)
+    if _needs_card_import(schema):
+        imports.insert(0, "Card")
+    if needs_flag:
+        imports.insert(0, "Flag")
+    if _needs_key_import(schema):
+        imports.append("Key")
+    if _needs_unique_import(schema):
+        imports.append("Unique")
+
     relations = []
     all_names = []
     for relation_name in _topological_sort_relations(schema):
@@ -195,6 +238,7 @@ def render_relations(
 
     template = get_template("relations.py.jinja")
     result = template.render(
+        imports=imports,
         relations=relations,
         all_names=sorted(all_names),
     )

@@ -275,3 +275,104 @@ class TestConnectionTypeAlias:
         # Type checking - Connection should accept TransactionContext
         conn: Connection = ctx
         assert isinstance(conn, TransactionContext)
+
+
+class TestDriverInjection:
+    """Tests for external driver injection feature (issue #85)."""
+
+    def test_driver_none_by_default(self):
+        """Database should have no driver by default."""
+        db = Database()
+        assert db._driver is None
+        assert db._owns_driver is True  # Will own any driver it creates
+
+    def test_injected_driver_stored(self):
+        """Database should store injected driver."""
+        mock_driver = MagicMock()
+        db = Database(driver=mock_driver)
+        assert db._driver is mock_driver
+        assert db._owns_driver is False  # Does not own injected driver
+
+    def test_connect_skips_when_driver_injected(self):
+        """connect() should be a no-op when driver is injected."""
+        mock_driver = MagicMock()
+        db = Database(driver=mock_driver)
+
+        # connect() should not modify the driver
+        db.connect()
+        assert db._driver is mock_driver
+        assert db._owns_driver is False
+
+    def test_close_clears_reference_but_does_not_close_injected_driver(self):
+        """close() should clear reference but not close injected driver."""
+        mock_driver = MagicMock()
+        db = Database(driver=mock_driver)
+
+        db.close()
+
+        # Reference should be cleared
+        assert db._driver is None
+        # But close() should NOT have been called on the driver
+        mock_driver.close.assert_not_called()
+
+    def test_close_closes_owned_driver(self):
+        """close() should close driver when Database owns it."""
+        mock_driver = MagicMock()
+        db = Database()
+        # Simulate connect() creating a driver
+        db._driver = mock_driver
+        db._owns_driver = True
+
+        db.close()
+
+        # Driver should be closed
+        mock_driver.close.assert_called_once()
+        assert db._driver is None
+
+    def test_driver_property_returns_injected_driver(self):
+        """driver property should return injected driver without connecting."""
+        mock_driver = MagicMock()
+        db = Database(driver=mock_driver)
+
+        # Accessing driver property should return the injected driver
+        assert db.driver is mock_driver
+        # connect() should not have been called (no new driver created)
+        assert db._owns_driver is False
+
+    def test_context_manager_with_injected_driver(self):
+        """Context manager should work with injected driver."""
+        mock_driver = MagicMock()
+
+        with Database(driver=mock_driver) as db:
+            assert db._driver is mock_driver
+
+        # After exit, reference cleared but driver not closed
+        assert db._driver is None
+        mock_driver.close.assert_not_called()
+
+    def test_multiple_databases_share_driver(self):
+        """Multiple Database instances can share the same driver."""
+        mock_driver = MagicMock()
+
+        db1 = Database(database="db1", driver=mock_driver)
+        db2 = Database(database="db2", driver=mock_driver)
+
+        assert db1._driver is mock_driver
+        assert db2._driver is mock_driver
+        assert db1._owns_driver is False
+        assert db2._owns_driver is False
+
+        # Close both - driver should NOT be closed
+        db1.close()
+        db2.close()
+        mock_driver.close.assert_not_called()
+
+    def test_database_exists_with_injected_driver(self):
+        """database_exists() should work with injected driver."""
+        mock_driver = MagicMock()
+        mock_driver.databases.contains.return_value = True
+
+        db = Database(database="test_db", driver=mock_driver)
+
+        assert db.database_exists() is True
+        mock_driver.databases.contains.assert_called_with("test_db")

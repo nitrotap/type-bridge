@@ -1381,6 +1381,87 @@ count = user_manager.filter(Age.gt(Age(65))).delete()  # Returns count
 # Use filter().delete() instead for filter-based deletion
 ```
 
+## Database Configuration
+
+### Basic Connection
+
+```python
+from type_bridge import Database
+
+# Default connection
+db = Database()  # localhost:1729, database="typedb"
+
+# Custom connection
+db = Database(
+    address="192.168.1.100:1729",
+    database="mydb",
+    username="admin",
+    password="secret"
+)
+db.connect()
+
+# Context manager (auto-connects and closes)
+with Database(database="mydb") as db:
+    person_manager = Person.manager(db)
+    # ... operations ...
+```
+
+### Driver Injection
+
+For advanced use cases, you can inject an external `Driver` instance instead of having `Database` create one internally. This enables:
+
+- **Connection sharing** across multiple `Database` instances
+- **Resource pooling** with custom driver management
+- **Easier testing** via mock driver injection
+
+```python
+from typedb.driver import TypeDB, Credentials, DriverOptions
+
+# Create a shared driver
+driver = TypeDB.driver(
+    "localhost:1729",
+    Credentials("admin", "password"),
+    DriverOptions()
+)
+
+# Multiple databases share one connection
+db1 = Database(database="project_a", driver=driver)
+db2 = Database(database="project_b", driver=driver)
+
+# Use both databases
+with db1.transaction("write") as tx:
+    Person.manager(tx).insert(alice)
+
+with db2.transaction("read") as tx:
+    results = Artifact.manager(tx).all()
+
+# Close databases (only clears references, doesn't close driver)
+db1.close()
+db2.close()
+
+# Close driver when done (caller's responsibility)
+driver.close()
+```
+
+**Ownership semantics:**
+- `driver=None` (default): `Database` creates and owns the driver, `close()` closes it
+- `driver=<Driver>`: `Database` uses but doesn't own it, `close()` only clears the reference
+
+### Testing with Mock Driver
+
+```python
+from unittest.mock import MagicMock
+
+def test_database_operations():
+    mock_driver = MagicMock()
+    mock_driver.databases.contains.return_value = True
+
+    db = Database(database="test_db", driver=mock_driver)
+
+    assert db.database_exists() is True
+    mock_driver.databases.contains.assert_called_with("test_db")
+```
+
 ## See Also
 
 - [Entities](entities.md) - Entity definition
