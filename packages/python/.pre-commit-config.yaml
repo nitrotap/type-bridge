@@ -1,0 +1,25 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty type check
+        entry: bash -c 'cd packages/python && uvx ty check .'
+        language: system
+        pass_filenames: false
+        always_run: true
+        types: [python]
+
+      - id: pyright
+        name: pyright type check
+        entry: bash -c 'cd packages/python && uv run pyright tests/'
+        language: system
+        pass_filenames: false
+        always_run: true
+        types: [python]

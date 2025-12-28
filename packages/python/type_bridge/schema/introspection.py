@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from type_bridge.models import Entity, Relation
     from type_bridge.session import Database
 
 logger = logging.getLogger(__name__)
@@ -119,7 +120,9 @@ class SchemaIntrospector:
         """
         self.db = db
 
-    def introspect_for_models(self, models: list[type]) -> IntrospectedSchema:
+    def introspect_for_models(
+        self, models: list[type[Entity] | type[Relation]]
+    ) -> IntrospectedSchema:
         """Introspect database schema for specific model types.
 
         This is the TypeDB 3.x compatible approach that checks each
@@ -211,7 +214,10 @@ class SchemaIntrospector:
             return False
 
     def _introspect_ownerships_for_type(
-        self, schema: IntrospectedSchema, type_name: str, model: type | None = None
+        self,
+        schema: IntrospectedSchema,
+        type_name: str,
+        model: type[Entity] | type[Relation] | None = None,
     ) -> None:
         """Introspect ownerships for a specific type.
 
@@ -260,7 +266,7 @@ class SchemaIntrospector:
                         )
 
     def _introspect_roles_for_relation(
-        self, schema: IntrospectedSchema, rel_name: str, model: type
+        self, schema: IntrospectedSchema, rel_name: str, model: type[Relation]
     ) -> None:
         """Introspect roles for a relation using model definition.
 

@@ -22,6 +22,7 @@ from type_bridge.expressions import (
 )
 
 if TYPE_CHECKING:
+    from type_bridge.attribute import Attribute
     from type_bridge.models import Relation
 
 
@@ -173,7 +174,7 @@ def _parse_role_attribute_lookup(
         )
 
     # Collect all attributes from all player types (for Role.multi)
-    all_player_attrs: dict[str, tuple[type, Any]] = {}  # field_name -> (attr_type, attr_info)
+    all_player_attrs: dict[str, tuple[type[Attribute], Any]] = {}
     for player_type in player_types:
         player_attrs = player_type.get_all_attributes()
         for field_name, attr_info in player_attrs.items():
@@ -214,7 +215,7 @@ def _parse_role_attribute_lookup(
 
 
 def _build_lookup_expression(
-    attr_type: type,
+    attr_type: type[Attribute],
     lookup: str,
     value: Any,
 ) -> Expression:

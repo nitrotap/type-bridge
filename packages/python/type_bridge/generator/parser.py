@@ -93,18 +93,68 @@ class SchemaTransformer(Transformer):
         return {"independent": True}
 
     def regex_annotation(self, items: list[Any]) -> dict[str, str]:
+        import re
+
         raw = str(items[0])
-        return {"regex": raw[1:-1]}
+        pattern = raw[1:-1]  # Strip quotes
+
+        # Validate: must be a valid regex pattern
+        try:
+            re.compile(pattern)
+        except re.error as e:
+            raise ValueError(
+                f"Invalid @regex pattern: '{pattern}'. "
+                f"Must be a valid regular expression. Error: {e}"
+            )
+
+        return {"regex": pattern}
 
     def values_annotation(self, items: list[Any]) -> dict[str, tuple[str, ...]]:
-        return {"values": tuple(items[0])}
+        values = items[0]
+
+        # Validate: must have at least one value
+        if not values:
+            raise ValueError(
+                "Invalid @values annotation: must have at least one value. "
+                'Example: @values("active", "inactive")'
+            )
+
+        # Validate: no duplicate values
+        seen: set[str] = set()
+        duplicates: list[str] = []
+        for v in values:
+            if v in seen:
+                duplicates.append(v)
+            seen.add(v)
+
+        if duplicates:
+            raise ValueError(
+                f"Invalid @values annotation: duplicate values found: {duplicates}. "
+                "Each value must be unique."
+            )
+
+        return {"values": tuple(values)}
 
     def range_annotation(self, items: list[Any]) -> dict[str, str | None]:
         # items[0] is RANGE_EXPR token containing "min..max" or "min.." or "..max"
-        expr = str(items[0])
+        expr = str(items[0]).strip()
+
+        # Validate: @range must use .. syntax, not comma
+        if ".." not in expr:
+            if "," in expr:
+                raise ValueError(
+                    f"Invalid @range syntax: '@range({expr})'. "
+                    f"Use '..' syntax instead of comma, e.g., '@range(1..5)' not '@range(1, 5)'"
+                )
+            else:
+                raise ValueError(
+                    f"Invalid @range syntax: '@range({expr})'. "
+                    f"Expected 'min..max', 'min..', or '..max' format, e.g., '@range(1..5)'"
+                )
+
         parts = expr.split("..")
-        range_min = parts[0] if parts[0] else None
-        range_max = parts[1] if len(parts) > 1 and parts[1] else None
+        range_min = parts[0].strip() if parts[0].strip() else None
+        range_max = parts[1].strip() if len(parts) > 1 and parts[1].strip() else None
         return {"range_min": range_min, "range_max": range_max}
 
     def string_list(self, items: list[Any]) -> list[str]:
@@ -215,13 +265,40 @@ class SchemaTransformer(Transformer):
         return {"cascade": True}
 
     def subkey_annotation(self, items: list[Any]) -> dict[str, str]:
-        return {"subkey": str(items[0])}
+        import re
+
+        identifier = str(items[0])
+
+        # Validate: must be a valid TypeDB identifier
+        # TypeDB identifiers: start with letter/underscore, contain letters/digits/underscores/hyphens
+        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_-]*$", identifier):
+            raise ValueError(
+                f"Invalid @subkey identifier: '{identifier}'. "
+                "Must be a valid identifier (start with letter or underscore, "
+                "contain only letters, digits, underscores, and hyphens)."
+            )
+
+        return {"subkey": identifier}
 
     def card_annotation(self, items: list[Any]) -> dict[str, Cardinality]:
         # Filter None (from optional grammar groups)
         real_items = [x for x in items if x is not None]
 
+        # Check for comma syntax error (would appear as multiple items without "..")
+        raw_str = " ".join(str(x) for x in real_items)
+        if "," in raw_str:
+            raise ValueError(
+                f"Invalid @card syntax: found comma in '{raw_str}'. "
+                "Use '..' syntax for ranges, e.g., '@card(1..5)' not '@card(1, 5)'"
+            )
+
         min_val = int(real_items[0])
+
+        # Validate: min must be non-negative
+        if min_val < 0:
+            raise ValueError(
+                f"Invalid @card annotation: minimum value {min_val} cannot be negative."
+            )
 
         if len(real_items) == 1:
             # @card(x) -> exactly x
@@ -232,6 +309,13 @@ class SchemaTransformer(Transformer):
         last = real_items[-1]
         if hasattr(last, "type") and last.type == "INT":
             max_val = int(last)
+
+            # Validate: min must be <= max
+            if min_val > max_val:
+                raise ValueError(
+                    f"Invalid @card annotation: minimum ({min_val}) cannot be greater "
+                    f"than maximum ({max_val}). Use '@card({max_val}..{min_val})' instead."
+                )
         else:
             max_val = None  # Unbounded
 

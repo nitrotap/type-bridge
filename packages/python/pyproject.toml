@@ -54,6 +54,22 @@ dev = [
 python = ".venv"
 extra-paths = ["."]
 
+# Tests and examples use metaclass patterns that ty can't fully understand
+[[tool.ty.overrides]]
+include = ["tests/**", "examples/**"]
+
+[tool.ty.overrides.rules]
+# Metaclass-generated __init__ kwargs
+unknown-argument = "ignore"
+# Dynamic attributes from hasattr checks
+unresolved-attribute = "ignore"
+# Dynamic method calls after hasattr
+call-non-callable = "ignore"
+# Type coercion in tests
+invalid-argument-type = "ignore"
+invalid-assignment = "ignore"
+unsupported-operator = "ignore"
+
 [tool.mypy]
 python_version = "3.13"
 ignore_missing_imports = false

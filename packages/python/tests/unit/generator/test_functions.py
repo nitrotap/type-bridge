@@ -161,12 +161,12 @@ class TestRenderFunctions:
         source = render_functions(schema)
 
         assert (
-            "def calculate_age(birth_date: date | Expression) -> FunctionCallExpr[Iterator[int]]:"
-            in source
+            "def calculate_age(birth_date: date | str) -> FunctionQuery[Iterator[int]]:" in source
         )
-        assert 'return FunctionCallExpr("calculate-age", [birth_date])' in source
+        assert 'name="calculate-age"' in source
+        assert 'args=[("$birth-date", birth_date)]' in source
         assert "from datetime import date" in source
-        assert "from type_bridge.expressions import Expression, FunctionCallExpr" in source
+        assert "from type_bridge.expressions import FunctionQuery, ReturnType" in source
 
     def test_render_multi_arg_function(self) -> None:
         """Render function with multiple arguments."""
@@ -179,10 +179,11 @@ class TestRenderFunctions:
         source = render_functions(schema)
 
         assert (
-            "def risk_score(age: int | Expression, income: float | Expression) -> FunctionCallExpr[Iterator[float]]:"
+            "def risk_score(age: int | str, income: float | str) -> FunctionQuery[Iterator[float]]:"
             in source
         )
-        assert 'return FunctionCallExpr("risk-score", [age, income])' in source
+        assert 'name="risk-score"' in source
+        assert 'args=[("$age", age), ("$income", income)]' in source
 
 
 class TestGenerateFunctions:

@@ -18,6 +18,9 @@ This project requires **Python 3.13+** (see .python-version)
 # Install dependencies
 uv sync --extra dev
 
+# Install pre-commit hooks (required for development)
+pre-commit install
+
 # Run tests
 uv run pytest                    # Unit tests (fast, no deps)
 ./test-integration.sh            # Integration tests (with Docker)
@@ -26,6 +29,12 @@ Podman users: integration tests work with Podman too—set `CONTAINER_TOOL=podma
 
 # Run examples
 uv run python examples/basic/crud_01_define.py
+
+# Code quality (run before committing)
+uv run ruff check --fix .        # Lint and auto-fix
+uv run ruff format .             # Format code
+uvx ty check .                   # Type check library
+uv run pyright tests/            # Type check tests
 ```
 
 ## Project Structure
